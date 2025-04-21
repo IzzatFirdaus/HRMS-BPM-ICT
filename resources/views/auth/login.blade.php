@@ -1,6 +1,10 @@
 @php
+    use App\Helpers\Helpers;
+@endphp
+
+@php
     $customizerHidden = 'customizer-hide';
-    $configData = Helper::appClasses();
+    $configData = Helpers::appClasses();
 @endphp
 
 @extends('layouts/blankLayout')
