@@ -31,72 +31,75 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+// Language Switching Route
 Route::get('lang/{locale}', [LanguageController::class, 'swap']);
 
+// Authenticated Routes
 Route::middleware([
-    'auth:sanctum',
-    config('jetstream.auth_session'),
-    'verified',
-    'allow_admin_during_maintenance',
+  'auth:sanctum',
+  config('jetstream.auth_session'),
+  'verified',
+  'allow_admin_during_maintenance',
 ])->group(function () {
-    // 👉 Dashboard
-    Route::group(['middleware' => ['role:Admin|AM|CC|CR|HR']], function () {
-        Route::redirect('/', '/dashboard');
-        Route::get('/dashboard', Dashboard::class)->name('dashboard');
+  // Dashboard Routes
+  Route::group(['middleware' => ['role:Admin|AM|CC|CR|HR']], function () {
+    Route::redirect('/', '/dashboard');
+    Route::get('/dashboard', Dashboard::class)->name('dashboard');
+  });
+
+  // Human Resource Routes
+  Route::prefix('hr')->group(function () {
+    // Attendance Routes
+    Route::prefix('attendance')->middleware(['role:Admin|HR|CC'])->group(function () {
+      Route::get('/fingerprints', Fingerprints::class)->middleware(['role:Admin|HR'])->name('attendance-fingerprints');
+      Route::get('/leaves', Leaves::class)->name('attendance-leaves');
     });
 
-    // 👉 Human Resource
-    Route::group(['middleware' => ['role:Admin|HR']], function () {
-        Route::prefix('attendance')->group(function () {
-            Route::get('/fingerprints', Fingerprints::class)->name('attendance-fingerprints');
-        });
+    // Structure Routes
+    Route::prefix('structure')->middleware(['role:Admin|HR'])->group(function () {
+      Route::get('/centers', Centers::class)->name('structure-centers');
+      Route::get('/departments', Departments::class)->name('structure-departments');
+      Route::get('/positions', Positions::class)->name('structure-positions');
+      Route::get('/employees', Employees::class)->name('structure-employees');
+      Route::get('/employee/{id?}', EmployeeInfo::class)->name('structure-employees-info');
     });
 
-    Route::group(['middleware' => ['role:Admin|HR|CC']], function () {
-        Route::prefix('attendance')->group(function () {
-            Route::get('/leaves', Leaves::class)->name('attendance-leaves');
-        });
+    // Other HR Routes
+    Route::middleware(['role:Admin|HR'])->group(function () {
+      Route::get('/messages', Messages::class)->name('messages');
+      Route::get('/discounts', Discounts::class)->name('discounts');
+      Route::get('/holidays', Holidays::class)->name('holidays');
+      Route::get('/statistics', Statistics::class)->name('statistics');
     });
+  });
 
-    Route::group(['middleware' => ['role:Admin|HR']], function () {
-        Route::prefix('structure')->group(function () {
-            Route::get('/centers', Centers::class)->name('structure-centers');
-            Route::get('/departments', Departments::class)->name('structure-departments');
-            Route::get('/positions', Positions::class)->name('structure-positions');
-            Route::get('/employees', Employees::class)->name('structure-employees');
-            Route::get('/employee/{id?}', EmployeeInfo::class)->name('structure-employees-info');
-        });
-    });
+  // Settings Routes
+  Route::prefix('settings')->middleware(['role:Admin'])->group(function () {
+    Route::get('/users', Users::class)->name('settings-users');
+    Route::get('/roles', ComingSoon::class)->name('settings-roles');
+    Route::get('/permissions', ComingSoon::class)->name('settings-permissions');
+  });
 
-    Route::group(['middleware' => ['role:Admin|HR']], function () {
-        Route::get('/messages', Messages::class)->name('messages');
-        Route::get('/discounts', Discounts::class)->name('discounts');
-        Route::get('/holidays', Holidays::class)->name('holidays');
-    });
-
-    Route::group(['middleware' => ['role:Admin|HR']], function () {
-        Route::get('/statistics', Statistics::class)->name('statistics');
-    });
-
-    Route::group(['middleware' => ['role:Admin']], function () {
-        Route::prefix('settings')->group(function () {
-            Route::get('/users', Users::class)->name('settings-users');
-            Route::get('/roles', ComingSoon::class)->name('settings-roles');
-            Route::get('/permissions', ComingSoon::class)->name('settings-permissions');
-        });
-    });
-
-    // 👉 Assets
-    Route::group(['middleware' => ['role:Admin|AM']], function () {
-        Route::get('/assets/inventory', Inventory::class)->name('inventory');
-        Route::get('/assets/categories', Categories::class)->name('categories');
-        // Route::get('/assets/transfers', ComingSoon::class)->name('transfers');
-    });
-    Route::group(['middleware' => ['role:Admin|AM|HR']], function () {
-        Route::get('/assets/reports', ComingSoon::class)->name('reports');
-    });
+  // Assets Routes
+  Route::prefix('assets')->group(function () {
+    Route::get('/inventory', Inventory::class)->middleware(['role:Admin|AM'])->name('inventory');
+    Route::get('/categories', Categories::class)->middleware(['role:Admin|AM'])->name('categories');
+    Route::get('/reports', ComingSoon::class)->middleware(['role:Admin|AM|HR'])->name('reports');
+    // Route::get('/transfers', ComingSoon::class)->name('transfers');
+  });
 });
 
+// Public Contact Us Route
 Route::get('/contact-us', ContactUs::class)->name('contact-us');
 
+// Deploy Webhook Route
 Route::webhooks('/deploy');
+
+// Additional Authenticated Resource Routes (assuming these controllers exist)
+Route::middleware(['auth'])->group(function () {
+  // Route::resource('email-applications', EmailApplicationController::class);
+  // Route::resource('loan-applications', LoanApplicationController::class);
+  // Route::resource('transactions', LoanTransactionController::class);
+  // Route::resource('approvals', ApprovalController::class);
+  // Route::resource('equipment', EquipmentController::class);
+});
