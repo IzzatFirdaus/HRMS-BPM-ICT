@@ -9,35 +9,38 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
+  /**
+   * Register any application services.
+   */
+  public function register(): void
+  {
+    //
+  }
 
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        /* preventLazyLoading
+  /**
+   * Bootstrap any application services.
+   */
+  public function boot(): void
+  {
+    /* preventLazyLoading
          * preventAccessingMissingAttributes
          * preventSilentlyDiscardingAttributes
          * you can enable all of them at once by using the 'Model::shouldBeStrict()'
          */
-        // Model::preventAccessingMissingAttributes();
-        // Model::preventSilentlyDiscardingAttributes();
+    // Model::preventAccessingMissingAttributes();
+    // Model::preventSilentlyDiscardingAttributes();
 
-        Lang::handleMissingKeysUsing(function (string $key, array $replacements, string $locale) {
-            info("Missing translation key [$key] detected.");
+    Lang::handleMissingKeysUsing(function (string $key, array $replacements, string $locale) {
+      info("Missing translation key [$key] detected.");
 
-            return $key;
-        });
+      return $key;
+    });
 
-        Carbon::setWeekStartsAt(Carbon::SUNDAY);
+    // Set Carbon’s locale globally (week start follows locale’s setting)
+    Carbon::setLocale(config('app.locale'));
 
-        Carbon::setWeekendDays([Carbon::FRIDAY, Carbon::SATURDAY]);
-    }
+    //Carbon::setWeekStartsAt(Carbon::SUNDAY);
+
+    //Carbon::setWeekendDays([Carbon::FRIDAY, Carbon::SATURDAY]);
+  }
 }

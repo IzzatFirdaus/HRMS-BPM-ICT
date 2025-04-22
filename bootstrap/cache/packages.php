@@ -1,24 +1,20 @@
 <?php return array (
   'barryvdh/laravel-debugbar' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Barryvdh\\Debugbar\\ServiceProvider',
-    ),
     'aliases' => 
     array (
       'Debugbar' => 'Barryvdh\\Debugbar\\Facades\\Debugbar',
     ),
+    'providers' => 
+    array (
+      0 => 'Barryvdh\\Debugbar\\ServiceProvider',
+    ),
   ),
-  'jenssegers/agent' => 
+  'barryvdh/laravel-ide-helper' => 
   array (
     'providers' => 
     array (
-      0 => 'Jenssegers\\Agent\\AgentServiceProvider',
-    ),
-    'aliases' => 
-    array (
-      'Agent' => 'Jenssegers\\Agent\\Facades\\Agent',
+      0 => 'Barryvdh\\LaravelIdeHelper\\IdeHelperServiceProvider',
     ),
   ),
   'laravel/fortify' => 
@@ -58,24 +54,24 @@
   ),
   'livewire/livewire' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Livewire\\LivewireServiceProvider',
-    ),
     'aliases' => 
     array (
       'Livewire' => 'Livewire\\Livewire',
     ),
+    'providers' => 
+    array (
+      0 => 'Livewire\\LivewireServiceProvider',
+    ),
   ),
   'maatwebsite/excel' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Maatwebsite\\Excel\\ExcelServiceProvider',
-    ),
     'aliases' => 
     array (
       'Excel' => 'Maatwebsite\\Excel\\Facades\\Excel',
+    ),
+    'providers' => 
+    array (
+      0 => 'Maatwebsite\\Excel\\ExcelServiceProvider',
     ),
   ),
   'nesbot/carbon' => 
@@ -101,35 +97,35 @@
   ),
   'opcodesio/log-viewer' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Opcodes\\LogViewer\\LogViewerServiceProvider',
-    ),
     'aliases' => 
     array (
       'LogViewer' => 'Opcodes\\LogViewer\\Facades\\LogViewer',
     ),
+    'providers' => 
+    array (
+      0 => 'Opcodes\\LogViewer\\LogViewerServiceProvider',
+    ),
   ),
   'pixinvent/vuexy-laravel-bootstrap-jetstream' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Pixinvent\\Jetstrap\\JetstrapServiceProvider',
-    ),
     'aliases' => 
     array (
       'Jetstrap' => 'Pixinvent\\Jetstrap\\JetstrapFacade',
     ),
+    'providers' => 
+    array (
+      0 => 'Pixinvent\\Jetstrap\\JetstrapServiceProvider',
+    ),
   ),
   'spatie/laravel-ignition' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Spatie\\LaravelIgnition\\IgnitionServiceProvider',
-    ),
     'aliases' => 
     array (
       'Flare' => 'Spatie\\LaravelIgnition\\Facades\\Flare',
+    ),
+    'providers' => 
+    array (
+      0 => 'Spatie\\LaravelIgnition\\IgnitionServiceProvider',
     ),
   ),
   'spatie/laravel-permission' => 

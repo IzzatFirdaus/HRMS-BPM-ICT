@@ -8,7 +8,7 @@ use App\Services\EmailProvisioningService; // Service for business logic
 use App\Http\Requests\StoreEmailApplicationRequest; // Form Request for validation
 use Illuminate\Http\Request; // Standard Request object (needed for update)
 
-class EmailApplicationsController extends Controller
+class EmailApplicationController extends Controller
 {
   /**
    * Display a listing of the email applications.
