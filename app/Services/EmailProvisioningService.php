@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\User; // Import the User model
-use App\Models\EmailApplication; // Import the EmailApplication model.  Adjust the namespace if needed.
+use App\Models\User;
+use App\Models\EmailApplication;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log; // For logging
+use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\WelcomeEmail; // Ensure this import exists and is correct
 
 class EmailProvisioningService
 {
@@ -36,12 +38,41 @@ class EmailProvisioningService
 
       return $email;
     } catch (Exception $e) {
-      Log::error('Failed to generate email for user ' . $user->id . ': ' . $e->getMessage());
+      Log::error('Failed to generate email for user ' . ($user ? $user->id : 'null') . ': ' . $e->getMessage());
       // It's crucial to handle exceptions.  You might want to:
       // 1.  Throw the exception to be handled by a higher level (e.g., controller).
       // 2.  Return a default value (less preferred, but possible).
       // 3.  Return null or false, and handle that in the caller.
       throw $e; // Re-throw the exception so that it's handled by caller
+    }
+  }
+
+  /**
+   * Creates a new email application record.
+   *
+   * @param array $data The validated data from the store request.
+   * @return \App\Models\EmailApplication The newly created EmailApplication model instance.
+   */
+  public function createApplication(array $data): EmailApplication
+  {
+    try {
+      // Assuming the user is authenticated and their ID is available.
+      $userId = auth()->id();
+
+      // Create a new EmailApplication instance.
+      $application = new EmailApplication();
+      $application->user_id = $userId;
+      $application->service_status = $data['service_status'];
+      $application->purpose = $data['purpose'] ?? null; // Purpose is optional based on service status
+      $application->proposed_email = $data['proposed_email'] ?? null; // Proposed email is optional
+      $application->certification = $data['certification'];
+      $application->status = 'pending'; // Set initial status
+      $application->save();
+
+      return $application;
+    } catch (Exception $e) {
+      Log::error('Failed to create email application for user ' . auth()->id() . ': ' . $e->getMessage());
+      throw $e;
     }
   }
 
@@ -87,7 +118,7 @@ class EmailProvisioningService
         $application->save();
 
         // Optionally, send a welcome email to the user.
-        // $this->sendWelcomeEmail($user, $email, 'password'); //  Call sendWelcomeEmail
+        $this->sendWelcomeEmail($user, $email, 'password'); //  Call sendWelcomeEmail
         return true;
       } else {
         Log::error('Email provisioning failed for application ID ' . $application->id .
@@ -147,7 +178,7 @@ class EmailProvisioningService
   {
     try {
       // Use Laravel's Mail facade to send the email.
-      \Mail::to($user->email)->send(new \App\Mail\WelcomeEmail($user, $email, $password)); //  Adjust Mail class
+      Mail::to($user->email)->send(new WelcomeEmail($user, $email, $password)); //  Adjust Mail class
       Log::info('Welcome email sent to ' . $user->email . ' after email provisioning.');
     } catch (Exception $e) {
       Log::error('Failed to send welcome email to ' . $user->email . ': ' . $e->getMessage());

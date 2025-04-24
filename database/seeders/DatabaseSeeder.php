@@ -9,34 +9,40 @@ use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
-    public function run(): void
-    {
-        $this->call([
-            ContractsSeeder::class,
-            EmployeesSeeder::class,
+  /**
+   * Seed the application's database.
+   */
+  public function run(): void
+  {
+    $this->call([
+      ContractsSeeder::class,
+      EmployeesSeeder::class,
 
-            AdminUserSeeder::class,
+      AdminUserSeeder::class,
 
-            CenterSeeder::class,
-            DepartmentSeeder::class,
-            PositionSeeder::class,
-            TimelineSeeder::class,
-        ]);
+      CenterSeeder::class,
+      DepartmentSeeder::class,
+      PositionSeeder::class,
+      TimelineSeeder::class,
 
-        if (file_exists('database/seeders/SettingsSeeder.php')) {
-            $this->call([
-                SettingsSeeder::class,
-            ]);
-        }
+      // Call your new seeders here
+      GradesSeeder::class,
+      EquipmentSeeder::class,
+      // Add calls to your existing seeders if needed
+      // PermissionRoleTableSeeder::class, // Example from your repo structure
+    ]);
 
-        // Create role
-        $adminRole = Role::create(['name' => 'Admin']);
-
-        // Assign role
-        $admin = User::find(1);
-        $admin->assignRole($adminRole);
+    if (file_exists('database/seeders/SettingsSeeder.php')) {
+      $this->call([
+        SettingsSeeder::class,
+      ]);
     }
+
+    // Create role
+    $adminRole = Role::create(['name' => 'Admin']);
+
+    // Assign role
+    $admin = User::find(1);
+    $admin->assignRole($adminRole);
+  }
 }

@@ -2,63 +2,52 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Approval;
+use App\Models\EmailApplication;
+use App\Models\LoanApplication;
+use App\Services\ApprovalService;
 use Illuminate\Http\Request;
 
 class ApprovalController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
+  protected $approvalService;
+
+  public function __construct(ApprovalService $approvalService)
+  {
+    $this->middleware('auth');
+    $this->approvalService = $approvalService;
+  }
+
+  public function index()
+  {
+    $pendingApprovals = Approval::with('approvable')
+      ->where('officer_id', auth()->id())
+      ->where('status', 'pending')
+      ->get();
+
+    return view('approvals.index', compact('pendingApprovals'));
+  }
+
+  public function show(Approval $approval)
+  {
+    return view('approvals.show', compact('approval'));
+  }
+
+  public function update(Request $request, Approval $approval)
+  {
+    $request->validate([
+      'action' => 'required|in:approve,reject',
+      'comments' => 'nullable|string',
+    ]);
+
+    $approvable = $approval->approvable;
+
+    if ($request->action === 'approve') {
+      $this->approvalService->approve($approvable, $request->comments);
+    } else {
+      $this->approvalService->reject($approvable, $request->comments);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
-    }
+    return redirect()->route('approvals.index')->with('success', 'Decision recorded.');
+  }
 }
