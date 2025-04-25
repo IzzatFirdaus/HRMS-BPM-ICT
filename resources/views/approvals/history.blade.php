@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Senarai Permohonan Pinjaman Peralatan ICT</title>
+    <title>Sejarah Kelulusan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Optional: Add custom styles if needed, but prefer Tailwind */
@@ -22,6 +22,15 @@
             /* green-200 */
             color: #065f46;
             /* green-800 */
+        }
+
+        .alert-danger {
+            background-color: #fee2e2;
+            /* red-100 */
+            border-color: #fecaca;
+            /* red-200 */
+            color: #991b1b;
+            /* red-800 */
         }
 
         .table {
@@ -73,30 +82,18 @@
             cursor: pointer;
         }
 
-        .btn-primary {
-            background-color: #3b82f6;
-            /* blue-500 */
-            color: #fff;
-            border: 1px solid #3b82f6;
+        .btn-secondary {
+            background-color: #e5e7eb;
+            /* gray-200 */
+            color: #1f2937;
+            /* gray-800 */
+            border: 1px solid #e5e7eb;
         }
 
-        .btn-primary:hover {
-            background-color: #2563eb;
-            /* blue-600 */
-            border-color: #2563eb;
-        }
-
-        .btn-info {
-            background-color: #38b2ac;
-            /* teal-500 */
-            color: #fff;
-            border: 1px solid #38b2ac;
-        }
-
-        .btn-info:hover {
-            background-color: #319795;
-            /* teal-600 */
-            border-color: #319795;
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+            /* gray-300 */
+            border-color: #d1d5db;
         }
 
         .badge {
@@ -136,6 +133,8 @@
         .badge-danger {
             background-color: #fee2e2;
             /* red-100 */
+            border-color: #fecaca;
+            /* red-200 */
             color: #991b1b;
             /* red-800 */
         }
@@ -146,30 +145,6 @@
             color: #374151;
             /* gray-700 */
         }
-
-        .badge-teal {
-            /* Custom badge for 'issued' */
-            background-color: #b2f5ea;
-            /* teal-200 */
-            color: #2c7a7b;
-            /* teal-800 */
-        }
-
-        .badge-purple {
-            /* Custom badge for 'returned' */
-            background-color: #e9d8fd;
-            /* purple-200 */
-            color: #6b46c1;
-            /* purple-800 */
-        }
-
-        .badge-red {
-            /* Custom badge for 'overdue' */
-            background-color: #feb2b2;
-            /* red-200 */
-            color: #c53030;
-            /* red-800 */
-        }
     </style>
 </head>
 
@@ -179,27 +154,25 @@
     @extends('layouts.app')
 
     @section('content')
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Converted container to Tailwind --}}
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Senarai Permohonan Pinjaman Peralatan ICT</h2>
-            {{-- Converted h2 --}}
-            <a href="{{ route('loan-applications.create') }}" class="btn btn-primary mb-4"> {{-- Converted button --}}
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Permohonan Baru
-            </a>
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Container for the content --}}
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Sejarah Kelulusan</h2> {{-- Title --}}
 
-            {{-- Display success messages --}}
+            {{-- Display success or error messages --}}
             @if (session()->has('success'))
                 <div class="alert alert-success">
                     {{ session('success') }}
                 </div>
             @endif
 
-            {{-- Table to display loan applications --}}
-            @if ($applications->isEmpty())
-                <p class="text-gray-600">Tiada permohonan pinjaman peralatan ICT ditemui.</p> {{-- Message if no applications --}}
+            @if (session()->has('error'))
+                <div class="alert alert-danger">
+                    {{ session('error') }}
+                </div>
+            @endif
+
+            {{-- Table to display approval history --}}
+            @if ($approvals->isEmpty())
+                <p class="text-gray-600">Tiada sejarah kelulusan ditemui.</p> {{-- Message if no history --}}
             @else
                 <div class="overflow-x-auto shadow-sm rounded-md border border-gray-200"> {{-- Added overflow and shadow for table container --}}
                     <table class="min-w-full divide-y divide-gray-200 table"> {{-- Converted table classes --}}
@@ -208,74 +181,74 @@
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     {{-- Converted th classes --}}
-                                    Tujuan Permohonan
+                                    Permohonan
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Pinjaman
+                                    Pegawai
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Dijangka Pulang
+                                    Status Kelulusan
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Status
+                                    Peringkat
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Hantar
+                                    Catatan
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tindakan
+                                    Tarikh & Masa
                                 </th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200"> {{-- Added body background and divider --}}
-                            {{-- Loop through the collection of loan applications --}}
-                            @foreach ($applications as $app)
+                            {{-- Loop through the collection of approval records --}}
+                            @foreach ($approvals as $approval)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Converted td classes --}}
-                                        {{ Str::limit($app->purpose, 50) }} {{-- Limit purpose text for brevity --}}
+                                        {{-- Display application type and link to show page --}}
+                                        @if ($approval->approvable instanceof \App\Models\EmailApplication)
+                                            <a href="{{ route('email-applications.show', $approval->approvable) }}"
+                                                class="text-blue-600 hover:text-blue-900 font-semibold">
+                                                E-mel ICT (#{{ $approval->approvable->id }})
+                                            </a>
+                                        @elseif ($approval->approvable instanceof \App\Models\LoanApplication)
+                                            <a href="{{ route('loan-applications.show', $approval->approvable) }}"
+                                                class="text-blue-600 hover:text-blue-900 font-semibold">
+                                                Pinjaman Peralatan ICT (#{{ $approval->approvable->id }})
+                                            </a>
+                                        @else
+                                            Jenis Tidak Diketahui
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->loan_start_date?->format('d M Y') ?? 'N/A' }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->loan_end_date?->format('d M Y') ?? 'N/A' }}
+                                        {{ $approval->officer->name ?? 'N/A' }} {{-- Assuming officer relationship with 'name' --}}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Display status with a colored badge --}}
                                         <span
-                                            class="badge {{ match ($app->status) {
-                                                'draft' => 'badge-secondary',
-                                                'pending_support' => 'badge-warning',
-                                                'approved' => 'badge-info',
-                                                'partially_issued', 'issued' => 'badge-teal', // Use custom badge for issued/partially issued
-                                                'returned' => 'badge-purple', // Use custom badge for returned
-                                                'overdue' => 'badge-red', // Use custom badge for overdue
-                                                'rejected', 'cancelled' => 'badge-danger',
+                                            class="badge {{ match ($approval->status) {
+                                                'pending' => 'badge-warning',
+                                                'approved' => 'badge-success',
+                                                'rejected' => 'badge-danger',
                                                 default => 'badge-secondary',
                                             } }}">
-                                            {{ ucfirst(str_replace('_', ' ', $app->status)) }}
+                                            {{ ucfirst(str_replace('_', ' ', $approval->status)) }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->created_at->format('d M Y') }}
+                                        {{ $approval->stage ?? 'N/A' }} {{-- Display the approval stage --}}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 border-b"> {{-- Removed whitespace-nowrap for comments --}}
+                                        {{ $approval->comments ?? '-' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Link to view application details --}}
-                                        {{-- Assuming a route named 'loan-applications.show' exists --}}
-                                        <a href="{{ route('loan-applications.show', $app) }}"
-                                            class="text-blue-600 hover:text-blue-900 font-semibold">Lihat</a>
-                                        {{-- Optional: Edit button if status is 'draft' and user is authorized --}}
-                                        @if ($app->status === 'draft')
-                                            {{-- Assuming a route named 'loan-applications.edit' exists --}}
-                                            <a href="{{ route('loan-applications.edit', $app) }}"
-                                                class="text-indigo-600 hover:text-indigo-900 font-semibold ml-4">Edit</a>
-                                        @endif
+                                        {{ $approval->approval_timestamp?->format('Y-m-d H:i') ?? 'N/A' }}
                                     </td>
                                 </tr>
                             @endforeach
@@ -284,14 +257,26 @@
                 </div> {{-- End overflow-x-auto --}}
 
                 {{-- Pagination links --}}
-                @if ($applications->hasPages())
+                @if ($approvals->hasPages())
                     <div class="mt-4">
-                        {{ $applications->links() }}
+                        {{ $approvals->links() }}
                     </div>
                 @endif
             @endif
 
-        </div> {{-- End max-w-7xl container --}}
+            {{-- Back Button --}}
+            <div class="mt-6 text-center"> {{-- Centered the back button --}}
+                {{-- Assuming a route named 'approval-dashboard.index' for the main dashboard --}}
+                <a href="{{ route('approval-dashboard.index') }}" class="btn btn-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Kembali ke Dashboard Kelulusan
+                </a>
+            </div>
+
+        </div> {{-- End container --}}
     @endsection
 
 </body>

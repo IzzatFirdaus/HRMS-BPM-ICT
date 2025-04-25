@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Senarai Permohonan Pinjaman Peralatan ICT</title>
+    <title>Senarai Peralatan ICT</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Optional: Add custom styles if needed, but prefer Tailwind */
@@ -136,6 +136,8 @@
         .badge-danger {
             background-color: #fee2e2;
             /* red-100 */
+            border-color: #fecaca;
+            /* red-200 */
             color: #991b1b;
             /* red-800 */
         }
@@ -180,15 +182,19 @@
 
     @section('content')
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Converted container to Tailwind --}}
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Senarai Permohonan Pinjaman Peralatan ICT</h2>
-            {{-- Converted h2 --}}
-            <a href="{{ route('loan-applications.create') }}" class="btn btn-primary mb-4"> {{-- Converted button --}}
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Senarai Peralatan ICT</h2> {{-- Converted h2 --}}
+
+            {{-- Button to add new equipment (assuming this is an admin/BPM function) --}}
+            {{-- You might wrap this in an @can('create', App\Models\Equipment::class) --}}
+            <a href="{{ route('equipment.create') }}" class="btn btn-primary mb-4"> {{-- Assuming equipment.create route --}}
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
-                Permohonan Baru
+                Tambah Peralatan Baru
             </a>
+            {{-- @endcan --}}
+
 
             {{-- Display success messages --}}
             @if (session()->has('success'))
@@ -197,9 +203,9 @@
                 </div>
             @endif
 
-            {{-- Table to display loan applications --}}
-            @if ($applications->isEmpty())
-                <p class="text-gray-600">Tiada permohonan pinjaman peralatan ICT ditemui.</p> {{-- Message if no applications --}}
+            {{-- Table to display equipment assets --}}
+            @if ($equipment->isEmpty())
+                <p class="text-gray-600">Tiada peralatan ICT ditemui dalam inventori.</p> {{-- Message if no equipment --}}
             @else
                 <div class="overflow-x-auto shadow-sm rounded-md border border-gray-200"> {{-- Added overflow and shadow for table container --}}
                     <table class="min-w-full divide-y divide-gray-200 table"> {{-- Converted table classes --}}
@@ -208,15 +214,19 @@
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     {{-- Converted th classes --}}
-                                    Tujuan Permohonan
+                                    Jenis Aset
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Pinjaman
+                                    Jenama & Model
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Dijangka Pulang
+                                    Tag ID MOTAC
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Nombor Siri
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
@@ -224,7 +234,7 @@
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Hantar
+                                    Lokasi Semasa
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
@@ -233,49 +243,59 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200"> {{-- Added body background and divider --}}
-                            {{-- Loop through the collection of loan applications --}}
-                            @foreach ($applications as $app)
+                            {{-- Loop through the collection of equipment assets --}}
+                            @foreach ($equipment as $item)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Converted td classes --}}
-                                        {{ Str::limit($app->purpose, 50) }} {{-- Limit purpose text for brevity --}}
+                                        {{ $item->asset_type ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->loan_start_date?->format('d M Y') ?? 'N/A' }}
+                                        {{ $item->brand ?? 'N/A' }} {{ $item->model ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->loan_end_date?->format('d M Y') ?? 'N/A' }}
+                                        {{ $item->tag_id ?? 'N/A' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                        {{ $item->serial_number ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Display status with a colored badge --}}
                                         <span
-                                            class="badge {{ match ($app->status) {
-                                                'draft' => 'badge-secondary',
-                                                'pending_support' => 'badge-warning',
-                                                'approved' => 'badge-info',
-                                                'partially_issued', 'issued' => 'badge-teal', // Use custom badge for issued/partially issued
-                                                'returned' => 'badge-purple', // Use custom badge for returned
-                                                'overdue' => 'badge-red', // Use custom badge for overdue
-                                                'rejected', 'cancelled' => 'badge-danger',
+                                            class="badge {{ match ($item->status) {
+                                                'available' => 'badge-success',
+                                                'on_loan' => 'badge-warning',
+                                                'under_maintenance' => 'badge-info',
+                                                'disposed', 'lost', 'damaged' => 'badge-danger',
                                                 default => 'badge-secondary',
                                             } }}">
-                                            {{ ucfirst(str_replace('_', ' ', $app->status)) }}
+                                            {{ ucfirst(str_replace('_', ' ', $item->status)) }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->created_at->format('d M Y') }}
+                                        {{ $item->current_location ?? 'N/A' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Link to view application details --}}
-                                        {{-- Assuming a route named 'loan-applications.show' exists --}}
-                                        <a href="{{ route('loan-applications.show', $app) }}"
+                                        {{-- Link to view equipment details --}}
+                                        {{-- Assuming a route named 'equipment.show' exists --}}
+                                        <a href="{{ route('equipment.show', $item) }}"
                                             class="text-blue-600 hover:text-blue-900 font-semibold">Lihat</a>
-                                        {{-- Optional: Edit button if status is 'draft' and user is authorized --}}
-                                        @if ($app->status === 'draft')
-                                            {{-- Assuming a route named 'loan-applications.edit' exists --}}
-                                            <a href="{{ route('loan-applications.edit', $app) }}"
-                                                class="text-indigo-600 hover:text-indigo-900 font-semibold ml-4">Edit</a>
-                                        @endif
+                                        {{-- Optional: Edit button if user is authorized (e.g., BPM Staff/Admin) --}}
+                                        {{-- @can('update', $item) --}}
+                                        {{-- Assuming a route named 'equipment.edit' exists --}}
+                                        <a href="{{ route('equipment.edit', $item) }}"
+                                            class="text-indigo-600 hover:text-indigo-900 font-semibold ml-4">Edit</a>
+                                        {{-- @endcan --}}
+                                        {{-- Optional: Delete button if user is authorized --}}
+                                        {{-- @can('delete', $item) --}}
+                                        {{-- Assuming a route named 'equipment.destroy' exists --}}
+                                        {{-- This would typically be a form submission or Livewire action --}}
+                                        {{-- <form action="{{ route('equipment.destroy', $item) }}" method="POST" onsubmit="return confirm('Are you sure?')" class="inline ml-4">
+                                             @csrf
+                                             @method('DELETE')
+                                             <button type="submit" class="text-red-600 hover:text-red-900 font-semibold">Buang</button>
+                                         </form> --}}
+                                        {{-- @endcan --}}
                                     </td>
                                 </tr>
                             @endforeach
@@ -284,9 +304,9 @@
                 </div> {{-- End overflow-x-auto --}}
 
                 {{-- Pagination links --}}
-                @if ($applications->hasPages())
+                @if ($equipment->hasPages())
                     <div class="mt-4">
-                        {{ $applications->links() }}
+                        {{ $equipment->links() }}
                     </div>
                 @endif
             @endif
