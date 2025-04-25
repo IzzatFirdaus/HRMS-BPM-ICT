@@ -16,10 +16,11 @@ use App\Livewire\HumanResource\Discounts;
 use App\Livewire\HumanResource\Statistics;
 
 // Import new MOTAC Controllers
-use App\Http\Controllers\EmailApplicationsController; // New MOTAC Controller
-use App\Http\Controllers\LoanApplicationsController; // New MOTAC Controller
+use App\Http\Controllers\EmailApplicationController; // New MOTAC Controller
+use App\Http\Controllers\LoanApplicationController; // New MOTAC Controller
 use App\Http\Controllers\LoanTransactionController; // New MOTAC Controller
-use App\Http\Controllers\EquipmentController; // New MOTAC Controller
+// Correct the import for the EquipmentController to use the Admin namespace
+use App\Http\Controllers\Admin\EquipmentController; // Corrected Import
 use App\Http\Controllers\Admin\UserController as AdminUserController; // New/Updated Admin User Controller
 
 // Import existing HRMS Controllers and Livewire components (ensure correct namespaces)
@@ -97,8 +98,9 @@ Route::middleware([
     Route::get('/permissions', ComingSoon::class)->name('settings-permissions');
   });
 
-  // Existing HRMS Assets Routes
+  // Existing HRMS Assets Routes (Note: /assets prefix here vs /admin/equipment below)
   Route::prefix('assets')->group(function () {
+    // This might be the user-facing view of assets or a different admin view
     Route::get('/inventory', Inventory::class)->middleware(['role:Admin|AM'])->name('inventory');
     Route::get('/categories', Categories::class)->middleware(['role:Admin|AM'])->name('categories');
     Route::get('/reports', ComingSoon::class)->middleware(['role:Admin|AM|HR'])->name('reports'); // Existing Assets reports
@@ -119,46 +121,59 @@ Route::middleware([
 
   // Resource routes for viewing submitted applications (users can view their own, admins/approvers can view others)
   // Policies defined in AuthServiceProvider.php will handle authorization logic (can('view', $application))
-  Route::resource('email-applications', EmailApplicationsController::class)->only(['index', 'show']);
-  Route::resource('loan-applications', LoanApplicationsController::class)->only(['index', 'show']);
+  // Note: You might want these outside the 'admin' group if regular users view their own applications.
+  Route::resource('email-applications', EmailApplicationController::class)->only(['index', 'show']);
+  Route::resource('loan-applications', LoanApplicationController::class)->only(['index', 'show']);
+
+  // Route for showing a specific loan transaction (needed for BPM workflow links)
+  Route::get('loan-transactions/{transaction}', [LoanTransactionController::class, 'show'])->name('loan-transactions.show');
+
 
   // Admin and BPM Staff Routes
   Route::group(['prefix' => 'admin', 'as' => 'admin.', 'middleware' => ['auth', 'admin']], function () {
     // ... Keep existing admin routes from HRMS
 
     // MOTAC Admin/Management Routes
-    // Manage Users (If using the new AdminUserController)
-    Route::resource('users', AdminUserController::class); // Use the new/updated AdminUserController
+    // Manage Users
+    Route::resource('users', AdminUserController::class); // Uses App\Http\Controllers\Admin\UserController
 
     // Manage Equipment Assets
-    Route::resource('equipment', EquipmentController::class); // For managing equipment assets
+    // Uses App\Http\Controllers\Admin\EquipmentController
+    Route::resource('equipment', EquipmentController::class);
 
     // Manage Organizational Data specific to MOTAC (Grades)
     // Assuming you have Controllers for these
-    // Route::resource('grades', GradeController::class);
-    // You might also need dedicated routes/controllers for managing MOTAC Departments and Positions
-    // if they are separate from the HRMS structure or require different management interfaces.
+    // Route::resource('grades', App\Http\Controllers\Admin\GradeController::class); // Example using Admin namespace
 
     // BPM Staff Interface for Issuance and Return
-    // Protect these routes with roles/permissions appropriate for BPM staff (e.g., 'role:BPM_Staff' or 'can:issue-equipment')
+    // Protect these routes with roles/permissions appropriate for BPM staff
     Route::prefix('bpm')->group(function () {
       // Form to view a loan application and issue equipment
-      Route::get('/equipment/issue/{loanApplication}', [LoanApplicationsController::class, 'issueEquipmentForm'])->name('bpm.issue.form');
+      // Uses App\Http\Controllers\LoanApplicationsController
+      Route::get('/equipment/issue/{loanApplication}', [LoanApplicationController::class, 'issueEquipmentForm'])->name('bpm.issue.form');
       // Route to process the equipment issuance
-      Route::post('/equipment/issue/{loanApplication}', [LoanApplicationsController::class, 'issueEquipment'])->name('bpm.issue');
+      // Uses App\Http\Controllers\LoanApplicationsController
+      Route::post('/equipment/issue/{loanApplication}', [LoanApplicationController::class, 'issueEquipment'])->name('bpm.issue');
 
       // Form to view a loan transaction and record return
-      Route::get('/equipment/return/{transaction}', [LoanApplicationsController::class, 'returnEquipmentForm'])->name('bpm.return.form');
+      // Uses App\Http\Controllers\LoanApplicationsController
+      // Note: This route binds LoanTransaction
+      Route::get('/equipment/return/{transaction}', [LoanApplicationController::class, 'returnEquipmentForm'])->name('bpm.return.form');
       // Route to process the equipment return
-      Route::post('/equipment/return/{transaction}', [LoanApplicationsController::class, 'processReturn'])->name('bpm.return');
+      // Uses App\Http\Controllers\LoanApplicationsController
+      // Note: This route binds LoanTransaction
+      Route::post('/equipment/return/{transaction}', [LoanApplicationController::class, 'processReturn'])->name('bpm.return');
 
       // Optionally, a list of outstanding loans for BPM staff
       // Route::get('/equipment/outstanding-loans', [LoanApplicationsController::class, 'outstandingLoans'])->name('bpm.outstanding-loans');
     });
 
-    // Reporting routes for admins (if not using Livewire for all reports)
-    // Route::get('/reports/equipment', [ReportController::class, 'equipmentReport'])->name('reports.equipment');
-    // Route::get('/reports/email-accounts', [ReportController::class, 'emailAccountReport'])->name('reports.email-accounts');
+    // Reporting routes for admins
+    // Assuming ReportController is in the root App\Http\Controllers namespace or Admin namespace
+    // If in Admin namespace: Route::get('/reports/equipment', [Admin\ReportController::class, 'equipment'])->name('reports.equipment');
+    Route::get('/reports/equipment', [\App\Http\Controllers\ReportController::class, 'equipment'])->name('reports.equipment');
+    Route::get('/reports/email-accounts', [\App\Http\Controllers\ReportController::class, 'emailAccounts'])->name('reports.email-accounts');
+    Route::get('/reports/user-activity', [\App\Http\Controllers\ReportController::class, 'userActivity'])->name('reports.user-activity');
   });
 
   // ☝️ End New MOTAC Integrated Resource Management Routes ☝️

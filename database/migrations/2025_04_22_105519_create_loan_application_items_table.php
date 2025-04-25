@@ -13,13 +13,17 @@ return new class extends Migration
   {
     Schema::create('loan_application_items', function (Blueprint $table) {
       $table->id();
-      $table->foreignId('loan_application_id')->constrained()->cascadeOnDelete();
+      $table->foreignId('loan_application_id')->constrained()->cascadeOnDelete(); // Links to the parent LoanApplication
       $table->string('equipment_type'); // e.g., "Laptop", "Projector" - refers to desired type, not specific asset
-      $table->integer('quantity_requested');
-      $table->text('notes')->nullable(); // Any specific requirements
-      $table->integer('quantity_approved')->nullable(); // Quantity approved by officer
-      $table->integer('quantity_issued')->default(0); // Quantity actually issued by BPM
-      $table->timestamps();
+      $table->integer('quantity_requested'); // Quantity requested by the applicant
+      $table->text('notes')->nullable(); // Any specific requirements for this item
+      $table->integer('quantity_approved')->nullable(); // Quantity approved by the approver(s)
+      // $table->integer('quantity_issued')->default(0); // Removed: Issued quantity is tracked via LoanTransaction models
+
+      $table->timestamps(); // created_at and updated_at
+
+      // Optional: Add indexes for frequently queried columns
+      // $table->index(['loan_application_id']); // Already indexed by foreignId
     });
   }
 

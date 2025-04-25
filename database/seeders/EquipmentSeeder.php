@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use App\Models\Equipment; // Assuming you have an Equipment model
-use Illuminate\Support\Str;
+use App\Models\Equipment; // Import the Equipment model (already present)
+// use Database\Factories\EquipmentFactory; // No need to import factory explicitly if in default location
 
 class EquipmentSeeder extends Seeder
 {
@@ -14,44 +14,27 @@ class EquipmentSeeder extends Seeder
    */
   public function run(): void
   {
-    // Clear existing data
-    // DB::table('equipment')->delete(); // Use carefully, especially in production
+    // Clear existing data from the equipment table for a clean seed
+    DB::table('equipment')->truncate();
 
-    // Define sample equipment
-    $equipment = [
-      [
-        'asset_type' => 'laptop',
-        'brand' => 'Dell',
-        'model' => 'Latitude 7400',
-        'serial_number' => 'SN' . Str::random(8),
-        'tag_id' => 'MOTAC-LT-' . Str::random(4),
-        'purchase_date' => '2022-01-15',
-        'warranty_expiry_date' => '2025-01-14',
-        'status' => 'available',
-        'current_location' => 'Stor BPM',
-        'notes' => 'Standard issue laptop',
-      ],
-      [
-        'asset_type' => 'projector',
-        'brand' => 'Epson',
-        'model' => 'EB-W51',
-        'serial_number' => 'SN' . Str::random(8),
-        'tag_id' => 'MOTAC-PJ-' . Str::random(4),
-        'purchase_date' => '2023-03-10',
-        'warranty_expiry_date' => '2026-03-09',
-        'status' => 'available',
-        'current_location' => 'Stor BPM',
-        'notes' => 'Meeting room projector',
-      ],
-      // Add more sample equipment
-    ];
+    // Use the EquipmentFactory to create a larger number of fake equipment assets.
+    // The factory contains the logic for generating realistic and unique data.
+    // You can adjust the count() method to specify how many fake records you want.
+    Equipment::factory()
+      ->count(50) // FIX: Create 50 fake equipment records (adjust the number as needed)
+      // You can use states here if you want some equipment to be in specific statuses, e.g.:
+      // ->state([
+      //     'status' => 'available', // Ensure all are available
+      //     'current_location' => 'Stor BPM',
+      // ])
+      // Or mix states:
+      // ->sequence(
+      //     ['status' => 'available'],
+      //     ['status' => 'on_loan'],
+      //     ['status' => 'under_maintenance'],
+      // )
+      ->create(); // Create the records in the database
 
-    // Insert data
-    foreach ($equipment as $itemData) {
-      Equipment::create($itemData);
-    }
-
-    // Or use the factory for more flexibility (if you created the factory in Step 4)
-    // \App\Models\Equipment::factory()->count(20)->create();
+    // Removed the hardcoded sample equipment array and loop, as the factory handles data generation.
   }
 }
