@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Akaun Emel ICT</title> {{-- Updated title --}}
+    <title>Laporan Aktiviti Pengguna</title> {{-- Updated title --}}
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Optional: Add custom styles if needed, but prefer Tailwind */
@@ -100,6 +100,7 @@
             line-height: 1;
         }
 
+        /* Add badge colors if needed for activity status/type */
         .badge-info {
             background-color: #bfdbfe;
             /* blue-200 */
@@ -146,7 +147,7 @@
 
     @section('content')
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Converted container to Tailwind --}}
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Laporan Akaun Emel ICT</h2> {{-- Updated title --}}
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Laporan Aktiviti Pengguna</h2> {{-- Updated title --}}
 
             {{-- Display success messages --}}
             @if (session()->has('success'))
@@ -155,10 +156,10 @@
                 </div>
             @endif
 
-            {{-- Table to display email applications for the report --}}
-            @if ($applications->isEmpty())
-                {{-- Assuming $applications is passed from the controller and contains EmailApplication models --}}
-                <p class="text-gray-600">Tiada permohonan akaun emel ICT ditemui untuk laporan ini.</p> {{-- Message if no applications --}}
+            {{-- Table to display user activity data --}}
+            @if ($activities->isEmpty())
+                {{-- Assuming $activities is passed from the controller --}}
+                <p class="text-gray-600">Tiada aktiviti pengguna ditemui untuk laporan ini.</p> {{-- Message if no activity --}}
             @else
                 <div class="overflow-x-auto shadow-sm rounded-md border border-gray-200"> {{-- Added overflow and shadow for table container --}}
                     <table class="min-w-full divide-y divide-gray-200 table"> {{-- Converted table classes --}}
@@ -167,60 +168,68 @@
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     {{-- Converted th classes --}}
-                                    Pemohon
+                                    Pengguna
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Status Permohonan
+                                    Jenis Aktiviti
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    E-mel Rasmi MOTAC / Cadangan E-mel
-                                </th>
-                                {{-- Optional: Add more columns relevant to reports, e.g., Submission Date, Purpose --}}
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Hantar
+                                    Penerangan / Tindakan
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tujuan
+                                    Item Berkaitan
                                 </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Tarikh & Masa
+                                </th>
+                                {{-- Optional: Add more columns like IP Address, User Agent, etc. --}}
+                                {{-- <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                Alamat IP
+                            </th> --}}
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200"> {{-- Added body background and divider --}}
-                            {{-- Loop through the collection of email applications --}}
-                            @foreach ($applications as $app)
+                            {{-- Loop through the collection of activity records --}}
+                            @foreach ($activities as $activity)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Converted td classes --}}
-                                        {{ $app->user->name ?? 'N/A' }} {{-- Assuming user relationship with 'name' --}}
+                                        {{ $activity->causer->name ?? 'Sistem' }} {{-- Assuming 'causer' relationship with 'name' --}}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Display status with a colored badge --}}
-                                        <span
-                                            class="badge {{ match ($app->status) {
-                                                'draft' => 'badge-secondary',
-                                                'pending_support', 'pending_admin', 'processing' => 'badge-warning',
-                                                'approved' => 'badge-info',
-                                                'completed' => 'badge-success',
-                                                'rejected', 'provision_failed' => 'badge-danger',
-                                                default => 'badge-secondary',
-                                            } }}">
-                                            {{ ucfirst(str_replace('_', ' ', $app->status)) }}
-                                        </span>
+                                        {{ $activity->log_name ?? 'Umum' }} {{-- Assuming 'log_name' attribute --}}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 border-b"> {{-- Removed whitespace-nowrap to allow description to wrap --}}
+                                        {{ $activity->description ?? 'Tiada Penerangan' }} {{-- Assuming 'description' attribute --}}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Display final assigned email if available, otherwise proposed email --}}
-                                        {{ $app->final_assigned_email ?? ($app->proposed_email ?? '-') }}
+                                        {{-- Display related item if available --}}
+                                        @if ($activity->subject)
+                                            {{-- Assuming 'subject' relationship --}}
+                                            {{ class_basename($activity->subject_type) }} #{{ $activity->subject_id }}
+                                            {{-- Optional: Link to the related item if routes exist --}}
+                                            {{-- @if ($activity->subject instanceof \App\Models\EmailApplication)
+                                            <a href="{{ route('email-applications.show', $activity->subject) }}" class="text-blue-600 hover:text-blue-900 font-semibold">(Lihat)</a>
+                                        @elseif ($activity->subject instanceof \App\Models\LoanApplication)
+                                             <a href="{{ route('loan-applications.show', $activity->subject) }}" class="text-blue-600 hover:text-blue-900 font-semibold">(Lihat)</a>
+                                        @elseif ($activity->subject instanceof \App\Models\Equipment)
+                                             <a href="{{ route('equipment.show', $activity->subject) }}" class="text-blue-600 hover:text-blue-900 font-semibold">(Lihat)</a>
+                                        @endif --}}
+                                        @else
+                                            -
+                                        @endif
                                     </td>
-                                    {{-- Optional: Display submission date and purpose --}}
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->created_at?->format('Y-m-d') ?? 'N/A' }}
+                                        {{ $activity->created_at?->format('Y-m-d H:i:s') ?? 'N/A' }}
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-900 border-b"> {{-- Removed whitespace-nowrap --}}
-                                        {{ Str::limit($app->purpose, 50) }}
-                                    </td>
+                                    {{-- Optional: Display more data --}}
+                                    {{-- <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                    {{ $activity->ip_address ?? '-' }}
+                                </td> --}}
                                 </tr>
                             @endforeach
                         </tbody>
@@ -228,10 +237,10 @@
                 </div> {{-- End overflow-x-auto --}}
 
                 {{-- Pagination links --}}
-                @if ($applications->hasPages())
+                @if ($activities->hasPages())
                     {{-- Check if the collection is paginated --}}
                     <div class="mt-4">
-                        {{ $applications->links() }}
+                        {{ $activities->links() }}
                     </div>
                 @endif
             @endif

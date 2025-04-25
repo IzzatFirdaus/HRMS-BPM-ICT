@@ -259,9 +259,11 @@
                     <label for="purpose" class="block text-gray-700 text-sm font-bold mb-2">Tujuan Permohonan*:</label>
                     <textarea wire:model="purpose" id="purpose" class="form-control" rows="3" required
                         {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}></textarea>
-                    @error('purpose')
-                        <span class="text-danger">{{ $message }}</span>
-                    @enderror
+                    {{-- Display validation errors using standard Blade @if --}}
+                    {{-- REPLACED: @error('purpose') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                    @if ($errors->has('purpose'))
+                        <span class="text-danger">{{ $errors->first('purpose') }}</span>
+                    @endif
                 </div>
 
                 <div class="form-group">
@@ -269,9 +271,11 @@
                         Peralatan*:</label>
                     <input type="text" wire:model="location" id="location" class="form-control" required
                         {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}>
-                    @error('location')
-                        <span class="text-danger">{{ $message }}</span>
-                    @enderror
+                    {{-- Display validation errors using standard Blade @if --}}
+                    {{-- REPLACED: @error('location') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                    @if ($errors->has('location'))
+                        <span class="text-danger">{{ $errors->first('location') }}</span>
+                    @endif
                 </div>
 
                 <div class="form-group">
@@ -279,9 +283,11 @@
                         Pinjaman*:</label>
                     <input type="date" wire:model="loan_start_date" id="loan_start_date" class="form-control"
                         required {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}>
-                    @error('loan_start_date')
-                        <span class="text-danger">{{ $message }}</span>
-                    @enderror
+                    {{-- Display validation errors using standard Blade @if --}}
+                    {{-- REPLACED: @error('loan_start_date') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                    @if ($errors->has('loan_start_date'))
+                        <span class="text-danger">{{ $errors->first('loan_start_date') }}</span>
+                    @endif
                 </div>
 
                 <div class="form-group">
@@ -289,9 +295,11 @@
                         Pulang*:</label>
                     <input type="date" wire:model="loan_end_date" id="loan_end_date" class="form-control" required
                         {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}>
-                    @error('loan_end_date')
-                        <span class="text-danger">{{ $message }}</span>
-                    @enderror
+                    {{-- Display validation errors using standard Blade @if --}}
+                    {{-- REPLACED: @error('loan_end_date') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                    @if ($errors->has('loan_end_date'))
+                        <span class="text-danger">{{ $errors->first('loan_end_date') }}</span>
+                    @endif
                 </div>
             </div> {{-- End BAHAGIAN 1 --}}
 
@@ -334,9 +342,11 @@
                                 </option>
                             @endforeach
                         </select>
-                        @error('responsible_officer_id')
-                            <span class="text-danger">{{ $message }}</span>
-                        @enderror
+                        {{-- Display validation errors using standard Blade @if --}}
+                        {{-- REPLACED: @error('responsible_officer_id') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                        @if ($errors->has('responsible_officer_id'))
+                            <span class="text-danger">{{ $errors->first('responsible_officer_id') }}</span>
+                        @endif
                     </div>
 
                     {{-- Note: Jawatan & Gred and No. Telefon of the responsible officer are typically displayed
@@ -372,9 +382,12 @@
                                     <input type="text" wire:model.live="items.{{ $index }}.equipment_type"
                                         id="item-type-{{ $index }}" class="form-control" required
                                         {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}>
-                                    @error('items.' . $index . '.equipment_type')
-                                        <span class="text-danger">{{ $message }}</span>
-                                    @enderror
+                                    {{-- Display validation errors using standard Blade @if --}}
+                                    {{-- REPLACED: @error('items.' . $index . '.equipment_type') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                                    @if ($errors->has('items.' . $index . '.equipment_type'))
+                                        <span
+                                            class="text-danger">{{ $errors->first('items.' . $index . '.equipment_type') }}</span>
+                                    @endif
                                 </td>
                                 <td>
                                     {{-- wire:model binds to quantity --}}
@@ -383,18 +396,24 @@
                                         id="item-quantity-{{ $index }}" class="form-control" min="1"
                                         required
                                         {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}>
-                                    @error('items.' . $index . '.quantity_requested')
-                                        <span class="text-danger">{{ $message }}</span>
-                                    @enderror
+                                    {{-- Display validation errors using standard Blade @if --}}
+                                    {{-- REPLACED: @error('items.' . $index . '.quantity_requested') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                                    @if ($errors->has('items.' . $index . '.quantity_requested'))
+                                        <span
+                                            class="text-danger">{{ $errors->first('items.' . $index . '.quantity_requested') }}</span>
+                                    @endif
                                 </td>
                                 <td>
                                     {{-- wire:model binds to notes --}}
                                     <input type="text" wire:model.live="items.{{ $index }}.notes"
                                         id="item-notes-{{ $index }}" class="form-control"
                                         {{ $loanApplication && $loanApplication->status !== 'draft' ? 'disabled' : '' }}>
-                                    @error('items.' . $index . '.notes')
-                                        <span class="text-danger">{{ $message }}</span>
-                                    @enderror
+                                    {{-- Display validation errors using standard Blade @if --}}
+                                    {{-- REPLACED: @error('items.' . $index . '.notes') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                                    @if ($errors->has('items.' . $index . '.notes'))
+                                        <span
+                                            class="text-danger">{{ $errors->first('items.' . $index . '.notes') }}</span>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     {{-- Button to remove this item --}}
@@ -430,9 +449,11 @@
                     </button>
                 @endif
 
-                @error('items')
-                    <span class="text-danger block mt-2">{{ $message }}</span> {{-- Error for the entire items array (e.g., min:1) --}}
-                @enderror
+                {{-- Display validation errors for the entire items array using standard Blade @if --}}
+                {{-- REPLACED: @error('items') <span class="text-danger block mt-2">{{ $message }}</span> @enderror --}}
+                @if ($errors->has('items'))
+                    <span class="text-danger block mt-2">{{ $errors->first('items') }}</span> {{-- Error for the entire items array (e.g., min:1) --}}
+                @endif
 
             </div> {{-- End BAHAGIAN 3 --}}
 
@@ -460,14 +481,11 @@
                             </label>
                         </div>
                     </div>
-                    {{-- Display validation error for confirmation --}}
-                    @error('applicant_confirmation')
-                        <span class="text-danger">{{ $message }}</span>
-                    @enderror
-
-                    {{-- Note: The PDF has a "Tarikh" and "Tandatangan & Cop" below this.
-                         The timestamp is handled by the backend ($applicant_confirmation_timestamp).
-                         Tandatangan & Cop would typically be handled electronically (e.g., digital signature, or simply implied by the logged-in user submitting). --}}
+                    {{-- Display validation error for confirmation using standard Blade @if --}}
+                    {{-- REPLACED: @error('applicant_confirmation') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                    @if ($errors->has('applicant_confirmation'))
+                        <span class="text-danger">{{ $errors->first('applicant_confirmation') }}</span>
+                    @endif
                 </div> {{-- End BAHAGIAN 4 --}}
             @endif
 
@@ -497,12 +515,12 @@
                         <span wire:loading.remove>Simpan Draf</span>
                         <span wire:loading class="flex items-center">
                              <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l2-2.647z"></path>
-                            </svg>
-                            Menyimpan...
-                        </span>
-                    </button> --}}
+                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l2-2.647z"></path>
+                             </svg>
+                             Menyimpan...
+                         </span>
+                     </button> --}}
                 </div>
             @endif
 
@@ -510,12 +528,12 @@
 
         {{-- You can add sections to display application status history, approvals, transactions, etc. below the form --}}
         {{-- @if ($loanApplication)
-          <h4 class="mt-8 text-xl font-bold text-gray-800">Maklumat Proses Permohonan</h4>
-          <p class="mb-4 text-gray-700">Status Semasa: {{ $loanApplication->status }}</p>
-            // Display approvals ($loanApplication->approvals)
-            // Display transactions ($loanApplication->transactions)
-            // Display rejection reason if status is rejected
-        @endif --}}
+            <h4 class="mt-8 text-xl font-bold text-gray-800">Maklumat Proses Permohonan</h4>
+            <p class="mb-4 text-gray-700">Status Semasa: {{ $loanApplication->status }}</p>
+             // Display approvals ($loanApplication->approvals)
+             // Display transactions ($loanApplication->transactions)
+             // Display rejection reason if status is rejected
+         @endif --}}
 
 
     </div> {{-- End max-w-4xl container --}}

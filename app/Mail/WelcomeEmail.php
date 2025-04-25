@@ -9,14 +9,15 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Mail\Mailables\Address; // Optional: if you want to set 'from' address here
+use Illuminate\Contracts\Queue\ShouldQueue; // Added ShouldQueue for background sending
 
-class WelcomeEmail extends Mailable
+class WelcomeEmail extends Mailable implements ShouldQueue // Implement ShouldQueue for background sending
 {
   use Queueable, SerializesModels;
 
   public User $user; // Public property for the user
-  public string $motacEmail; // FIX: Public property for the provisioned MOTAC email
-  public string $password; // FIX: Public property for the initial password
+  public string $motacEmail; // Public property for the provisioned MOTAC email
+  public string $password; // Public property for the initial password
 
   /**
    * Create a new message instance.
@@ -26,11 +27,11 @@ class WelcomeEmail extends Mailable
    * @param string $motacEmail The provisioned MOTAC email address for the user.
    * @param string $password The initial password for the new MOTAC email account.
    */
-  public function __construct(User $user, string $motacEmail, string $password) // FIX: Added $motacEmail and $password parameters with type hints
+  public function __construct(User $user, string $motacEmail, string $password) // Constructor now accepts 3 arguments
   {
     $this->user = $user; // Assign the user data to make it available in the view
-    $this->motacEmail = $motacEmail; // FIX: Assign the provisioned email
-    $this->password = $password; // FIX: Assign the password
+    $this->motacEmail = $motacEmail; // Assign the provisioned email
+    $this->password = $password; // Assign the password
   }
 
   /**
@@ -43,7 +44,7 @@ class WelcomeEmail extends Mailable
       // You can specify the sender here if it differs from your mail.php config
       // from: new Address(config('mail.from.address'), config('mail.from.name')), // Example using config values
 
-      subject: 'Selamat Datang ke MOTAC ICT - Akaun E-mel Anda Disediakan', // FIX: More specific subject line
+      subject: 'Selamat Datang ke MOTAC ICT - Akaun E-mel Anda Disediakan', // More specific subject line
     );
   }
 
@@ -76,4 +77,20 @@ class WelcomeEmail extends Mailable
   {
     return []; // Define any attachments here if needed
   }
+
+  /**
+   * Build the message. (Alternative to content() and envelope() for older Laravel versions)
+   *
+   * @return $this
+   */
+  // public function build()
+  // {
+  //     return $this->subject('Selamat Datang ke MOTAC ICT - Akaun E-mel Anda Disediakan')
+  //                 ->view('emails.welcome')
+  //                 ->with([
+  //                     'user' => $this->user,
+  //                     'motacEmail' => $this->motacEmail,
+  //                     'password' => $this->password,
+  //                 ]);
+  // }
 }

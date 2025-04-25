@@ -14,13 +14,13 @@ class Kernel extends HttpKernel
    * @var array<int, class-string|string>
    */
   protected $middleware = [
-    // \App\Http\Middleware\TrustHosts::class,
+    // \App\Http\Middleware\TrustHosts::class, // Uncomment if you need to specify trusted hosts
     \App\Http\Middleware\TrustProxies::class,
-    \Illuminate\Http\Middleware\HandleCors::class,
-    \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
-    \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
-    \App\Http\Middleware\TrimStrings::class,
-    \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+    \Illuminate\Http\Middleware\HandleCors::class, // Handle CORS (Cross-Origin Resource Sharing)
+    \App\Http\Middleware\PreventRequestsDuringMaintenance::class, // Redirect to maintenance page if app is down
+    \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class, // Validate uploaded file size
+    \App\Http\Middleware\TrimStrings::class, // Trim whitespace from request strings
+    \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class, // Convert empty strings to null
   ];
 
   /**
@@ -30,19 +30,20 @@ class Kernel extends HttpKernel
    */
   protected $middlewareGroups = [
     'web' => [
-      \App\Http\Middleware\EncryptCookies::class,
-      \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-      \Illuminate\Session\Middleware\StartSession::class,
-      \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-      \App\Http\Middleware\VerifyCsrfToken::class,
-      \Illuminate\Routing\Middleware\SubstituteBindings::class,
-      \App\Http\Middleware\LocaleMiddleware::class, // Assuming this is an existing HRMS middleware
+      \App\Http\Middleware\EncryptCookies::class, // Encrypt cookies
+      \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class, // Add queued cookies to response
+      \Illuminate\Session\Middleware\StartSession::class, // Start the session
+      // \Illuminate\Session\Middleware\AuthenticateSession::class, // Optional: Authenticate session
+      \Illuminate\View\Middleware\ShareErrorsFromSession::class, // Share validation errors from session
+      \App\Http\Middleware\VerifyCsrfToken::class, // Verify CSRF token for form submissions
+      \Illuminate\Routing\Middleware\SubstituteBindings::class, // Substitute route model bindings
+      \App\Http\Middleware\LocaleMiddleware::class, // Assuming this is an existing HRMS middleware for localization
     ],
 
     'api' => [
-      // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-      \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api',
-      \Illuminate\Routing\Middleware\SubstituteBindings::class,
+      // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class, // For SPA authentication with Sanctum
+      \Illuminate\Routing\Middleware\ThrottleRequests::class . ':api', // Throttle API requests
+      \Illuminate\Routing\Middleware\SubstituteBindings::class, // Substitute route model bindings
     ],
   ];
 
@@ -55,24 +56,24 @@ class Kernel extends HttpKernel
    */
   protected $middlewareAliases = [
     'allow_admin_during_maintenance' => \App\Http\Middleware\AllowAdminDuringMaintenance::class, // Existing HRMS middleware
-    'auth' => \App\Http\Middleware\Authenticate::class,
-    'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
-    'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class,
-    'auth.session' => \Illuminate\Session\Middleware\AuthenticateSession::class,
-    'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
-    'can' => \Illuminate\Auth\Middleware\Authorize::class,
-    'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
-    'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
-    'signed' => \App\Http\Middleware\ValidateSignature::class,
-    'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
-    'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-    'role' => \Spatie\Permission\Middleware\RoleMiddleware::class, // Assuming Spatie permissions
-    'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class, // Assuming Spatie permissions
-    'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class, // Assuming Spatie permissions
+    'auth' => \App\Http\Middleware\Authenticate::class, // Authenticate user
+    'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class, // HTTP Basic Authentication
+    'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class, // Route model binding
+    'auth.session' => \Illuminate\Session\Middleware\AuthenticateSession::class, // Authenticate session (if not in web group)
+    'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class, // Set HTTP cache headers
+    'can' => \Illuminate\Auth\Middleware\Authorize::class, // Authorize actions using policies/gates
+    'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class, // Redirect authenticated users away from guest routes
+    'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class, // Require password confirmation
+    'signed' => \App\Http\Middleware\ValidateSignature::class, // Validate signed URLs
+    'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class, // Throttle requests
+    'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class, // Ensure email is verified
+    'role' => \Spatie\Permission\Middleware\RoleMiddleware::class, // Assuming Spatie permissions: Check user role
+    'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class, // Assuming Spatie permissions: Check user permission
+    'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class, // Assuming Spatie permissions: Check user role or permission
     'view_logs' => \App\Http\Middleware\ViewLogs::class, // Existing HRMS middleware
-    'admin' => \App\Http\Middleware\AdminMiddleware::class, // Existing HRMS middleware
+    'admin' => \App\Http\Middleware\AdminMiddleware::class, // Existing HRMS middleware: Check admin status
 
-    // Register your new middleware here for MOTAC system
+    // Register the new middleware alias for checking user grade level
     'grade' => \App\Http\Middleware\CheckGradeLevel::class,
   ];
 }

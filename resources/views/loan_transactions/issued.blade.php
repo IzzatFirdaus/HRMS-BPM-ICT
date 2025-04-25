@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Akaun Emel ICT</title> {{-- Updated title --}}
+    <title>Peralatan Sedang Dipinjam</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Optional: Add custom styles if needed, but prefer Tailwind */
@@ -73,18 +73,30 @@
             cursor: pointer;
         }
 
-        .btn-secondary {
-            background-color: #e5e7eb;
-            /* gray-200 */
-            color: #1f2937;
-            /* gray-800 */
-            border: 1px solid #e5e7eb;
+        .btn-primary {
+            background-color: #3b82f6;
+            /* blue-500 */
+            color: #fff;
+            border: 1px solid #3b82f6;
         }
 
-        .btn-secondary:hover {
-            background-color: #d1d5db;
-            /* gray-300 */
-            border-color: #d1d5db;
+        .btn-primary:hover {
+            background-color: #2563eb;
+            /* blue-600 */
+            border-color: #2563eb;
+        }
+
+        .btn-success {
+            background-color: #48bb78;
+            /* green-500 */
+            color: #fff;
+            border: 1px solid #48bb78;
+        }
+
+        .btn-success:hover {
+            background-color: #38a169;
+            /* green-600 */
+            border-color: #38a169;
         }
 
         .badge {
@@ -100,13 +112,7 @@
             line-height: 1;
         }
 
-        .badge-info {
-            background-color: #bfdbfe;
-            /* blue-200 */
-            color: #1e40af;
-            /* blue-800 */
-        }
-
+        /* Add badge colors based on the Resource Status Panel component */
         .badge-success {
             background-color: #d1fae5;
             /* green-100 */
@@ -121,11 +127,16 @@
             /* yellow-800 */
         }
 
+        .badge-info {
+            background-color: #bfdbfe;
+            /* blue-200 */
+            color: #1e40af;
+            /* blue-800 */
+        }
+
         .badge-danger {
             background-color: #fee2e2;
             /* red-100 */
-            border-color: #fecaca;
-            /* red-200 */
             color: #991b1b;
             /* red-800 */
         }
@@ -135,6 +146,38 @@
             /* gray-200 */
             color: #374151;
             /* gray-700 */
+        }
+
+        .badge-teal {
+            /* For 'issued' */
+            background-color: #b2f5ea;
+            /* teal-200 */
+            color: #2c7a7b;
+            /* teal-800 */
+        }
+
+        .badge-purple {
+            /* For 'returned' or 'partially_returned' */
+            background-color: #e9d8fd;
+            /* purple-200 */
+            color: #6b46c1;
+            /* purple-800 */
+        }
+
+        .badge-red {
+            /* For 'overdue' */
+            background-color: #feb2b2;
+            /* red-200 */
+            color: #c53030;
+            /* red-800 */
+        }
+
+        .badge-orange {
+            /* For 'partially_issued' */
+            background-color: #fed7aa;
+            /* orange-200 */
+            color: #c05621;
+            /* orange-800 */
         }
     </style>
 </head>
@@ -146,7 +189,7 @@
 
     @section('content')
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Converted container to Tailwind --}}
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Laporan Akaun Emel ICT</h2> {{-- Updated title --}}
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Senarai Peralatan Sedang Dipinjam</h2> {{-- Title --}}
 
             {{-- Display success messages --}}
             @if (session()->has('success'))
@@ -155,10 +198,10 @@
                 </div>
             @endif
 
-            {{-- Table to display email applications for the report --}}
-            @if ($applications->isEmpty())
-                {{-- Assuming $applications is passed from the controller and contains EmailApplication models --}}
-                <p class="text-gray-600">Tiada permohonan akaun emel ICT ditemui untuk laporan ini.</p> {{-- Message if no applications --}}
+            {{-- Table to display issued loan transactions --}}
+            {{-- Assuming $issuedTransactions is passed from the controller, filtered for 'issued' or 'partially_returned' status --}}
+            @if ($issuedTransactions->isEmpty())
+                <p class="text-gray-600">Tiada peralatan sedang dipinjam pada masa ini.</p> {{-- Message if no issued equipment --}}
             @else
                 <div class="overflow-x-auto shadow-sm rounded-md border border-gray-200"> {{-- Added overflow and shadow for table container --}}
                     <table class="min-w-full divide-y divide-gray-200 table"> {{-- Converted table classes --}}
@@ -167,59 +210,78 @@
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     {{-- Converted th classes --}}
-                                    Pemohon
+                                    Peralatan (Tag ID)
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Status Permohonan
+                                    Dipinjam Oleh
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    E-mel Rasmi MOTAC / Cadangan E-mel
-                                </th>
-                                {{-- Optional: Add more columns relevant to reports, e.g., Submission Date, Purpose --}}
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Hantar
+                                    Tarikh Dikeluarkan
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tujuan
+                                    Tarikh Dijangka Pulang
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Status Transaksi
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Tindakan
                                 </th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200"> {{-- Added body background and divider --}}
-                            {{-- Loop through the collection of email applications --}}
-                            @foreach ($applications as $app)
+                            {{-- Loop through the collection of issued loan transactions --}}
+                            @foreach ($issuedTransactions as $transaction)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Converted td classes --}}
-                                        {{ $app->user->name ?? 'N/A' }} {{-- Assuming user relationship with 'name' --}}
+                                        {{ $transaction->equipment->brand ?? 'N/A' }}
+                                        {{ $transaction->equipment->model ?? 'N/A' }}
+                                        (Tag: {{ $transaction->equipment->tag_id ?? 'N/A' }})
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Display status with a colored badge --}}
+                                        {{ $transaction->loanApplication->user->name ?? 'N/A' }} {{-- Assuming loanApplication and user relationships --}}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                        {{ $transaction->issue_timestamp?->format('Y-m-d H:i') ?? 'N/A' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                        {{ $transaction->loanApplication->loan_end_date?->format('Y-m-d') ?? 'N/A' }}
+                                        {{-- Assuming loanApplication relationship --}}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                        {{-- Display status with a colored badge - can use component or inline logic --}}
                                         <span
-                                            class="badge {{ match ($app->status) {
-                                                'draft' => 'badge-secondary',
-                                                'pending_support', 'pending_admin', 'processing' => 'badge-warning',
-                                                'approved' => 'badge-info',
-                                                'completed' => 'badge-success',
-                                                'rejected', 'provision_failed' => 'badge-danger',
+                                            class="badge {{ match ($transaction->status) {
+                                                'issued' => 'badge-teal',
+                                                'partially_returned' => 'badge-purple', // Or badge-orange, depending on color scheme
+                                                'overdue' => 'badge-red',
+                                                'damaged', 'lost' => 'badge-danger',
                                                 default => 'badge-secondary',
                                             } }}">
-                                            {{ ucfirst(str_replace('_', ' ', $app->status)) }}
+                                            {{ ucfirst(str_replace('_', ' ', $transaction->status)) }}
                                         </span>
+                                        {{-- Or use the component: <x-resource-status-panel :resource="$transaction" /> --}}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Display final assigned email if available, otherwise proposed email --}}
-                                        {{ $app->final_assigned_email ?? ($app->proposed_email ?? '-') }}
-                                    </td>
-                                    {{-- Optional: Display submission date and purpose --}}
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->created_at?->format('Y-m-d') ?? 'N/A' }}
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-900 border-b"> {{-- Removed whitespace-nowrap --}}
-                                        {{ Str::limit($app->purpose, 50) }}
+                                        {{-- Link to the return interface for this transaction --}}
+                                        {{-- Assuming a route named 'loan-transactions.return' exists --}}
+                                        <a href="{{ route('loan-transactions.return', $transaction) }}"
+                                            class="btn btn-success btn-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                            </svg>
+                                            Rekod Pulangan
+                                        </a>
+                                        {{-- Optional: Link to transaction show page --}}
+                                        {{-- <a href="{{ route('loan-transactions.show', $transaction) }}" class="text-blue-600 hover:text-blue-900 font-semibold ml-4">Lihat Butiran</a> --}}
                                     </td>
                                 </tr>
                             @endforeach
@@ -228,24 +290,22 @@
                 </div> {{-- End overflow-x-auto --}}
 
                 {{-- Pagination links --}}
-                @if ($applications->hasPages())
-                    {{-- Check if the collection is paginated --}}
+                @if ($issuedTransactions->hasPages())
                     <div class="mt-4">
-                        {{ $applications->links() }}
+                        {{ $issuedTransactions->links() }}
                     </div>
                 @endif
             @endif
 
-            {{-- Optional: Back button to a reports dashboard or home --}}
-            <div class="mt-6 text-center">
-                {{-- Assuming a route named 'reports.index' or similar --}}
-                {{-- <a href="{{ route('reports.index') }}" class="btn btn-secondary">
+            {{-- Back button (Optional - link to BPM dashboard or similar) --}}
+            {{-- <div class="mt-6 text-center">
+             <a href="{{ route('admin.bpm.index') }}" class="btn btn-secondary">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                 Kembali ke Laporan
-             </a> --}}
-            </div>
+                 Kembali ke Dashboard BPM
+             </a>
+         </div> --}}
 
         </div> {{-- End max-w-7xl container --}}
     @endsection

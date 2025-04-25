@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Akaun Emel ICT</title> {{-- Updated title --}}
+    <title>Pinjaman Menunggu Pengeluaran</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Optional: Add custom styles if needed, but prefer Tailwind */
@@ -73,68 +73,42 @@
             cursor: pointer;
         }
 
-        .btn-secondary {
-            background-color: #e5e7eb;
-            /* gray-200 */
-            color: #1f2937;
-            /* gray-800 */
-            border: 1px solid #e5e7eb;
+        .btn-primary {
+            background-color: #3b82f6;
+            /* blue-500 */
+            color: #fff;
+            border: 1px solid #3b82f6;
         }
 
-        .btn-secondary:hover {
-            background-color: #d1d5db;
-            /* gray-300 */
-            border-color: #d1d5db;
+        .btn-primary:hover {
+            background-color: #2563eb;
+            /* blue-600 */
+            border-color: #2563eb;
         }
 
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            /* rounded-full */
-            font-size: 0.75rem;
-            /* text-xs */
-            font-weight: 600;
-            /* font-semibold */
-            line-height: 1;
+        .btn-info {
+            background-color: #38b2ac;
+            /* teal-500 */
+            color: #fff;
+            border: 1px solid #38b2ac;
         }
 
-        .badge-info {
-            background-color: #bfdbfe;
-            /* blue-200 */
-            color: #1e40af;
-            /* blue-800 */
+        .btn-info:hover {
+            background-color: #319795;
+            /* teal-600 */
+            border-color: #319795;
         }
 
-        .badge-success {
-            background-color: #d1fae5;
-            /* green-100 */
-            color: #065f46;
-            /* green-800 */
+        .item-list {
+            list-style: disc;
+            /* Add bullet points */
+            padding-left: 1.5rem;
+            /* Add left padding for list */
         }
 
-        .badge-warning {
-            background-color: #fef3c7;
-            /* yellow-100 */
-            color: #b45309;
-            /* yellow-800 */
-        }
-
-        .badge-danger {
-            background-color: #fee2e2;
-            /* red-100 */
-            border-color: #fecaca;
-            /* red-200 */
-            color: #991b1b;
-            /* red-800 */
-        }
-
-        .badge-secondary {
-            background-color: #e5e7eb;
-            /* gray-200 */
-            color: #374151;
-            /* gray-700 */
+        .item-list li {
+            margin-bottom: 0.25rem;
+            /* Small margin between list items */
         }
     </style>
 </head>
@@ -146,7 +120,8 @@
 
     @section('content')
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Converted container to Tailwind --}}
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Laporan Akaun Emel ICT</h2> {{-- Updated title --}}
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Senarai Pinjaman Menunggu Pengeluaran</h2>
+            {{-- Title --}}
 
             {{-- Display success messages --}}
             @if (session()->has('success'))
@@ -155,10 +130,11 @@
                 </div>
             @endif
 
-            {{-- Table to display email applications for the report --}}
-            @if ($applications->isEmpty())
-                {{-- Assuming $applications is passed from the controller and contains EmailApplication models --}}
-                <p class="text-gray-600">Tiada permohonan akaun emel ICT ditemui untuk laporan ini.</p> {{-- Message if no applications --}}
+            {{-- Table to display loan applications ready for issuance --}}
+            {{-- Assuming $loanApplications is passed from the controller, filtered for 'approved' or similar status --}}
+            @if ($loanApplications->isEmpty())
+                <p class="text-gray-600">Tiada permohonan pinjaman menunggu pengeluaran pada masa ini.</p>
+                {{-- Message if no applications --}}
             @else
                 <div class="overflow-x-auto shadow-sm rounded-md border border-gray-200"> {{-- Added overflow and shadow for table container --}}
                     <table class="min-w-full divide-y divide-gray-200 table"> {{-- Converted table classes --}}
@@ -167,59 +143,72 @@
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     {{-- Converted th classes --}}
+                                    Permohonan #
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     Pemohon
-                                </th>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Status Permohonan
-                                </th>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    E-mel Rasmi MOTAC / Cadangan E-mel
-                                </th>
-                                {{-- Optional: Add more columns relevant to reports, e.g., Submission Date, Purpose --}}
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                                    Tarikh Hantar
                                 </th>
                                 <th scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                                     Tujuan
                                 </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Tarikh Dijangka Pulang
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Item Diluluskan
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                                    Tindakan
+                                </th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200"> {{-- Added body background and divider --}}
-                            {{-- Loop through the collection of email applications --}}
-                            @foreach ($applications as $app)
+                            {{-- Loop through the collection of loan applications --}}
+                            @foreach ($loanApplications as $application)
                                 <tr>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                         {{-- Converted td classes --}}
-                                        {{ $app->user->name ?? 'N/A' }} {{-- Assuming user relationship with 'name' --}}
+                                        {{ $application->id }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Display status with a colored badge --}}
-                                        <span
-                                            class="badge {{ match ($app->status) {
-                                                'draft' => 'badge-secondary',
-                                                'pending_support', 'pending_admin', 'processing' => 'badge-warning',
-                                                'approved' => 'badge-info',
-                                                'completed' => 'badge-success',
-                                                'rejected', 'provision_failed' => 'badge-danger',
-                                                default => 'badge-secondary',
-                                            } }}">
-                                            {{ ucfirst(str_replace('_', ' ', $app->status)) }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{-- Display final assigned email if available, otherwise proposed email --}}
-                                        {{ $app->final_assigned_email ?? ($app->proposed_email ?? '-') }}
-                                    </td>
-                                    {{-- Optional: Display submission date and purpose --}}
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
-                                        {{ $app->created_at?->format('Y-m-d') ?? 'N/A' }}
+                                        {{ $application->user->name ?? 'N/A' }} {{-- Assuming user relationship with 'name' --}}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-900 border-b"> {{-- Removed whitespace-nowrap --}}
-                                        {{ Str::limit($app->purpose, 50) }}
+                                        {{ Str::limit($application->purpose, 50) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                        {{ $application->loan_end_date?->format('Y-m-d') ?? 'N/A' }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 border-b"> {{-- Removed whitespace-nowrap to allow list items to wrap --}}
+                                        {{-- Display the list of approved items --}}
+                                        @if ($application->items->isNotEmpty())
+                                            <ul class="item-list"> {{-- Apply list styling --}}
+                                                @foreach ($application->items->where('quantity_approved', '>', 0) as $item)
+                                                    <li>{{ $item->equipment_type ?? 'N/A' }} (Diluluskan:
+                                                        {{ $item->quantity_approved ?? 'N/A' }})</li>
+                                                @endforeach
+                                            </ul>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
+                                        {{-- Link to the issuance interface for this application --}}
+                                        {{-- Assuming a route named 'loan-transactions.issue' exists --}}
+                                        <a href="{{ route('loan-transactions.issue', $application) }}"
+                                            class="btn btn-info btn-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M9 12l2 2 4-4m5.615 3.915c-.974 1.11-2.237 1.95-3.593 2.464-1.356.515-2.79.78-4.24.78s-2.884-.265-4.24-.78c-1.356-.514-2.619-1.354-3.593-2.464S1 10.59 1 9c0-1.59.32-3.17.959-4.641C2.598 3.089 3.861 2.249 5.217 1.734 6.573 1.22 8.007.955 9.457.955s2.884.265 4.24.78c1.356.515 2.619 1.355 3.593 2.464S19 7.41 19 9c0 1.59-.32 3.17-.959 4.641z" />
+                                            </svg>
+                                            Keluarkan Peralatan
+                                        </a>
                                     </td>
                                 </tr>
                             @endforeach
@@ -228,24 +217,22 @@
                 </div> {{-- End overflow-x-auto --}}
 
                 {{-- Pagination links --}}
-                @if ($applications->hasPages())
-                    {{-- Check if the collection is paginated --}}
+                @if ($loanApplications->hasPages())
                     <div class="mt-4">
-                        {{ $applications->links() }}
+                        {{ $loanApplications->links() }}
                     </div>
                 @endif
             @endif
 
-            {{-- Optional: Back button to a reports dashboard or home --}}
-            <div class="mt-6 text-center">
-                {{-- Assuming a route named 'reports.index' or similar --}}
-                {{-- <a href="{{ route('reports.index') }}" class="btn btn-secondary">
+            {{-- Back button (Optional - link to BPM dashboard or similar) --}}
+            {{-- <div class="mt-6 text-center">
+             <a href="{{ route('admin.bpm.index') }}" class="btn btn-secondary">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                 Kembali ke Laporan
-             </a> --}}
-            </div>
+                 Kembali ke Dashboard BPM
+             </a>
+         </div> --}}
 
         </div> {{-- End max-w-7xl container --}}
     @endsection

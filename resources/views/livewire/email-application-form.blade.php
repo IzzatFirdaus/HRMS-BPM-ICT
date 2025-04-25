@@ -65,10 +65,11 @@
                 <option value="Pelajar Latihan Industri">Pelajar Latihan Industri</option>
                 <option value="E-mel Sandaran MOTAC">E-mel Sandaran MOTAC (Kakitangan Agensi Lain)</option>
             </select>
-            {{-- Display validation errors for this field --}}
-            @error('service_status')
-                <span class="text-danger">{{ $message }}</span>
-            @enderror
+            {{-- Display validation errors for this field using standard Blade @if --}}
+            {{-- REPLACED: @error('service_status') <span class="text-danger">{{ $message }}</span> @enderror --}}
+            @if ($errors->has('service_status'))
+                <span class="text-danger">{{ $errors->first('service_status') }}</span>
+            @endif
         </div>
 
         {{-- Dynamically show fields based on service_status as per PDF notes --}}
@@ -91,9 +92,11 @@
                 {{-- wire:model binds to $purpose --}}
                 <textarea wire:model="purpose" id="purpose" class="form-control" rows="3" required
                     {{ $emailApplication && $emailApplication->status !== 'draft' ? 'disabled' : '' }}></textarea>
-                @error('purpose')
-                    <span class="text-danger">{{ $message }}</span>
-                @enderror
+                {{-- Display validation errors for this field using standard Blade @if --}}
+                {{-- REPLACED: @error('purpose') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                @if ($errors->has('purpose'))
+                    <span class="text-danger">{{ $errors->first('purpose') }}</span>
+                @endif
             </div>
 
             <div class="form-group">
@@ -102,9 +105,11 @@
                 {{-- This could be pre-filled by the component using a service based on user name --}}
                 <input type="email" wire:model="proposed_email" id="proposed_email" class="form-control"
                     {{ $emailApplication && $emailApplication->status !== 'draft' ? 'disabled' : '' }}>
-                @error('proposed_email')
-                    <span class="text-danger">{{ $message }}</span>
-                @enderror
+                {{-- Display validation errors for this field using standard Blade @if --}}
+                {{-- REPLACED: @error('proposed_email') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                @if ($errors->has('proposed_email'))
+                    <span class="text-danger">{{ $errors->first('proposed_email') }}</span>
+                @endif
             </div>
 
             {{-- Section for Group email request - shown based on a checkbox --}}
@@ -128,27 +133,33 @@
                         <label for="group_email">Nama Group Email*:</label> {{-- Made required if requesting group email --}}
                         <input type="text" wire:model="group_email" id="group_email" class="form-control" required
                             {{ $emailApplication && $emailApplication->status !== 'draft' ? 'disabled' : '' }}>
-                        @error('group_email')
-                            <span class="text-danger">{{ $message }}</span>
-                        @enderror
+                        {{-- Display validation errors for this field using standard Blade @if --}}
+                        {{-- REPLACED: @error('group_email') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                        @if ($errors->has('group_email'))
+                            <span class="text-danger">{{ $errors->first('group_email') }}</span>
+                        @endif
                     </div>
                     <div class="form-group">
                         <label for="group_admin_name">Nama Admin/EO/CC Group Email*:</label> {{-- Required if requesting group email --}}
                         <input type="text" wire:model="group_admin_name" id="group_admin_name" class="form-control"
                             required
                             {{ $emailApplication && $emailApplication->status !== 'draft' ? 'disabled' : '' }}>
-                        @error('group_admin_name')
-                            <span class="text-danger">{{ $message }}</span>
-                        @enderror
+                        {{-- Display validation errors for this field using standard Blade @if --}}
+                        {{-- REPLACED: @error('group_admin_name') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                        @if ($errors->has('group_admin_name'))
+                            <span class="text-danger">{{ $errors->first('group_admin_name') }}</span>
+                        @endif
                     </div>
                     <div class="form-group">
                         <label for="group_admin_email">E-mel Admin/EO/CC Group Email*:</label> {{-- Required if requesting group email --}}
                         <input type="email" wire:model="group_admin_email" id="group_admin_email" class="form-control"
                             required
                             {{ $emailApplication && $emailApplication->status !== 'draft' ? 'disabled' : '' }}>
-                        @error('group_admin_email')
-                            <span class="text-danger">{{ $message }}</span>
-                        @enderror
+                        {{-- Display validation errors for this field using standard Blade @if --}}
+                        {{-- REPLACED: @error('group_admin_email') <span class="text-danger">{{ $message }}</span> @enderror --}}
+                        @if ($errors->has('group_admin_email'))
+                            <span class="text-danger">{{ $errors->first('group_admin_email') }}</span>
+                        @endif
                     </div>
                     <div class="alert alert-warning mt-2">
                         *Sila pastikan E-mel Admin/EO/CC Group E-mel adalah e-mel rasmi MOTAC.
@@ -167,12 +178,12 @@
             <p>Saya dengan ini mengesahkan bahawa:</p>
 
             {{-- Note: The PDF has three separate checkboxes for certification.
-               For simplicity in Livewire, we are using a single boolean property ($certification)
-               bound to one checkbox representing acceptance of all terms.
-               If three separate confirmations are strictly required, you would need
-               three boolean properties (e.g., $cert1, $cert2, $cert3) and update the
-               Livewire component and validation rules accordingly.
-               The 'certification_accepted' field in the database stores the final boolean state. --}}
+              For simplicity in Livewire, we are using a single boolean property ($certification)
+              bound to one checkbox representing acceptance of all terms.
+              If three separate confirmations are strictly required, you would need
+              three boolean properties (e.g., $cert1, $cert2, $cert3) and update the
+              Livewire component and validation rules accordingly.
+              The 'certification_accepted' field in the database stores the final boolean state. --}}
             <div class="form-group">
                 <div class="form-check">
                     {{-- wire:model binds to the boolean property $certification --}}
@@ -185,10 +196,11 @@
                     </label>
                 </div>
             </div>
-            {{-- Display validation error for certification --}}
-            @error('certification')
-                <span class="text-danger">{{ $message }}</span>
-            @enderror
+            {{-- Display validation error for certification using standard Blade @if --}}
+            {{-- REPLACED: @error('certification') <span class="text-danger">{{ $message }}</span> @enderror --}}
+            @if ($errors->has('certification'))
+                <span class="text-danger">{{ $errors->first('certification') }}</span>
+            @endif
         @endif
 
 
@@ -203,21 +215,21 @@
             {{-- Optional: Save as Draft button if workflow allows saving without full validation --}}
             {{-- wire:click="saveAsDraft" would call a method to save the current state without submitting --}}
             {{-- <button type="button" wire:click="saveAsDraft" class="btn btn-secondary mt-4 ml-2" wire:loading.attr="disabled">
-              <span wire:loading.remove>Simpan Draf</span>
-              <span wire:loading>Menyimpan...</span>
-          </button> --}}
+           <span wire:loading.remove>Simpan Draf</span>
+           <span wire:loading>Menyimpan...</span>
+         </button> --}}
         @endif
 
     </form>
 
     {{-- You can add sections to display application status history, approvals, etc. below the form --}}
     {{-- @if ($emailApplication)
-    <h4 class="mt-5">Maklumat Proses Permohonan</h4>
-    <p>Status Semasa: {{ $emailApplication->status }}</p>
-      // Display approval history ($emailApplication->approvals)
-      // Display rejection reason if status is rejected
-      // Display final assigned email/ID if status is completed/provisioned
-  @endif --}}
+  <h4 class="mt-5">Maklumat Proses Permohonan</h4>
+  <p>Status Semasa: {{ $emailApplication->status }}</p>
+    // Display approval history ($emailApplication->approvals)
+    // Display rejection reason if status is rejected
+    // Display final assigned email/ID if status is completed/provisioned
+@endif --}}
 
 
 </div>
