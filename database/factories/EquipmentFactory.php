@@ -21,7 +21,6 @@ class EquipmentFactory extends Factory
 
   /**
    * Define the model's default state.
-   * This defines the basic attributes for a default equipment asset, usually 'available'.
    *
    * @return array<string, mixed>
    */
@@ -36,7 +35,8 @@ class EquipmentFactory extends Factory
     $warrantyExpiryDate = $this->faker->dateTimeBetween($purchaseDate, (clone $purchaseDate)->modify('+3 years'));
 
     return [
-      'asset_type' => $this->faker->randomElement(['Laptop', 'Projector', 'Printer', 'Monitor', 'Keyboard', 'Mouse', 'Webcam', 'Camera', 'Other']), // Randomly select an asset type
+      // <--- Change these values to lowercase to match the ENUM in the migration
+      'asset_type' => $this->faker->randomElement(['laptop', 'projector', 'printer', 'monitor', 'keyboard', 'mouse', 'webcam', 'other']), // Removed 'Camera' as it wasn't in your migration's ENUM list
       'brand' => $this->faker->company(), // Fake company name for brand
       'model' => $this->faker->word() . ' ' . $this->faker->randomNumber(3), // Fake model name
       'serial_number' => $serialNumber, // Unique serial number
@@ -46,90 +46,23 @@ class EquipmentFactory extends Factory
       'status' => 'available', // Default status is 'available' as per migration
       'current_location' => $this->faker->city() . ', ' . $this->faker->streetAddress(), // Fake location
       'notes' => $this->faker->optional()->sentence(), // Optional notes
+
+      // If you added audit columns to the equipment table, you might need to define them here as well.
+      // e.g., 'created_by' => \App\Models\User::first()?->id, // Assuming users are seeded first
+      //       'updated_by' => \App\Models\User::first()?->id,
     ];
   }
 
-  /**
-   * Indicate that the equipment is currently available.
-   * This is the default state, but explicit state method can be useful.
-   *
-   * @return static
-   */
-  public function available(): static
-  {
-    return $this->state(fn(array $attributes) => [
-      'status' => 'available',
-      'current_location' => $attributes['current_location'] ?? $this->faker->city() . ', Stor BPM', // Example: default to BPM store if available
-    ]);
-  }
+  // Keep your state methods ('available', 'onLoan', etc.) if you use them.
+  // Ensure the 'status' values in these states also match the ENUM exactly.
 
-  /**
-   * Indicate that the equipment is currently on loan.
-   *
-   * @return static
-   */
-  public function onLoan(): static
-  {
-    return $this->state(fn(array $attributes) => [
-      'status' => 'on_loan',
-      'current_location' => $attributes['current_location'] ?? $this->faker->city() . ', ' . $this->faker->streetAddress(), // Location where it's on loan
-    ]);
-  }
+  // Example:
+  // public function onLoan(): static
+  // {
+  //    return $this->state(fn(array $attributes) => [
+  //      'status' => 'on_loan', // <-- Ensure 'on_loan' matches ENUM value exactly
+  //      // ...
+  //    ]);
+  // }
 
-  /**
-   * Indicate that the equipment is under maintenance.
-   *
-   * @return static
-   */
-  public function underMaintenance(): static
-  {
-    return $this->state(fn(array $attributes) => [
-      'status' => 'under_maintenance',
-      'current_location' => $attributes['current_location'] ?? 'Bengkel IT', // Example: default to IT Workshop
-      'notes' => ($attributes['notes'] ?? '') . "\n" . $this->faker->sentence(5) . " (Under Maintenance)", // Add maintenance note
-    ]);
-  }
-
-  /**
-   * Indicate that the equipment has been disposed of.
-   *
-   * @return static
-   */
-  public function disposed(): static
-  {
-    return $this->state(fn(array $attributes) => [
-      'status' => 'disposed',
-      'current_location' => 'Disposed', // Example: set location to Disposed
-      'notes' => ($attributes['notes'] ?? '') . "\n" . $this->faker->sentence(5) . " (Disposed)", // Add disposal note
-    ]);
-  }
-
-  /**
-   * Indicate that the equipment is lost.
-   *
-   * @return static
-   */
-  public function lost(): static
-  {
-    return $this->state(fn(array $attributes) => [
-      'status' => 'lost',
-      'current_location' => 'Unknown', // Example: set location to Unknown
-      'notes' => ($attributes['notes'] ?? '') . "\n" . $this->faker->sentence(5) . " (Lost)", // Add lost note
-    ]);
-  }
-
-  /**
-   * Indicate that the equipment is damaged.
-   *
-   * @return static
-   */
-  public function damaged(): static
-  {
-    return $this->state(fn(array $attributes) => [
-      'status' => 'damaged',
-      'notes' => ($attributes['notes'] ?? '') . "\n" . $this->faker->sentence(5) . " (Damaged)", // Add damaged note
-    ]);
-  }
-
-  // Add other states or methods as needed for specific scenarios
 }

@@ -20,66 +20,119 @@ return new class extends Migration
       Schema::table('users', function (Blueprint $table) {
         // Add columns based on the MOTAC user data requirements from the system design
 
-        // Add foreign key to grades table (assuming a 'grades' table is created or exists)
-        // Ensure the 'grades' table migration runs BEFORE this migration.
+        // Add columns identified as missing from seeder/error (from previous fixes)
+        // Ensure these columns are added only if they don't exist
+        if (!Schema::hasColumn('users', 'full_name')) {
+          $table->string('full_name')->nullable()->after('name'); // Added full_name after 'name'
+        }
+        if (!Schema::hasColumn('users', 'personal_email')) {
+          $table->string('personal_email')->nullable()->unique()->after('email'); // Added personal_email after 'email'
+        }
+
+        // Existing columns from the original migration, ensuring they are added if missing
+
+        // Add foreign key to grades table
         if (!Schema::hasColumn('users', 'grade_id')) {
-          $table->foreignId('grade_id')->nullable()->constrained('grades')->onDelete('set null');
+          // Check if 'grades' table exists before adding FK
+          if (Schema::hasTable('grades')) {
+            $table->foreignId('grade_id')->nullable()->constrained('grades')->onDelete('set null')->after('profile_photo_path'); // Adjust placement
+          } else {
+            // Add the column without the FK if grades table isn't ready yet
+            $table->unsignedBigInteger('grade_id')->nullable()->after('profile_photo_path');
+          }
         }
 
         // Add service_status column if it doesn't exist
         if (!Schema::hasColumn('users', 'service_status')) {
-          // Use enum as specified in the system design
-          $table->enum('service_status', ['permanent', 'contract', 'mystep', 'intern', 'other_agency'])->nullable()->default('permanent');
+          $table->enum('service_status', ['permanent', 'contract', 'mystep', 'intern', 'other_agency'])->nullable()->default('permanent')->after('grade_id'); // Adjust placement
         }
 
         // Add appointment_type column if it doesn't exist
         if (!Schema::hasColumn('users', 'appointment_type')) {
-          $table->string('appointment_type')->nullable();
+          $table->string('appointment_type')->nullable()->after('service_status'); // Adjust placement
         }
 
         // Add motac_email column if it doesn't exist
         if (!Schema::hasColumn('users', 'motac_email')) {
-          $table->string('motac_email')->nullable()->unique();
+          $table->string('motac_email')->nullable()->unique()->after('personal_email'); // Adjust placement, ensure unique
         }
 
         // Add nric column if it doesn't exist
         if (!Schema::hasColumn('users', 'nric')) {
-          $table->string('nric')->unique()->nullable(); // Assuming nric is unique per user
+          $table->string('nric')->unique()->nullable()->after('motac_email'); // Assuming nric is unique per user, adjust placement
         }
 
         // Add mobile_number column if it doesn't exist
         if (!Schema::hasColumn('users', 'mobile_number')) {
-          $table->string('mobile_number')->nullable();
+          $table->string('mobile_number')->nullable()->after('nric'); // Adjust placement
         }
 
-        // Add foreign key to departments table (assuming 'departments' table exists)
-        // Ensure the 'departments' table migration runs BEFORE this migration.
+        // Add foreign key to departments table
         if (!Schema::hasColumn('users', 'department_id')) {
-          $table->foreignId('department_id')->nullable()->constrained('departments')->onDelete('set null');
+          // Check if 'departments' table exists before adding FK
+          if (Schema::hasTable('departments')) {
+            $table->foreignId('department_id')->nullable()->constrained('departments')->onDelete('set null')->after('mobile_number'); // Adjust placement
+          } else {
+            // Add the column without the FK if departments table isn't ready yet
+            $table->unsignedBigInteger('department_id')->nullable()->after('mobile_number');
+          }
         }
 
-        // Add foreign key to designations table (corresponds to positions in HRMS repo)
-        // Ensure the 'designations' table migration runs BEFORE this migration.
+        // Add foreign key to designations table
         if (!Schema::hasColumn('users', 'position_id')) {
-          // Corrected table name to 'designations' based on HRMS repo structure
-          $table->foreignId('position_id')->nullable()->constrained('designations')->onDelete('set null');
+          // Check if 'designations' table exists before adding FK
+          if (Schema::hasTable('designations')) {
+            $table->foreignId('position_id')->nullable()->constrained('designations')->onDelete('set null')->after('department_id'); // Adjust placement
+          } else {
+            // Add the column without the FK if designations table isn't ready yet
+            $table->unsignedBigInteger('position_id')->nullable()->after('department_id');
+          }
         }
 
+        // --- Corrected chaining for user status and roles ---
         // Add user_id_assigned column if it doesn't exist
+        // Make sure its placement is relative to a known column from the original table or an earlier addition
         if (!Schema::hasColumn('users', 'user_id_assigned')) {
-          $table->string('user_id_assigned')->nullable()->unique(); // Based on system design
+          // Let's chain from position_id, which was added earlier
+          $table->string('user_id_assigned')->nullable()->unique()->after('position_id');
         }
 
         // Add status column if it doesn't exist
+        // Chain this AFTER user_id_assigned
         if (!Schema::hasColumn('users', 'status')) {
-          // Use enum as specified in the system design
-          $table->enum('status', ['active', 'inactive', 'suspended'])->default('active'); // User status based on system design
+          $table->enum('status', ['active', 'inactive', 'suspended'])->default('active')->after('user_id_assigned');
         }
 
-        // You might also want to add an index to frequently queried columns like department_id, position_id, grade_id
+        // Add is_admin column if it doesn't exist
+        // Chain this AFTER status
+        if (!Schema::hasColumn('users', 'is_admin')) {
+          $table->boolean('is_admin')->default(false)->after('status');
+        }
+
+        // Add is_bpm_staff column if it doesn't exist
+        // Chain this AFTER is_admin
+        if (!Schema::hasColumn('users', 'is_bpm_staff')) {
+          $table->boolean('is_bpm_staff')->default(false)->after('is_admin');
+        }
+        // --- End corrected chaining ---
+
+
+        // You might also want to add an index to frequently queried columns
         // $table->index(['department_id']);
         // $table->index(['position_id']);
         // $table->index(['grade_id']);
+
+        // Add FKs if the tables weren't ready when the columns were added initially
+        // Check if the FK constraint already exists before adding it again
+        if (Schema::hasColumn('users', 'grade_id') && !Schema::hasForeignKey('users', 'users_grade_id_foreign') && Schema::hasTable('grades')) {
+          $table->foreign('grade_id')->references('id')->on('grades')->onDelete('set null');
+        }
+        if (Schema::hasColumn('users', 'department_id') && !Schema::hasForeignKey('users', 'users_department_id_foreign') && Schema::hasTable('departments')) {
+          $table->foreign('department_id')->references('id')->on('departments')->onDelete('set null');
+        }
+        if (Schema::hasColumn('users', 'position_id') && !Schema::hasForeignKey('users', 'users_position_id_foreign') && Schema::hasTable('designations')) {
+          $table->foreign('position_id')->references('id')->on('designations')->onDelete('set null');
+        }
       });
     }
   }
@@ -94,38 +147,41 @@ return new class extends Migration
     // Check if the 'users' table exists before attempting to modify it
     if (Schema::hasTable('users')) {
       Schema::table('users', function (Blueprint $table) {
-        // Drop columns added in the up method
+        // Drop foreign key constraints first (if they were added in this migration)
+        // Use dropConstrainedForeignId or dropForeign with the conventional name
 
-        // Drop foreign key constraints first
-        // Check if the foreign key exists before dropping
         if (Schema::hasColumn('users', 'grade_id')) {
-          $table->dropConstrainedForeignId('grade_id'); // Laravel 11+ helper for dropping foreign keys
+          // Check if the constraint exists before dropping
+          if (Schema::hasForeignKey('users', 'users_grade_id_foreign')) {
+            $table->dropConstrainedForeignId('grade_id');
+          }
         }
-
-        // Drop foreign key for department_id if it was added in this migration
         if (Schema::hasColumn('users', 'department_id')) {
-          $table->dropConstrainedForeignId('department_id');
+          if (Schema::hasForeignKey('users', 'users_department_id_foreign')) {
+            $table->dropConstrainedForeignId('department_id');
+          }
         }
-
-        // Drop foreign key for position_id (designations) if it was added in this migration
         if (Schema::hasColumn('users', 'position_id')) {
-          // Use dropConstrainedForeignId or dropForeign for 'position_id' referring to 'designations'
-          // dropConstrainedForeignId might work if Laravel named the constraint conventionally
-          // Otherwise, use dropForeign with the conventional name like users_position_id_foreign
-          $table->dropConstrainedForeignId('position_id');
+          if (Schema::hasForeignKey('users', 'users_position_id_foreign')) {
+            $table->dropConstrainedForeignId('position_id');
+          }
         }
 
 
         // Drop the columns, checking if they exist before dropping
         $columnsToDrop = [
+          'full_name',        // Added this migration
+          'personal_email',   // Added this migration
+          'is_admin',         // Added this migration
+          'is_bpm_staff',     // Added this migration
           'service_status',
           'appointment_type',
           'motac_email',
-          'nric',
-          'mobile_number',
+          'nric', // Column name from this migration
+          'mobile_number', // Column name from this migration
           'user_id_assigned',
-          'status',
-          // Do NOT drop department_id or position_id here if they were dropped via dropConstrainedForeignId above
+          'status', // Column name from this migration
+          // Do NOT include grade_id, department_id, position_id here if dropped via dropConstrainedForeignId above
         ];
 
         foreach ($columnsToDrop as $column) {

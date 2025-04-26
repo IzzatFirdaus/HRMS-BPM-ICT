@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 // Import the Grade model
@@ -17,13 +17,19 @@ class Position extends Model // Note: This likely maps to the 'designations' tab
 {
   use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;
 
-  // Specify the table name if it's not the plural of the model name (e.g., if it's 'designations')
-  // protected $table = 'designations';
+  // Specify the table name if it's not the plural of the model name
+  // <--- Add this line to tell the model to use the 'designations' table
+  protected $table = 'designations';
 
   protected $fillable = [
     'name',
     'vacancies_count', // Keep existing HRMS field
+    'description', // Add description field based on designations table
     'grade_id', // Add grade_id based on MOTAC positions table design
+    // Add created_by, updated_by, deleted_by to fillable if not handled by trait
+    // 'created_by',
+    // 'updated_by',
+    // 'deleted_by',
   ];
 
   // 👉 Existing HRMS Links
@@ -50,4 +56,10 @@ class Position extends Model // Note: This likely maps to the 'designations' tab
   }
 
   // Add any other existing methods or accessors/mutators below this line
+
+  // It seems your migrations handle created_by/updated_by/deleted_by columns directly,
+  // but your trait might handle populating them. If the trait populates them,
+  // you don't need them in $fillable unless you manually set them sometimes.
+  // If the trait relies on the columns existing, the migration 'create_designations_table'
+  // correctly adds them.
 }
