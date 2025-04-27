@@ -9,160 +9,172 @@ use Livewire\WithPagination;
 
 class Categories extends Component
 {
-    use WithPagination;
+  use WithPagination;
 
-    // 👉 Variables
-    public $search_term_categories = null;
+  public $search_term_categories = '';
+  public $search_term_sub_categories = '';
 
-    public $search_term_sub_categories = null;
+  public $category;
+  public $categoryInfo;
+  public $subCategory;
 
-    public $category;
+  public $categoryName;
+  public $subCategoryName;
 
-    public $categoryInfo;
+  public $isEdit = false;
+  public $confirmedCategoryId;
+  public $confirmedSubCategoryId;
 
-    public $subCategory;
+  public function mount()
+  {
+    $this->showCategoryInfo(1); // Load first category info by default
+  }
 
-    public $categoryName;
+  public function render()
+  {
+    $categories = Category::query()
+      ->where('id', 'like', '%' . $this->search_term_categories . '%')
+      ->orWhere('name', 'like', '%' . $this->search_term_categories . '%')
+      ->paginate(6);
 
-    public $subCategoryName;
+    $subCategories = SubCategory::query()
+      ->where('id', 'like', '%' . $this->search_term_sub_categories . '%')
+      ->orWhere('name', 'like', '%' . $this->search_term_sub_categories . '%')
+      ->paginate(6);
 
-    public $isEdit = false;
+    return view('livewire.assets.categories', [
+      'categories' => $categories,
+      'subCategories' => $subCategories,
+    ]);
+  }
 
-    public $confirmedCategoryId;
+  public function showCategoryInfo($categoryId)
+  {
+    $category = Category::with('subCategories')->find($categoryId);
+    $this->categoryInfo = $category;
+  }
 
-    public $confirmedSubCategoryId;
+  // --------------------
+  // Category Methods
+  // --------------------
 
-    public function mount()
-    {
-        $this->showCategoryInfo(1);
+  public function showNewCategoryModal()
+  {
+    $this->reset('isEdit', 'categoryName', 'category');
+  }
+
+  public function submitCategory()
+  {
+    $this->isEdit ? $this->editCategory() : $this->addCategory();
+  }
+
+  public function addCategory()
+  {
+    Category::create([
+      'name' => $this->categoryName,
+    ]);
+
+    $this->dispatch('closeModal', elementId: '#categoryModal');
+    $this->dispatch('toastr', type: 'success', message: __('Category Added Successfully!'));
+
+    $this->reset('isEdit', 'categoryName', 'category');
+  }
+
+  public function showEditCategoryModal(Category $category)
+  {
+    $this->reset('isEdit', 'categoryName', 'category');
+    $this->isEdit = true;
+    $this->category = $category;
+    $this->categoryName = $category->name;
+  }
+
+  public function editCategory()
+  {
+    $this->category->update([
+      'name' => $this->categoryName,
+    ]);
+
+    $this->dispatch('closeModal', elementId: '#categoryModal');
+    $this->dispatch('toastr', type: 'success', message: __('Category Updated Successfully!'));
+
+    $this->reset('isEdit', 'categoryName', 'category');
+  }
+
+  public function confirmDeleteCategory($id)
+  {
+    $this->confirmedCategoryId = $id;
+  }
+
+  public function deleteCategory(Category $category)
+  {
+    $category->delete();
+
+    $this->dispatch('toastr', type: 'success', message: __('Category Deleted Successfully!'));
+    $this->reset('confirmedCategoryId');
+  }
+
+  // --------------------
+  // SubCategory Methods
+  // --------------------
+
+  public function showNewSubCategoryModal()
+  {
+    $this->reset('isEdit', 'subCategoryName', 'subCategory');
+  }
+
+  public function submitSubCategory()
+  {
+    $this->isEdit ? $this->editSubCategory() : $this->addSubCategory();
+  }
+
+  public function addSubCategory()
+  {
+    if (!$this->categoryInfo) {
+      $this->dispatch('toastr', type: 'error', message: __('Please select a Category first.'));
+      return;
     }
 
-    public function render()
-    {
-        $categories = Category::where('id', 'like', '%'.$this->search_term_categories.'%')
-            ->orWhere('name', 'like', '%'.$this->search_term_categories.'%')
-            ->paginate(6);
+    SubCategory::create([
+      'name' => $this->subCategoryName,
+      'category_id' => $this->categoryInfo->id, // Link subcategory to current category
+    ]);
 
-        $subCategories = SubCategory::where('id', 'like', '%'.$this->search_term_sub_categories.'%')
-            ->orWhere('name', 'like', '%'.$this->search_term_sub_categories.'%')
-            ->paginate(6);
+    $this->dispatch('closeModal', elementId: '#subCategoryModal');
+    $this->dispatch('toastr', type: 'success', message: __('Sub-Category Added Successfully!'));
 
-        return view('livewire.assets.categories', [
-            'categories' => $categories,
-            'subCategories' => $subCategories,
-        ]);
-    }
+    $this->reset('isEdit', 'subCategoryName', 'subCategory');
+  }
 
-    public function showCategoryInfo($categoryId)
-    {
-        $category = Category::with('subCategory')->find($categoryId);
+  public function showEditSubCategoryModal(SubCategory $subCategory)
+  {
+    $this->reset('isEdit', 'subCategoryName', 'subCategory');
+    $this->isEdit = true;
+    $this->subCategory = $subCategory;
+    $this->subCategoryName = $subCategory->name;
+  }
 
-        $this->categoryInfo = $category;
-    }
+  public function editSubCategory()
+  {
+    $this->subCategory->update([
+      'name' => $this->subCategoryName,
+    ]);
 
-    public function submitCategory()
-    {
-        $this->isEdit ? $this->editCategory() : $this->addCategory();
-    }
+    $this->dispatch('closeModal', elementId: '#subCategoryModal');
+    $this->dispatch('toastr', type: 'success', message: __('Sub-Category Updated Successfully!'));
 
-    public function showNewCategoryModal()
-    {
-        $this->reset('isEdit', 'categoryName');
-    }
+    $this->reset('isEdit', 'subCategoryName', 'subCategory');
+  }
 
-    public function addCategory()
-    {
-        // $this->validate();
-        Category::create([
-            'name' => $this->categoryName,
-        ]);
+  public function confirmDeleteSubCategory($id)
+  {
+    $this->confirmedSubCategoryId = $id;
+  }
 
-        $this->dispatch('closeModal', elementId: '#categoryModal');
-        $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Going Well!'));
-    }
+  public function deleteSubCategory(SubCategory $subCategory)
+  {
+    $subCategory->delete();
 
-    public function showEditCategoryModal(Category $category)
-    {
-        $this->reset('isEdit', 'categoryName');
-        $this->isEdit = true;
-        $this->category = $category;
-        $this->categoryName = $category->name;
-    }
-
-    public function editCategory()
-    {
-        // $this->validate();
-        $this->category->update([
-            'name' => $this->categoryName,
-        ]);
-
-        $this->dispatch('closeModal', elementId: '#categoryModal');
-        $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Going Well!'));
-
-        $this->reset('isEdit', 'categoryName');
-    }
-
-    public function confirmDeleteCategory($id)
-    {
-        $this->confirmedCategoryId = $id;
-    }
-
-    public function deleteCategory(Category $category)
-    {
-        $category->delete();
-        $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Going Well!'));
-    }
-
-    public function submitSubCategory()
-    {
-        $this->isEdit ? $this->editSubCategory() : $this->addSubCategory();
-    }
-
-    public function showNewSubCategoryModal()
-    {
-        $this->reset('isEdit', 'subCategoryName');
-    }
-
-    public function addSubCategory()
-    {
-        // $this->validate();
-        SubCategory::create([
-            'name' => $this->subCategoryName,
-        ]);
-
-        $this->dispatch('closeModal', elementId: '#subCategoryModal');
-        $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Going Well!'));
-    }
-
-    public function showEditSubCategoryModal(SubCategory $subCategory)
-    {
-        $this->reset('isEdit', 'subCategoryName');
-        $this->isEdit = true;
-        $this->subCategory = $subCategory;
-        $this->subCategoryName = $subCategory->name;
-    }
-
-    public function editSubCategory()
-    {
-        // $this->validate();
-        $this->subCategory->update([
-            'name' => $this->subCategoryName,
-        ]);
-
-        $this->dispatch('closeModal', elementId: '#subCategoryModal');
-        $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Going Well!'));
-
-        $this->reset('isEdit', 'subCategoryName');
-    }
-
-    public function confirmDeleteSubCategory($id)
-    {
-        $this->confirmedSubCategoryId = $id;
-    }
-
-    public function deleteSubCategory(SubCategory $subCategory)
-    {
-        $subCategory->delete();
-        $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Going Well!'));
-    }
+    $this->dispatch('toastr', type: 'success', message: __('Sub-Category Deleted Successfully!'));
+    $this->reset('confirmedSubCategoryId');
+  }
 }

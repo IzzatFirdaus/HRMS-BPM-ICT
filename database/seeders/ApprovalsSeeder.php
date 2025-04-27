@@ -9,6 +9,7 @@ use App\Models\LoanApplication; // Import LoanApplication as an example approvab
 use Illuminate\Database\Seeder;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents; // Optional trait
 use Faker\Factory as FakerFactory; // Import Faker Factory
+use Illuminate\Support\Collection; // Import Collection class
 
 class ApprovalsSeeder extends Seeder
 {
@@ -84,11 +85,31 @@ class ApprovalsSeeder extends Seeder
 
 
     // --- Create some Deleted Approvals ---
-    Approval::factory()
-      ->count(3) // Create 3 deleted approvals
-      ->deleted() // Use the deleted state
-      ->create();
-    \Log::info("Created 3 deleted approvals.");
+    $numDeletedApprovals = 3;
+    // Get a mix of existing approvable models to link the deleted approvals to
+    $approvablesForDeleted = collect()
+      ->concat(EmailApplication::inRandomOrder()->limit(ceil($numDeletedApprovals / 2))->get()) // Get some email apps
+      ->concat(LoanApplication::inRandomOrder()->limit(floor($numDeletedApprovals / 2))->get()) // Get some loan apps
+      ->shuffle() // Mix them up
+      ->take($numDeletedApprovals); // Take exactly the number needed
+
+    // Ensure we have enough approvable models to link the deleted approvals
+    if ($approvablesForDeleted->count() >= $numDeletedApprovals) {
+      Approval::factory()
+        ->count($numDeletedApprovals) // Create the specified number of deleted approvals
+        ->deleted() // Use the deleted state
+        // 👇 ADDED: Link each deleted approval to one of the fetched approvable models using sequence 👇
+        ->sequence(fn($sequence) => [
+          'approvable_id' => $approvablesForDeleted->get($sequence->index)->id,
+          'approvable_type' => get_class($approvablesForDeleted->get($sequence->index)) // Use get_class() to get the model type string
+        ])
+        // ☝️ END ADDED ☝️
+        ->create();
+      \Log::info("Created {$numDeletedApprovals} deleted approvals linked to random approvables.");
+    } else {
+      \Log::warning('Not enough approvable models to link deleted Approvals. Skipping deleted approvals.');
+    }
+
 
     // --- Create some specific Approved Approvals ---
     // Example: Create an approved approval by a specific officer for a specific application

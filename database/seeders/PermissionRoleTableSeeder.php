@@ -97,7 +97,7 @@ class PermissionRoleTableSeeder extends Seeder
       'manage-equipment-inventory',
     ];
 
-    // System/Lookup Management Permissions (e.g., Grades, Departments, Positions, Contracts, Centers, Leaves, Holidays, Categories, SubCategories)
+    // System/Lookup Management Permissions (e.g., Grades, Departments, Positions, Contracts, Centers, Leaves, Holidays, Categories, SubCategories, Settings, Audit Logs, System Logs)
     $systemPermissions = [
       'view-grades',
       'manage-grades', // Create/edit/delete grades
@@ -120,6 +120,7 @@ class PermissionRoleTableSeeder extends Seeder
       'view-settings',
       'manage-settings',
       'view-audit-logs', // Permission to view audit logs (CreatedUpdatedDeletedBy)
+      'view-system-logs', // <--- ADDED: This permission was missing from the creation list
     ];
 
     // Combine all permissions
@@ -203,13 +204,13 @@ class PermissionRoleTableSeeder extends Seeder
     Log::info("'Department Head' role assigned permissions.");
 
 
-    // IT Admin: Can manage users, equipment, software licenses, provision emails, reset passwords
+    // IT Admin: Can manage users, equipment, software licenses, provision emails, reset passwords, view logs
     $itAdminPermissions = array_merge(
       $userPermissions, // Can manage users fully
       $equipmentPermissions, // Can manage equipment fully
       ['view-email-applications', 'review-email-applications', 'provision-email-applications'], // Email app review and provisioning
       ['view-loan-applications', 'review-loan-applications', 'issue-loan-equipment', 'receive-loan-equipment'], // Loan app review and transactions
-      ['view-system-logs', 'view-audit-logs'] // Assuming system logs exist
+      ['view-system-logs', 'view-audit-logs'] // Including the needed logs permissions
     );
     // Prevent IT Admin from assigning roles to avoid permission escalation unless intended
     $itAdminPermissions = array_diff($itAdminPermissions, ['assign-roles']);
