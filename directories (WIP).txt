@@ -1,0 +1,600 @@
+.github/
+	ISSUE_TEMPLATE/
+	bug_report.md
+	feature_request.md
+.vscode/
+	Export the Visual Studio Code extension list manually.txt
+	Extensions install command.txt
+	Extensions name list.txt
+app/
+    Actions/
+	Fortify/
+		CreateNewUser.php
+		PasswordValidationRules.php
+		ResetUserPassword.php
+		UpdateUserPassword.php
+		UpdateUserProfileInformation.php
+	Jetstream/
+		DeleteUser.php
+    Console/
+        Commands/
+		LeavesCalculator.php
+        Kernel.php
+    Exceptions/
+        Handler.php
+    Exports/
+	ExportAssets.php
+	ExportDiscounts.php
+	ExportFingerprints.php
+	ExportLeaves.php
+	ExportSummary.php
+    Helpers/
+	Helpers.php
+    Http/
+        Controllers/
+            Admin/
+                DepartmentController.php
+                DesignationController.php
+                EquipmentController.php
+		GradeController.php
+                UserController.php
+            Api/
+		EmailProvisioningController.php
+	    language/
+	    	LanguageController.php
+            ApprovalController.php
+	    Controller.php
+	    DashboardController.php
+	    EmailApplicationController.php
+	    EquipmentController.php
+	    LoanApplicationController.php
+	    LoanTransactionController.php
+	    MiscError.php
+	    NotificationController.php
+	    ReportController.php
+	    UserController.php
+            Middleware/
+                AdminMiddleware.php
+		AllowAdminDuringMaintenance.php
+                Authenticate.php
+		CheckGradeLevel.php
+		CheckUserGrade.php
+                EncryptCookies.php
+		LocaleMiddleware.php
+                PreventRequestsDuringMaintenance.php
+                RedirectIfAuthenticated.php
+                TrimStrings.php
+                TrustHosts.php
+                TrustProxies.php
+		ValidateSignature.php
+                VerifyCsrfToken.php
+		ViewLogs.php
+	    Requests/
+		StoreEmailApplicationRequest.php
+		StoreEquipmentRequest.php
+		StoreGradeRequest.php
+		StoreLoanApplicationRequest.php
+		StoreUserRequest.php
+		UpdateEmailApplicationRequest.php
+		UpdateEquipmentRequest.php
+		UpdateGradeRequest.php
+		UpdateLoanApplicationRequest.php
+		UpdateUserRequest.php
+            Kernel.php
+	    Imports/
+		ImportAssets.php
+		ImportFingerprints.php
+		ImportLeaves.php
+		ImportTransitions.php
+	    Jobs/
+		calculateDiscountsAsDays.php
+		calculateDiscountsAsTime.php
+		sendPendingMessages.php
+		sendPendingMessagesByWhatsapp.php
+		syncAppWithGithub.php
+            Livewire/
+		Assets/
+			Categories.php
+			Inventory.php
+		HumanResource/
+			Attendance/
+				Fingerprints.php
+				Leaves.php
+			Structure/
+				Centers.php
+				Departments.php
+				EmployeeInfo.php
+				Employees.php
+				Positions.php
+			Discounts.php
+			Holidays.php
+			Messages.php
+			Statistics.php
+		Misc/
+			ComingSoon.php
+		Sections/
+			Footer/
+				Footer.php
+			Menu/
+				VericalMenu.php
+			Navbar/
+				Navbar.php
+		Settings/
+			Users.php
+		ApprovalDashboard.php
+		ContactUs.php
+		Dashboard.php
+		EmailApplicationForm.php
+            	EquipmentChecklist.php
+            	LoanRequestForm.php
+		Mail/
+			ApplicationSubmittedNotification.php
+			LoanApplicationIssued.php
+			LoanApplicationOverdueReminder.php
+			LoanApplicationReturned.php
+			WelcomeEmail.php
+    Models/
+        Approval.php        
+	Assets.php
+	Category.php
+        Center.php
+	Changelog.php
+        Contract.php
+        Department.php
+        Discount.php
+        EmailApplication.php
+        Employee.php
+	EmployeeLeave.php
+        Equipment.php
+        Holiday.php
+	Import.php
+        Leave.php
+        LoanApplication.php
+        LoanApplicationItem.php
+        LoanTransaction.php
+	Message.php
+	Notification.php
+        Position.php
+        Setting.php
+	SubCategory.php
+        Timeline.php
+	Transition.php
+        User.php
+        Grade.php
+    Notifications/
+	ApplicationApproved.php
+	ApplicationStatusUpdatedNotification.php
+	DefaultNotification.php
+        EmailApplicationApprovedNotification.php
+	EmailApplicationReadyForProcessingNotification.php
+        EmailApplicationRejectedNotification.php
+	EmailProvisionedNotification.php
+	EquipmentDamagedNotification.php
+	EquipmentIssued.php
+	EquipmentIssuedNotification.php
+	EquipmentLostNotification.php
+	EquipmentOverdueNotification.php
+	EquipmentReturnedNotification.php
+	EquipmentReturnReminderNotification.php
+        LoanApplicationApprovedNotification.php
+	LoanApplicationReadyForIssuanceNotification.php
+        LoanApplicationRejectedNotification.php
+	LoanApprovedNotification.php
+	NewPendingApprovalNotification.php
+    Policies/
+        UserPolicy.php
+        EquipmentPolicy.php
+        EmailApplicationPolicy.php
+        LoanApplicationPolicy.php
+        GradePolicy.php
+    Providers/
+        AppServiceProvider.php
+        AuthServiceProvider.php
+        BroadcastServiceProvider.php
+        EventServiceProvider.php
+	FortifyServiceProvider.php
+	JetstreamServiceProvider.php
+	MenuServiceProvider.php
+        RouteServiceProvider.php
+    Services/
+        ApprovalService.php
+	EmailApplicationService.php
+	EmailProvisioningService.php
+	LoanApplicationService.php
+	NotificationService.php
+	ResourceService.php
+	UserService.php
+    Traits/
+        CreatedUpdatedDeletedBy.php
+	MessageProvider.php
+    Validator/
+        customSignatureValidator.php
+bootstrap/
+    cache/
+        packages.php
+	services.php
+    app.php
+config/
+    app.php
+    auth.php
+    broadcasting.php
+    cache.php
+    cors.php
+    custom.php
+    database.php
+    debugbar.php
+    excel.php
+    filesystems.php
+    fortify.php
+    hashing.php
+    jetstream.php
+    livewire.php
+    log-viewer.php
+    logging.php
+    mail.php
+    permission.php
+    queue.php
+    sanctum.php
+    services.php
+    session.php
+    variables.php
+    view.php
+    webhook-client.php
+    motac.php
+database/
+    factories/
+        ApprovalFactory.php
+        EmailApplicationFactory.php
+        EquipmentFactory.php
+        GradeFactory.php
+        LoanApplicationFactory.php
+        PositionFactory.php
+        UserFactory.php
+    flowcharts/
+        discountAlgorithm.drawio.svg
+    migrations/
+	2013_11_01_131410_create_contracts_table.php
+        2013_11_01_132154_create_employees_table.php
+        2014_10_12_000000_create_users_table.php
+        2014_10_12_100000_create_password_reset_tokens_table.php
+        2014_10_12_100000_create_password_resets_table.php
+        2014_10_12_200000_add_two_factor_columns_to_users_table.php
+//continue here
+        2016_06_01_00_06_01_000005_create_oauth_personal_access_clients_table.php
+        2019_08_19_000000_create_failed_jobs_table.php
+        2019_12_14_000001_create_personal_access_tokens_table.php
+        2020_02_17_000000_create_roles_table.php
+        2020_02_17_000001_create_permissions_table.php
+        2020_02_17_000002_create_permission_role_table.php
+        2020_02_17_000003_create_role_user_table.php
+        2020_02_18_000000_create_designations_table.php
+        2020_02_18_000001_create_departments_table.php
+        2020_02_19_000000_create_companies_table.php
+        2020_02_20_000000_create_employees_table.php
+        2020_02_21_000000_create_office_shifts_table.php
+        2020_02_22_000000_create_holidays_table.php
+        2020_02_23_000000_create_announcements_table.php
+        2020_02_24_000000_create_leaves_table.php
+        2020_02_25_000000_create_awards_table.php
+        2020_02_26_000000_create_complaints_table.php
+        2020_02_27_000000_create_notices_table.php
+        2020_02_28_000000_create_projects_table.php
+        2020_02_29_000000_create_tasks_table.php
+        2020_03_01_000000_create_salaries_table.php
+        2020_03_02_000000_create_payrolls_table.php
+        2020_03_03_000000_create_taxes_table.php
+        2020_03_04_000000_create_absences_table.php
+        2020_03_05_000000_create_leave_types_table.php
+        2020_03_06_000000_create_tickets_table.php
+        2020_03_07_000000_create_organizations_table.php
+        <timestamp>_create_grades_table.php (New)
+        <timestamp>_create_positions_table.php (New - If Position is separate from Designation)
+        <timestamp>_create_centers_table.php (New)
+        <timestamp>_create_equipment_table.php (New)
+        <timestamp>_create_email_applications_table.php (New)
+        <timestamp>_create_loan_applications_table.php (New)
+        <timestamp>_create_loan_application_items_table.php (New)
+        <timestamp>_create_loan_transactions_table.php (New)
+        <timestamp>_create_approvals_table.php (New)
+        <timestamp>_create_contracts_table.php (New)
+        <timestamp>_create_settings_table.php (New)
+        <timestamp>_create_timelines_table.php (New)
+        <timestamp>_add_motac_fields_to_users_table.php (New - Migration to add new columns to users table)
+        <timestamp>_add_foreign_keys_to_users_table.php (New - Migration to add FKs to users table)
+        <timestamp>_create_permission_tables.php (New - If using Spatie permissions fully)
+        <timestamp>_add_polymorphic_columns_to_approvals_table.php (New - If using polymorphic approvals)
+    seeders/
+        DatabaseSeeder.php (Updated)
+        PermissionRoleTableSeeder.php
+        PermissionsTableSeeder.php
+        RolesTableSeeder.php
+        UsersTableSeeder.php
+        GradesSeeder.php (New)
+        EquipmentSeeder.php (New)
+        PositionSeeder.php (New)
+        EmployeesSeeder.php (New)
+        AdminUserSeeder.php (New)
+        UserSeeder.php (New)
+        TimelineSeeder.php (New)
+        ContractsSeeder.php (New)
+        CenterSeeder.php (New)
+        DepartmentSeeder.php (New)
+        SettingsSeeder.php (New)
+        EmailApplicationSeeder.php (New - Optional)
+        LoanApplicationSeeder.php (New - Optional)
+        LoanTransactionSeeder.php (New - Optional)
+        ApprovalSeeder.php (New - Optional)
+lang/
+    en/
+        auth.php
+        buttons.php
+        cruds.php
+        datatable.php
+        global.php
+        messages.php
+        pagination.php
+        passwords.php
+        quickadmin.php
+        sidebar.php
+public/
+    assets/
+        css/
+            adminlte.min.css
+            custom.css
+            style.css
+        fonts/
+            font-awesome/
+                css/
+                    font-awesome.min.css
+                fonts/
+                    fontawesome-webfont.eot
+                    fontawesome-webfont.svg
+                    fontawesome-webfont.ttf
+                    fontawesome-webfont.woff
+                    fontawesome-webfont.woff2
+            ionicons/
+                css/
+                    ionicons.min.css
+                fonts/
+                    ionicons.eot
+                    ionicons.svg
+                    ionicons.ttf
+                    ionicons.woff
+        img/
+            default.png
+        js/
+            adminlte.min.js
+            custom.js
+    favicon.ico
+    mix-manifest.json
+    robots.txt
+resources/
+    js/
+        app.js
+    lang/
+        en/
+            messages.js
+    sass/
+        app.scss
+    views/
+        admin/
+            absences/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            announcements/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            awards/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            companies/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            complaints/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            dashboards/
+                index.blade.php
+            departments/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            designations/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            employees/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+                show_profile.blade.php
+            holidays/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            leaves/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+                show_employee_leaves.blade.php
+            leave_types/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            notices/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            office_shifts/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            organizations/
+                edit.blade.php
+            payrolls/
+                index.blade.php
+                show.blade.php
+                salary_slip.blade.php
+            permissions/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            profiles/
+                edit.blade.php
+            projects/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            reports/
+                employee_report.blade.php
+                leave_report.blade.php
+                equipment_report.blade.php (New)
+                email_accounts_report.blade.php (New)
+                user_activity_report.blade.php (New)
+            roles/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            salaries/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            settings/
+                edit.blade.php
+            tasks/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            taxes/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+            tickets/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+                show_employee_tickets.blade.php
+            users/
+                create.blade.php
+                edit.blade.php
+                index.blade.php
+                show.blade.php
+        auth/
+            login.blade.php
+            passwords/
+                edit.blade.php
+                email.blade.php
+                reset.blade.php
+            register.blade.php
+        errors/
+            403.blade.php
+            404.blade.php
+            500.blade.php
+            503.blade.php
+        home.blade.php
+        layouts/
+            admin.blade.php
+            app.blade.php (Updated)
+            auth.blade.php
+            commonMaster.blade.php (New - Assuming this is the parent layout)
+            sections/ (New Directory)
+                menu/ (New Directory)
+                    verticalMenu.blade.php (New - Or existing, now potentially Livewire)
+                navbar/ (New Directory)
+                    navbar.blade.php (New - Or existing, now potentially Livewire)
+                footer/ (New Directory)
+                    footer.blade.php (New - Or existing, now potentially Livewire)
+            _partials/ (New Directory)
+                _modals/ (New Directory)
+                    modal-pricing.blade.php (New - If exists)
+        partials/
+            alerts.blade.php
+            breadcrumb.blade.php
+            sidebar.blade.php
+            topbar.blade.php
+        email-applications/ (New Directory)
+            index.blade.php (New)
+            show.blade.php (New)
+            create.blade.php (New)
+            edit.blade.php (New - Optional)
+        loan-applications/ (New Directory)
+            index.blade.php (New)
+            show.blade.php (New)
+            create.blade.php (New)
+            edit.blade.php (New - Optional)
+        equipment/ (New Directory)
+            index.blade.php (New)
+            create.blade.php (New)
+            edit.blade.php (New)
+            show.blade.php (New)
+        loan-transactions/ (New Directory)
+            issue.blade.php (New)
+            return.blade.php (New)
+            show.blade.php (New)
+        approvals/ (New Directory)
+            index.blade.php (New)
+            show.blade.php (New)
+            history.blade.php (New)
+            comments.blade.php (New - Partial)
+        notifications/ (New Directory)
+            index.blade.php (New)
+        emails/ (New Directory)
+            welcome.blade.php (New)
+            email-application-rejected.blade.php (New)
+            loan-application-rejected.blade.php (New)
+            email-application-approved.blade.php (New)
+            loan-application-approved.blade.php (New)
+            loan-application-issued.blade.php (New)
+            loan-application-returned.blade.php (New)
+            loan-application-overdue-reminder.blade.php (New)
+            application-submitted-notification.blade.php (New)
+        components/ (New Directory)
+            approval-status-badge.blade.php (New)
+            user-info-card.blade.php (New)
+            resource-status-panel.blade.php (New)
+        livewire/ (New Directory - If Livewire views are separate)
+            approval-dashboard.blade.php (New)
+            equipment-checklist.blade.php (New)
+            loan-request-form.blade.php (New)
+routes/
+    api.php
+    console.php
+    web.php (Updated - Needs new routes)
+tests/
+    Browser/
+        ExampleTest.php
+    Feature/
+        Auth/RegistrationTest.php
+        ExampleTest.php
+    Unit/
+        ExampleTest.php
+    CreatesApplication.php
+phpunit.xml
+README.md
+server.php
+webpack.mix.js

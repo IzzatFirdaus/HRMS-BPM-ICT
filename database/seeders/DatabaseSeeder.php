@@ -2,10 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
+use App\Models\User; // Import the User model
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
-use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role; // Keep if using Spatie roles
+use Illuminate\Support\Facades\DB; // Make sure DB facade is imported
+use Illuminate\Support\Facades\Log; // Keep if using Log facade
 
 
 class DatabaseSeeder extends Seeder
@@ -15,87 +16,108 @@ class DatabaseSeeder extends Seeder
    */
   public function run(): void
   {
-    // Optional: Temporarily disable foreign key checks globally for all seeders.
-    // Use this only if individual seeder FK check disabling isn't sufficient
-    // or causes issues due to complex factory relationships creating data out of order.
-    // DB::statement('SET FOREIGN_KEY_CHECKS = 0;');
+    \Log::info('Starting database seeding...'); // Log start
+
+    // 👇 UNCOMMENTED: Temporarily disable foreign key checks globally for all seeders.
+    // Use this with caution and only if you encounter stubborn FK issues.
+    // Remember to re-enable it afterwards.
+    DB::statement('SET FOREIGN_KEY_CHECKS = 0;');
+    // Optional: Also disable unique checks if you encounter unique constraint errors during seeding
+    // DB::statement('SET UNIQUE_CHECKS = 0;');
 
 
+    // 👇 Seeding Order to resolve dependencies (This order looks correct)
     $this->call([
-      // 1. Core Lookups & Basic Structure (mostly independent)
+      // 1. Seed a basic Admin User first (for immediate audit FK needs on other tables)
+      AdminUserSeeder::class,
+
+      // 2. Seed Core Lookup tables (including those needed by Position and Employee later)
       ContractsSeeder::class,
-      CenterSeeder::class,
-      DepartmentSeeder::class,
-      GradesSeeder::class,
-      //LeavesSeeder::class,
-      //HolidaysSeeder::class,
-      SettingsSeeder::class,
-      //CategoriesSeeder::class,
-      //SubCategoriesSeeder::class,
-      EquipmentSeeder::class,
+      CenterSeeder::class, // Will now truncate without error
+      DepartmentSeeder::class, // Needs User (audit)
+      GradesSeeder::class,     // Needs User (audit)
+      PositionSeeder::class,   // Needs Department, Grades, User (audit) - Order matters here!
+      LeavesSeeder::class,     // Needs User (audit)
+      HolidaysSeeder::class,   // Needs User (audit)
+      SettingsSeeder::class,   // Needs User (audit)
+      CategoriesSeeder::class, // Needs User (audit)
+      SubCategoriesSeeder::class, // Needs Categories, User (audit) - Order matters here!
+      EquipmentSeeder::class,  // Needs User (audit)
 
-      // 2. Seed Positions (Designations) - Depends on Grades, Department
-      PositionSeeder::class,
+      // 3. Seed Employees (depends on Contracts, Department, Position, Grades, and Users for audit)
+      // Needs the tables above to be seeded first.
+      EmployeesSeeder::class, // Needs Contracts, Department, Position, Grades, User (audit)
 
-      // 3. Seed Employees - Depends on Contracts, Department, Position/Designation, Users (for created_by/updated_by, if trait doesn't handle null)
-      // IMPORTANT: Employees MUST be seeded BEFORE Users IF Users reference Employees via employee_id FK.
-      EmployeesSeeder::class, // <-- Seed Employees FIRST if Users link to them
+      // 4. Seed Bulk Users (links to Employee, Department, Position, Grade, and uses Admin for audit)
+      // Needs AdminUser, Employees, Department, Position, Grades to be seeded first.
+      UserSeeder::class, // Needs AdminUser, Employee, Department, Position, Grades (relies on factory fetching)
 
-      // 4. Seed Users - Depends on Employees (if using employee_id FK), Department, Position, Grade
-      // IMPORTANT: User seeders MUST run AFTER Employee seeder if employee_id FK is used.
-      AdminUserSeeder::class, // <-- Seed specific admin user(s)
-      UserSeeder::class,      // <-- Seed bulk regular users (Ensure UserSeeder does NOT truncate users!)
+      // 5. Seed Data dependent on Employees, Equipment, and ALL Users/Applications/Transactions
+      // Ensure dependencies are seeded before these.
+      TimelineSeeder::class, // Needs Employee, Center, Department, Position, User (audit)
+      EmployeeLeaveSeeder::class, // Needs Employee, Leaves, User (audit)
+      EmailApplicationSeeder::class, // Needs User (applicant, supporting officer, audit)
+      LoanApplicationSeeder::class, // Needs User (applicant, responsible officer, audit), Equipment
+      LoanApplicationItemSeeder::class, // Needs LoanApplication - Order matters!
+      LoanTransactionsSeeder::class, // Needs LoanApplication, Equipment, User (officers, audit) - Order matters!
+      TransitionSeeder::class, // Needs Equipment, Employee, User (audit)
+      ApprovalsSeeder::class, // Needs User (officer, audit), EmailApplication, LoanApplication - Order matters!
 
-      // 5. Seed Data Dependent on Users, Employees, and Structure
-      TimelineSeeder::class,  // Depends on Employees, Centers
-      //EmployeeLeaveSeeder::class, // Depends on Employees, Leaves
-      //EmailApplicationSeeder::class, // Depends on Users
-      //LoanApplicationSeeder::class, // Depends on Users, Equipment?
+      // 6. Permissions & Roles (Depends on Users)
+      PermissionRoleTableSeeder::class, // Needs Users - Call after all users exist
 
-      // 6. Seed Data Referencing Users (LIKE APPROVALS)
-      // APPROVALS MUST BE SEEDED *AFTER* ALL USERS EXIST.
-      //ApprovalsSeeder::class, // <-- Add this (if you have it) and ensure it's here
-      // Add other seeders that reference users here (e.g., comments, posts, etc.)
-
-      // 7. Permissions & Roles (Depends on Users)
-      // PermissionRoleTableSeeder::class, // Uncomment if you have this seeder and it should run here
-
-      // Add any other seeders here based on their dependencies...
-      // Make sure seeders like CenterHolidayTableSeeder run after Center and Holiday seeders.
-      // Make sure seeders for LoanApplicationItems and LoanTransactions run after LoanApplications.
+      // CenterHolidayTableSeeder::class, // ADDED/UNCOMMENTED: Ensure this seeder exists and is called if you have a CenterHolidayTableSeeder
     ]);
 
-    // Optional: Re-enable foreign key checks (if disabled above)
-    // DB::statement('SET FOREIGN_KEY_CHECKS = 1;');
+
+    // 👇 UNCOMMENTED: Re-enable foreign key checks (if disabled above)
+    DB::statement('SET FOREIGN_KEY_CHECKS = 1;');
+    // Optional: Also re-enable unique checks if you disabled them globally
+    // DB::statement('SET UNIQUE_CHECKS = 1;');
 
 
     // --- Role Creation and Assignment ---
-    // This should typically happen after all users are seeded.
+    // This logic should remain AFTER all users and permissions/roles are seeded (Step 1, 4 & 6 above).
     // Ensure AdminUserSeeder creates a user with email 'admin@demo.com'.
+
+    Log::info('Assigning roles...'); // Log start
 
     // Find or create the 'Admin' role
     $adminRole = Role::firstOrCreate(['name' => 'Admin']);
+    Log::info('Admin role ensured.'); // Log role check
 
-    // Find the admin user by email or ID
-    $admin = User::where('email', 'admin@demo.com')->first(); // Find admin by email
-    // Or if AdminUserSeeder guarantees ID 1: $admin = User::find(1);
+    // Find the admin user by email
+    $admin = User::where('email', 'admin@demo.com')->first();
 
     // Check if the admin user was found before assigning the role
     if ($admin) {
-      $admin->assignRole($adminRole);
-      \Log::info('Admin role assigned to user ID: ' . $admin->id);
+      // Check if the role is not already assigned before assigning to avoid errors/duplicates
+      if (!$admin->hasRole($adminRole)) {
+        $admin->assignRole($adminRole);
+        Log::info('Admin role assigned to user ID: ' . $admin->id);
+      } else {
+        Log::info('Admin user ID: ' . $admin->id . ' already has the Admin role.');
+      }
     } else {
-      \Log::warning('Admin user (admin@demo.com) not found for role assignment.');
+      Log::warning('Admin user (admin@demo.com) not found for role assignment.');
     }
 
     // Assign roles to other users if needed
+    // Example: Assign 'BPM Staff' role to users marked as is_bpm_staff
     // $bpmUsers = User::where('is_bpm_staff', true)->get();
     // if ($bpmUsers->count() > 0) {
     //     $bpmRole = Role::firstOrCreate(['name' => 'BPM Staff']);
     //     foreach ($bpmUsers as $bpmUser) {
-    //          $bpmUser->assignRole($bpmRole);
+    //          if (!$bpmUser->hasRole($bpmRole)) { // Check if role not already assigned
+    //              $bpmUser->assignRole($bpmRole);
+    //          }
     //     }
-    //     \Log::info('BPM Staff role assigned to ' . $bpmUsers->count() . ' users.');
+    //     Log::info('BPM Staff role ensured for ' . $bpmUsers->count() . ' users.');
+    // } else {
+    //     Log::info('No BPM staff users found to assign role.');
     // }
+
+    Log::info('Role assignment complete.');
+    Log::info('Database seeding complete.');
   }
 }

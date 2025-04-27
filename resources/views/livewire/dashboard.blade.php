@@ -42,12 +42,12 @@
     @include('_partials/_alerts/alert-general') {{-- Adjust path if needed --}}
 
     {{-- <nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item">
-        <a href="{{ route('dashboard') }}">Dashboard</a>
-      </li>
-    </ol>
-  </nav> --}}
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item">
+      <a href="{{ route('dashboard') }}">Dashboard</a>
+    </li>
+  </ol>
+</nav> --}}
 
     <div class="row match-height">
         <div class="col-xl-4 mb-4 col-lg-5 col-12">
@@ -103,10 +103,11 @@
                                     @endcan
 
                                     {{-- 👇 New MOTAC Resource Management Links 👇 --}}
-                                    <li><a class="dropdown-item" href="{{ route('request-email') }}"><i
+                                    {{-- CORRECTED ROUTE NAMES CONFIRMED --}}
+                                    <li><a class="dropdown-item" href="{{ route('email-applications.create') }}"><i
                                                 class="ti ti-mail ti-xs me-1"></i>
                                             {{ __('Email/User ID Request') }}</a></li> {{-- New link --}}
-                                    <li><a class="dropdown-item" href="{{ route('request-loan') }}"><i
+                                    <li><a class="dropdown-item" href="{{ route('loan-applications.create') }}"><i
                                                 class="ti ti-laptop ti-xs me-1"></i> {{ __('ICT Equipment Loan') }}</a>
                                     </li> {{-- New link --}}
                                     {{-- ☝️ End New MOTAC Resource Management Links ☝️ --}}
@@ -253,7 +254,7 @@
                                     {{-- Use approval-status-badge component here --}}
                                     <td>{{ $application->created_at->format('Y-m-d') }}</td>
                                     <td>
-                                        <a href="{{ route('email-applications.show', $application) }}"
+                                        <a href="{{ route('my-applications.email.show', $application) }}"
                                             class="btn btn-sm btn-outline-primary waves-effect">View</a>
                                         {{-- Link to show page --}}
                                     </td>
@@ -273,20 +274,32 @@
                                     {{-- Use approval-status-badge component here --}}
                                     <td>{{ $application->created_at->format('Y-m-d') }}</td>
                                     <td>
-                                        <a href="{{ route('loan-applications.show', $application) }}"
+                                        <a href="{{ route('my-applications.loan.show', $application) }}"
                                             class="btn btn-sm btn-outline-primary waves-effect">View</a>
                                         {{-- Link to show page --}}
                                     </td>
                                 </tr>
                             @empty
-                                {{-- Handle no pending loan applications --}}
+                                {{-- Display 'No pending applications' if both lists are empty --}}
                             @endforelse
 
                             {{-- Display 'No pending applications' if both lists are empty --}}
                             @if (count($userEmailApplications) === 0 && count($userLoanApplications) === 0)
                                 <tr>
                                     <td colspan="5" class="text-center">
-                                        {{ __('No pending applications at this time.') }}</td>
+                                        <div class="mt-2 mb-2" style="text-align: center">
+                                            <h3 class="mb-1 mx-2">{{ __('Great!') }}</h3>
+                                            {{-- Adjusted empty state message --}}
+                                            <p class="mb-4 mx-2">
+                                                {{ __('No pending applications at this time. Your dashboard looks clear!') }}
+                                            </p>
+                                            <div>
+                                                {{-- Adjust asset path if needed --}}
+                                                <img src="{{ asset('assets/img/illustrations/page-misc-check-email.png') }}"
+                                                    width="200" class="img-fluid">
+                                            </div>
+                                        </div>
+                                    </td>
                                 </tr>
                             @endif
                         </tbody>
@@ -321,8 +334,8 @@
                                     <td>{{ $notification->created_at->diffForHumans() }}</td>
                                     {{-- Optional actions --}}
                                     {{-- <td>
-                                    <a href="{{ $notification->data['link'] ?? '#' }}" class="btn btn-sm btn-outline-secondary waves-effect">View</a>
-                               </td> --}}
+                                  <a href="{{ $notification->data['link'] ?? '#' }}" class="btn btn-sm btn-outline-secondary waves-effect">View</a>
+                                 </td> --}}
                                 </tr>
                             @empty
                                 <tr>
@@ -359,19 +372,20 @@
                                 {{-- Assuming $leaveRecords is available --}}
                                 <tr>
                                     <td><strong>{{ $leave->id }}</strong></td>
-                                    {{-- Assuming getEmployeeName is a method on the Livewire component --}}
-                                    <td class="td">{{ $this->getEmployeeName($leave->employee_id) }}</td>
-                                    {{-- Assuming getLeaveType is a method on the Livewire component --}}
-                                    <td>{{ $this->getLeaveType($leave->leave_id) }}</td>
+                                    {{-- Accessing employee name directly from the $leave object --}}
+                                    {{-- IMPORTANT: Ensure your Livewire component eager loads the 'employee' relationship --}}
+                                    <td class="td">
+                                        {{ $leave->employee->full_name ?? ($leave->employee->name ?? 'N/A') }}</td>
+                                    {{-- Accessing leave type directly from the $leave object --}}
+                                    {{-- IMPORTANT: Ensure your Livewire component eager loads the 'leaveType' relationship --}}
+                                    <td>{{ $leave->leaveType->name ?? 'N/A' }}</td>
                                     <td style="text-align: center">
                                         <span class="badge bg-label-primary mb-2 me-1"
                                             style="font-size: 14px">{{ $leave->from_date . ' -->' . $leave->to_date }}</span>
                                         <br>
                                         @if ($leave->start_at !== null)
                                             <span
-                                                class="badge bg-label-secondary me-1">{{ Carbon::parse($leave->start_at)->format('H:i') .
-                                                    ' -->' .
-                                                    Carbon::parse($leave->end_at)->format('H:i') }}</span>
+                                                class="badge bg-label-secondary me-1">{{ Carbon::parse($leave->start_at)->format('H:i') . ' -->' . Carbon::parse($leave->end_at)->format('H:i') }}</span>
                                         @endif
                                     </td>
                                     <td style="text-align: center">

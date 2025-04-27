@@ -2,17 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Department;
-use App\Models\Position;
-use App\Models\Grade;
-use App\Models\Employee;
+// Removed App\Models\User import for strict DB facade usage in this specific seeder
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-// Remove DB facade if not used after removing delete/truncate
-// use Illuminate\Support\Facades\DB;
-
+use Illuminate\Support\Facades\DB; // Import the DB facade
+use Illuminate\Support\Carbon; // Import Carbon for timestamps
 
 class AdminUserSeeder extends Seeder
 {
@@ -21,65 +15,48 @@ class AdminUserSeeder extends Seeder
    */
   public function run(): void
   {
-    // Remove optional delete logic - migrate:fresh handles clearing tables.
-    // Be very cautious with deleting specific records if FKs exist!
-    // DB::statement('SET FOREIGN_KEY_CHECKS = 0;'); // Only if you uncomment delete
-    // User::where('email', 'admin@demo.com')->delete();
-    // User::where('id', 1)->delete();
-    // DB::statement('SET FOREIGN_KEY_CHECKS = 1;'); // Only if you uncomment delete
+    // Use DB facade for robustness during early seeding before full schema is ready.
+    // This bypasses Eloquent models and their traits (like SoftDeletes).
 
-
-    // Find existing Department, Position, and Grade records to link the admin user to.
-    // Ensure DepartmentSeeder, PositionSeeder, and GradeSeeder run BEFORE this seeder.
-    $department = Department::first();
-    $position = Position::first();
-    $grade = Grade::first();
-
-    // Find an employee ID to link to.
-    // This assumes EmployeesSeeder has run BEFORE this seeder.
-    $employee = Employee::first(); // Get the first employee created by EmployeesSeeder
-    $employeeId = $employee?->id; // Get the employee's ID, or null if no employee found
-
-    // Create the default Admin User.
-    // Check if an admin user with this email already exists (useful if not using migrate:fresh)
-    // If using migrate:fresh, this check might be redundant, but doesn't hurt.
-    $adminExists = User::where('email', 'admin@demo.com')->exists();
+    // Check if admin user already exists using DB facade
+    // Using email as the primary check, assuming uniqueness
+    // This query will NOT include SoftDeletes scope as we are using DB::table
+    $adminExists = DB::table('users')
+      ->where('email', 'admin@demo.com')
+      ->first();
 
     if (!$adminExists) {
-      $adminUser = User::create([
-        'name' => 'administrator', // Common lowercase username or system name
-        'full_name' => 'Administrator MOTAC', // This column is added in the migration
-        'employee_id' => $employeeId, // Link to found employee ID or null
+      // Create the default admin user using DB facade insert
+      // ONLY include columns that exist in the initial create_users_table migration (2013_01_01 or 2014_10_12 basic)
+      // DO NOT include MOTAC-specific fields (full_name, employee_id, nric, is_admin, etc.)
+      // or deleted_at here, as those columns might not exist yet.
+      DB::table('users')->insert([
+        'name' => 'Admin', // Or a placeholder username
         'email' => 'admin@demo.com',
-        'password' => Hash::make('password'),
-        'profile_photo_path' => 'profile-photos/.default-photo.jpg',
-        'remember_token' => Str::random(10),
-
-        // MOTAC-specific fields - Ensure these match migration column names EXACTLY
-        'nric' => '000000000000',
-        'mobile_number' => '0123456789',
-        'personal_email' => 'admin.personal@demo.com',
-        'service_status' => 'permanent', // Must match enum in migration
-        'appointment_type' => 'Tetap',
-        'is_admin' => true,
-        'is_bpm_staff' => true,
-        'user_id_assigned' => null,
-        'status' => 'active', // Must match enum in migration
-        'motac_email' => 'admin@motac.gov.my',
-
-        // Link to related models (using IDs) - Ensure these exist from earlier seeders
-        'department_id' => $department?->id,
-        'position_id' => $position?->id,
-        'grade_id' => $grade?->id,
-
-        // Audit fields handled by trait or set to null/user ID
-        'created_by' => null,
-        'updated_by' => null,
+        'email_verified_at' => Carbon::now(), // Use Carbon::now() for timestamps
+        'password' => Hash::make('password'), // Set a default password
+        'remember_token' => null, // Default remember token to null
+        'created_at' => Carbon::now(), // Manually set timestamps
+        'updated_at' => Carbon::now(),
       ]);
 
-      \Log::info('Admin user seeded successfully (ID: ' . $adminUser->id . ').');
+      // Log the creation for verification
+      \Log::info('Initial admin user created via DB::table insert.');
     } else {
-      \Log::info('Admin user (admin@demo.com) already exists.');
+      // Log that the admin user already exists
+      \Log::info('Admin user already exists.');
     }
+
+    // Subsequent seeders or logic (running AFTER add_motac_columns_to_users_table migration)
+    // can safely use the User model to update this admin user with MOTAC fields
+    // and create other users.
+    // Example: In DatabaseSeeder after calling add_motac_columns_to_users_table migration:
+    // User::where('email', 'admin@demo.com')->update([
+    //     'full_name' => 'Administrator',
+    //     'is_admin' => true,
+    //     'status' => 'active',
+    //     // ... other MOTAC fields ...
+    //     // Audit columns should be handled by the CreatedUpdatedDeletedBy trait when using User::update
+    // ]);
   }
 }

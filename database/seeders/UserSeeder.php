@@ -3,67 +3,42 @@
 namespace Database\Seeders;
 
 use App\Models\User; // Import the User model
-// Remove these imports as seed order is controlled by DatabaseSeeder
-// use App\Models\Department;
-// use App\Models\Position;
-// use App\Models\Grade;
+// Removed commented-out imports for Department, Position, Grade, Hash, Str
+// Removed commented-out dependency checks and nested calls
 
 use Illuminate\Database\Seeder;
-// Remove these imports if only using factories
-// use Illuminate\Support\Facades\Hash;
-// use Illuminate\Support\Str;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents; // Optional trait
 
 class UserSeeder extends Seeder
 {
   /**
    * Run the database seeds.
-   *
-   * @return void
    */
   public function run(): void
   {
+    \Log::info('Seeding regular users...'); // Log start
+
     // Remove truncate() - migrate:fresh handles clearing tables.
-    // User::truncate();
+    // Ensure AdminUserSeeder runs BEFORE this seeder to avoid deleting admin.
 
-    // Remove duplicate admin user creation logic - AdminUserSeeder handles this.
-    /*
-        User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password'),
-            'remember_token' => Str::random(10),
-            'nric' => '000000000000',
-            'phone_number' => '0123456789',
-            'personal_email' => 'admin.personal@example.com',
-            'is_admin' => true,
-            'is_bpm_staff' => true,
-            'department_id' => Department::first()?->id,
-            'position_id' => Position::first()?->id,
-            'grade_id' => Grade::first()?->id,
-        ]);
-        */
+    // --- Create a batch of regular users using the User Factory ---
+    // The factory will handle generating fake data, linking to random
+    // Departments, Positions, Grades, and potentially Employees (if linking is in factory),
+    // and populating audit columns, relying on DatabaseSeeder order.
 
-    // Remove nested $this->call() checks - seeding order is controlled by DatabaseSeeder.
-    /*
-        if (Department::count() === 0) {
-            $this->call(DepartmentSeeder::class);
-        }
-        if (Position::count() === 0) {
-            $this->call(PositionSeeder::class);
-        }
-        if (Grade::count() === 0) {
-            $this->call(GradeSeeder::class);
-        }
-        */
-
-    // --- Create some regular users using the User Factory ---
-    // This is the primary purpose of UserSeeder when AdminUserSeeder exists.
-    // The factory should handle assigning random departments, positions, grades etc.
-    // based on existing data, relying on DatabaseSeeder order.
+    // Create 50 regular users.
     User::factory()->count(50)->create();
+    \Log::info('Created 50 regular users.');
 
-    // Log a message (optional)
-    // \Log::info('Regular users seeded successfully.');
+    // Example: Create users with specific states
+    // Create some BPM staff users
+    // User::factory()->count(10)->bpmStaff()->create();
+    // \Log::info('Created 10 BPM staff users.');
+
+    // Create some admin users (redundant if AdminUserSeeder runs first, use with caution)
+    // User::factory()->count(2)->admin()->create();
+    // \Log::info('Created 2 additional admin users (use with caution).');
+
+    \Log::info('Regular user seeding complete.'); // Log end
   }
 }

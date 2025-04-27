@@ -1,9 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\ServiceProvider; // Import ServiceProvider for clarity
 
 return [
-    /*
+
+  /*
     |--------------------------------------------------------------------------
     | Application Name
     |--------------------------------------------------------------------------
@@ -14,9 +16,9 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+  'name' => env('APP_NAME', 'Laravel'),
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
@@ -27,9 +29,9 @@ return [
     |
     */
 
-    'env' => env('APP_ENV', 'production'),
+  'env' => env('APP_ENV', 'production'),
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------
@@ -40,9 +42,9 @@ return [
     |
     */
 
-    'debug' => (bool) env('APP_DEBUG', false),
+  'debug' => (bool) env('APP_DEBUG', false),
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
@@ -53,11 +55,11 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://localhost'),
+  'url' => env('APP_URL', 'http://localhost'),
 
-    'asset_url' => env('ASSET_URL'),
+  'asset_url' => env('ASSET_URL'),
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
@@ -68,9 +70,9 @@ return [
     |
     */
 
-    'timezone' => env('APP_TIMEZONE', 'UTC'),
+  'timezone' => env('APP_TIMEZONE', 'Asia/Kuala_Lumpur'), // Set a more relevant timezone for Malaysia (Putrajaya)
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
@@ -81,9 +83,9 @@ return [
     |
     */
 
-    'locale' => 'en',
+  'locale' => 'en', // Default locale
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Application Fallback Locale
     |--------------------------------------------------------------------------
@@ -94,9 +96,9 @@ return [
     |
     */
 
-    'fallback_locale' => 'en',
+  'fallback_locale' => 'en', // Fallback locale
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Faker Locale
     |--------------------------------------------------------------------------
@@ -107,9 +109,9 @@ return [
     |
     */
 
-    'faker_locale' => 'en_US',
+  'faker_locale' => 'en_US', // Faker locale
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
@@ -120,11 +122,11 @@ return [
     |
     */
 
-    'key' => env('APP_KEY'),
+  'key' => env('APP_KEY'),
 
-    'cipher' => 'AES-256-CBC',
+  'cipher' => 'AES-256-CBC',
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Maintenance Mode Driver
     |--------------------------------------------------------------------------
@@ -137,12 +139,12 @@ return [
     |
     */
 
-    'maintenance' => [
-        'driver' => 'file',
-        // 'store'  => 'redis',
-    ],
+  'maintenance' => [
+    'driver' => 'file',
+    // 'store'  => 'redis',
+  ],
 
-    /*
+  /*
     |--------------------------------------------------------------------------
     | Autoloaded Service Providers
     |--------------------------------------------------------------------------
@@ -153,51 +155,45 @@ return [
     |
     */
 
-    'providers' => [
-        /*
-     * Laravel Framework Service Providers...
-     */
-        Illuminate\Auth\AuthServiceProvider::class,
-        Illuminate\Broadcasting\BroadcastServiceProvider::class,
-        Illuminate\Bus\BusServiceProvider::class,
-        Illuminate\Cache\CacheServiceProvider::class,
-        Illuminate\Foundation\Providers\ConsoleSupportServiceProvider::class,
-        Illuminate\Cookie\CookieServiceProvider::class,
-        Illuminate\Database\DatabaseServiceProvider::class,
-        Illuminate\Encryption\EncryptionServiceProvider::class,
-        Illuminate\Filesystem\FilesystemServiceProvider::class,
-        Illuminate\Foundation\Providers\FoundationServiceProvider::class,
-        Illuminate\Hashing\HashServiceProvider::class,
-        Illuminate\Mail\MailServiceProvider::class,
-        Illuminate\Notifications\NotificationServiceProvider::class,
-        Illuminate\Pagination\PaginationServiceProvider::class,
-        Illuminate\Pipeline\PipelineServiceProvider::class,
-        Illuminate\Queue\QueueServiceProvider::class,
-        Illuminate\Redis\RedisServiceProvider::class,
-        Illuminate\Auth\Passwords\PasswordResetServiceProvider::class,
-        Illuminate\Session\SessionServiceProvider::class,
-        Illuminate\Translation\TranslationServiceProvider::class,
-        Illuminate\Validation\ValidationServiceProvider::class,
-        Illuminate\View\ViewServiceProvider::class,
-
-        /*
-     * Package Service Providers...
-     */
-
-        /*
-     * Application Service Providers...
-     */
-        App\Providers\AppServiceProvider::class,
-        App\Providers\AuthServiceProvider::class,
-        // App\Providers\BroadcastServiceProvider::class,
-        App\Providers\EventServiceProvider::class,
-        App\Providers\RouteServiceProvider::class,
-        App\Providers\FortifyServiceProvider::class,
-        App\Providers\JetstreamServiceProvider::class,
-        App\Providers\MenuServiceProvider::class,
-    ],
+  'providers' => ServiceProvider::defaultProviders()->merge([
+    /*
+         * Package Service Providers...
+         * Add any package service providers that are NOT auto-discovered here.
+         * Examples:
+         * Spatie\Permission\PermissionServiceProvider::class, // Spatie Permission might be here or auto-discovered
+         * Livewire\LivewireServiceProvider::class, // Livewire might be here or auto-discovered
+         * YourPackage\YourPackageServiceProvider::class,
+         */
 
     /*
+         * Application Service Providers...
+         * Add your custom application service providers here.
+         * Examples:
+         * App\Providers\AppServiceProvider::class,
+         * App\Providers\AuthServiceProvider::class,
+         * App\Providers\EventServiceProvider::class,
+         * App\Providers\RouteServiceProvider::class,
+         * App\Providers\FortifyServiceProvider::class, // Keep if using Fortify
+         * App\Providers\JetstreamServiceProvider::class, // Keep if using Jetstream
+         * App\Providers\MenuServiceProvider::class, // Keep if using a custom Menu Service Provider
+         *
+         * Add any Service Providers specifically created for the MOTAC RM module here if needed.
+         * App\Providers\MotacResourceManagementServiceProvider::class, // Example custom provider
+         */
+    App\Providers\AppServiceProvider::class,
+    App\Providers\AuthServiceProvider::class,
+    // App\Providers\BroadcastServiceProvider::class, // Uncomment if using broadcasting
+    App\Providers\EventServiceProvider::class,
+    App\Providers\RouteServiceProvider::class,
+    App\Providers\FortifyServiceProvider::class,
+    App\Providers\JetstreamServiceProvider::class,
+    App\Providers\MenuServiceProvider::class, // Assuming this is a custom provider for your menu
+
+
+  ])->toArray(),
+
+
+  /*
     |--------------------------------------------------------------------------
     | Class Aliases
     |--------------------------------------------------------------------------
@@ -208,10 +204,13 @@ return [
     |
     */
 
-    'aliases' => Facade::defaultAliases()
-        ->merge([
-            // 'ExampleClass' => App\Example\ExampleClass::class,
-            'Helper' => App\Helpers\Helpers::class,
-        ])
-        ->toArray(),
+  'aliases' => Facade::defaultAliases()
+    ->merge([
+      // 'ExampleClass' => App\Example\ExampleClass::class,
+      'Helper' => App\Helpers\Helpers::class, // Keep your custom Helper alias
+      // Add any other custom aliases here
+      // 'Permission' => Spatie\Permission\Facades\Permission::class, // Example Spatie alias
+    ])
+    ->toArray(),
+
 ];
