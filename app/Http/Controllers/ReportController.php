@@ -12,6 +12,23 @@ use Spatie\Activitylog\Models\Activity; // Import Activity model if using spatie
 class ReportController extends Controller
 {
   /**
+   * Display the index page for reports.
+   * Lists available reports with links.
+   *
+   * @return View
+   */
+  public function index(): View
+  {
+    // Optional: Add authorization check if only certain users can see the report index
+    // Gate::authorize('view-report-index');
+
+    // You can optionally fetch some data here if needed for the index page,
+    // but for a simple list of links, it's not strictly necessary.
+
+    return view('reports.index'); // This will load the new index view
+  }
+
+  /**
    * Generate the equipment report.
    * Fetches all loan applications with their requested items and the associated user.
    *

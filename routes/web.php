@@ -109,7 +109,10 @@ Route::middleware([
     // This might be the user-facing view of assets or a different admin view
     Route::get('/inventory', Inventory::class)->middleware(['role:Admin|AM'])->name('inventory'); // Existing Assets Inventory
     Route::get('/categories', Categories::class)->middleware(['role:Admin|AM'])->name('categories'); // Existing Assets Categories
-    Route::get('/reports', ComingSoon::class)->middleware(['role:Admin|AM|HR'])->name('reports'); // Existing Assets reports placeholder
+
+    // Updated: Route for the Reports Index page
+    Route::get('/report', [ReportController::class, 'index'])->middleware(['role:Admin|AM|HR'])->name('reports.index'); // Use the index method
+
     // Route::get('/transfers', ComingSoon::class)->name('transfers'); // Placeholder
   });
 
@@ -206,6 +209,7 @@ Route::middleware([
     Route::prefix('reports')->name('reports.')->middleware('role:Admin')->group(function () { // Restrict to Admin role
       Route::get('/equipment', [ReportController::class, 'equipment'])->name('equipment');
       Route::get('/email-accounts', [ReportController::class, 'emailAccounts'])->name('email-accounts');
+      // Assuming you have a loanApplications method in ReportController
       Route::get('/loan-applications', [ReportController::class, 'loanApplications'])->name('loan-applications');
       Route::get('/user-activity', [ReportController::class, 'userActivity'])->name('user-activity');
       // Add other reports as needed
