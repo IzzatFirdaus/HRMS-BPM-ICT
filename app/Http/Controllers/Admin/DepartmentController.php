@@ -18,10 +18,11 @@ class DepartmentController extends Controller
   public function index()
   {
     // Optional: Add authorization check using a Policy
-    // $this->authorize('viewAny', Department::class); // Assuming a DepartmentPolicy exists with a viewAny method
+    // $this->authorize('viewAny', Department::class);
 
-    // Fetch all departments. Consider pagination if you expect many departments.
-    $departments = Department::all(); // Or Department::paginate(15);
+    // Fetch all departments and efficiently load the count of related users (members)
+    // Use Eloquent's withCount() method with the relationship name 'users'
+    $departments = Department::withCount('users')->get(); // Or Department::withCount('users')->paginate(15);
 
     // Return the view with the list of departments
     // Assuming your admin department views are located in resources/views/admin/departments

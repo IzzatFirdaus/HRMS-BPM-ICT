@@ -3,60 +3,72 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Models\Approval; // Import the Approval model
-use App\Models\EmailApplication; // Import for type hinting/checking
-use App\Models\LoanApplication; // Import for type hinting/checking
-use App\Services\ApprovalService; // Use the service for approval logic
-use Illuminate\Support\Facades\Auth; // Import Auth facade
-use Illuminate\Support\Facades\Gate; // For Gate::allows (optional, prefer $this->authorize)
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Trait for policy checks
-use Livewire\WithPagination; // Use WithPagination trait
-use Illuminate\Database\Eloquent\ModelNotFoundException; // FIX: Import ModelNotFoundException
-use Illuminate\Support\Facades\Log; // FIX: Import Log facade
+use App\Models\Approval;
+use App\Models\EmailApplication;
+use App\Models\LoanApplication;
+use App\Services\ApprovalService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Livewire\WithPagination;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Database\Eloquent\Builder;
+use Symfony\Component\Routing\Exception\RouteNotFoundException; // ✅ Correct import based on user's note and common usage
 
 
 class ApprovalDashboard extends Component
 {
-  use WithPagination; // Use the WithPagination trait
-  use AuthorizesRequests; // Use the AuthorizesRequests trait
+  use WithPagination, AuthorizesRequests;
 
-  // Set pagination theme (e.g., 'bootstrap', 'tailwind') - adjust based on your frontend framework
-  protected $paginationTheme = 'bootstrap';
+  // Set pagination theme (e.g., 'bootstrap', 'tailwind')
+  protected string $paginationTheme = 'bootstrap';
 
+  // Filters
+  public string $filterStatus = 'pending';
+  public string $filterType = 'all';
 
-  public $filterStatus = 'pending'; // Filter by status ('pending' is default for dashboard)
-  public $filterType = 'all'; // Filter by approvable type ('all', 'email', 'loan')
+  // Modal/sidebar state and data
+  public bool $showApprovalModal = false;
+  public ?Approval $currentApproval = null;
+  public mixed $currentApprovable = null; // Mixed type for EmailApplication or LoanApplication
+  public string $approvalComments = '';
+  public string $approvalDecision = ''; // 'approved' or 'rejected'
 
-  // Properties for modal/sidebar to show details or capture comments
-  public $showApprovalModal = false;
-  public $currentApproval = null; // The specific Approval record being processed
-  public $currentApprovable = null; // The related application (Email or Loan) for display
-  public $approvalComments = '';
-  public $approvalDecision = ''; // 'approved' or 'rejected'
-
+  /**
+   * Component boot lifecycle hook.
+   * Authorizes the user to view the approval dashboard.
+   *
+   * @return void
+   */
+  public function boot(): void
+  {
+    // Authorize viewAny permission for Approval model
+    $this->authorize('viewAny', Approval::class);
+  }
 
   /**
    * Render the component view.
-   * Fetches pending Approval records assigned to the authenticated officer.
+   * Fetches Approval records assigned to the authenticated officer based on filters.
    *
    * @return \Illuminate\View\View
    */
-  public function render()
+  public function render(): View
   {
     $user = Auth::user();
 
-    // Authorize if the user can view the approval dashboard (viewAny on Approval model)
-    $this->authorize('viewAny', Approval::class); // Assuming an ApprovalPolicy exists
-
-    // Start building the query for Approval records
     $query = Approval::query()
-      ->where('officer_id', $user->id) // Filter approvals assigned to the current user
-      ->where('status', 'pending') // Only fetch pending approval tasks
-      ->with('approvable', 'approvable.user') // Eager load the related application and the applicant user
-      ->latest(); // Order by latest pending approval task
+      ->where('officer_id', $user->id)
+      ->with('approvable', 'approvable.user')
+      ->latest();
 
+    // Apply status filter
+    if ($this->filterStatus !== 'all') {
+      $query->where('status', $this->filterStatus);
+    }
 
-    // Apply type filter if selected
+    // Apply type filter
     if ($this->filterType !== 'all') {
       $approvableTypeClass = null;
       if ($this->filterType === 'email') {
@@ -66,135 +78,127 @@ class ApprovalDashboard extends Component
       }
 
       if ($approvableTypeClass) {
-        // Filter by the type of the related approvable model using whereHasMorph
         $query->whereHasMorph('approvable', [$approvableTypeClass]);
       }
     }
 
-    // Apply pagination to the query results
-    $pendingApprovals = $query->paginate(10); // Adjust items per page as needed
-
-
-    // Note: Authorization for processing individual approvals (approve/reject)
-    // is handled in openApprovalModal and processApproval methods using policies.
-    // The view should ensure that action buttons are only shown if the user
-    // can update the specific Approval record ($user->can('update', $approval)).
-
+    $approvals = $query->paginate(10);
 
     return view('livewire.approval-dashboard', [
-      'pendingApprovals' => $pendingApprovals, // Pass the paginated collection of Approval models
+      'approvals' => $approvals,
     ]);
   }
 
   /**
-   * Method to open modal for approval/rejection of a specific pending Approval record.
+   * Open modal for approval/rejection of a specific pending Approval record.
    *
    * @param int $approvalId The ID of the pending Approval record.
    * @param string $decision 'approved' or 'rejected'.
    * @return void
    */
-  public function openApprovalModal($approvalId, $decision)
+  public function openApprovalModal(int $approvalId, string $decision): void
   {
-    // Find the specific Approval record
     try {
-      $approval = Approval::findOrFail($approvalId);
-    } catch (ModelNotFoundException $e) { // Catch ModelNotFoundException
-      session()->flash('error', 'Approval task not found.');
-      return; // Stop execution
+      $approval = Approval::where('id', $approvalId)
+        ->where('officer_id', Auth::id())
+        ->where('status', 'pending')
+        ->firstOrFail();
+    } catch (ModelNotFoundException $e) {
+      Log::warning('ApprovalDashboard: Attempted to open modal for non-pending or unassigned approval task.', [
+        'approval_id' => $approvalId,
+        'user_id' => Auth::id(),
+        'decision' => $decision
+      ]);
+      session()->flash('error', __('Approval task not found or already processed.'));
+      return;
     }
 
+    $this->authorize('update', $approval);
 
-    // Authorize if the user can update this specific Approval record (policy should check officer_id and status='pending')
-    $this->authorize('update', $approval); // Assuming an ApprovalPolicy exists with an 'update' method
-
-
-    // Store the Approval model instance and its related approvable
     $this->currentApproval = $approval;
-    $this->currentApprovable = $approval->approvable; // Get the related application (Email or Loan)
+    $this->currentApprovable = $approval->approvable;
     $this->approvalDecision = $decision;
-    $this->approvalComments = ''; // Reset comments field
+    $this->approvalComments = '';
 
-    $this->showApprovalModal = true; // Show the modal
+    $this->showApprovalModal = true;
   }
 
   /**
-   * Method to close the approval/rejection modal.
+   * Close the approval/rejection modal.
    *
    * @return void
    */
-  public function closeApprovalModal()
+  public function closeApprovalModal(): void
   {
     $this->showApprovalModal = false;
-    $this->currentApproval = null; // Clear the stored Approval record
-    $this->currentApprovable = null; // Clear the stored approvable
+    $this->currentApproval = null;
+    $this->currentApprovable = null;
     $this->approvalComments = '';
     $this->approvalDecision = '';
+    $this->resetValidation();
   }
 
-
   /**
-   * Method to perform the approval/rejection action via the ApprovalService.
+   * Perform the approval/rejection action via the ApprovalService.
    *
    * @param ApprovalService $approvalService The ApprovalService instance.
    * @return void
    */
-  public function processApproval(ApprovalService $approvalService)
+  public function processApproval(ApprovalService $approvalService): void
   {
-    // Validate comments if necessary
     $this->validate([
-      'approvalComments' => 'nullable|string|max:500', // Validate comments
+      'approvalComments' => 'nullable|string|max:500',
     ]);
 
-    // Ensure a pending Approval record is selected
     if (!$this->currentApproval) {
-      session()->flash('error', 'No approval task selected for processing.');
+      session()->flash('error', __('No approval task selected for processing.'));
       $this->closeApprovalModal();
       return;
     }
 
-    // Re-authorize the action before processing to prevent race conditions
-    // The policy's 'update' method should ensure status is still 'pending' and user is the assigned officer
-    $this->authorize('update', $this->currentApproval);
-
-
     try {
-      // Use the ApprovalService to record the decision on the specific Approval record
-      // Call the correct service methods based on the decision
-      if ($this->approvalDecision === 'approved') {
-        // Ensure recordApprovalDecision exists in ApprovalService
-        $approvalService->recordApprovalDecision(
-          $this->currentApproval, // Pass the specific Approval model
-          Auth::user(), // The current user is the officer making the decision
-          $this->approvalComments // Pass comments
-        );
-        session()->flash('message', 'Approved successfully.');
-      } elseif ($this->approvalDecision === 'rejected') {
-        // Ensure recordRejectionDecision exists in ApprovalService
-        $approvalService->recordRejectionDecision(
-          $this->currentApproval, // Pass the specific Approval model
-          Auth::user(), // The current user is the officer making the decision
-          $this->approvalComments // Pass comments
-        );
-        session()->flash('message', 'Rejected successfully.');
-      } else {
-        // Handle invalid decision state
-        session()->flash('error', 'Invalid approval decision.');
-        Log::error("Invalid approval decision state in ApprovalDashboard for Approval ID: " . $this->currentApproval->id . ". Decision: " . $this->approvalDecision); // Use Log facade
-      }
-    } catch (\Exception $e) {
-      // Catch exceptions thrown by the service (e.g., database errors, policy failures within service)
-      session()->flash('error', 'An error occurred while processing the approval: ' . $e->getMessage());
-      Log::error("Approval processing failed for Approval ID: " . $this->currentApproval->id . ". Error: " . $e->getMessage()); // Use Log facade
+      $this->authorize('update', $this->currentApproval);
+    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+      Log::warning('ApprovalDashboard: Authorization failed during processApproval.', [
+        'approval_id' => $this->currentApproval->id,
+        'user_id' => Auth::id(),
+        'decision' => $this->approvalDecision
+      ]);
+      session()->flash('error', __('You are not authorized to process this approval task or it is no longer pending.'));
+      $this->closeApprovalModal();
+      return;
     }
 
+    try {
+      if ($this->approvalDecision === 'approved') {
+        $approvalService->recordApprovalDecision(
+          $this->currentApproval,
+          Auth::user(),
+          $this->approvalComments
+        );
+        session()->flash('success', __('Approved successfully.'));
+      } elseif ($this->approvalDecision === 'rejected') {
+        $approvalService->recordRejectionDecision(
+          $this->currentApproval,
+          Auth::user(),
+          $this->approvalComments
+        );
+        session()->flash('success', __('Rejected successfully.'));
+      } else {
+        session()->flash('error', __('Invalid approval decision.'));
+        Log::error("ApprovalDashboard: Invalid approval decision state for Approval ID: " . $this->currentApproval->id . ". Decision: " . $this->approvalDecision, ['user_id' => Auth::id()]);
+      }
 
-    // Close the modal
+      $this->dispatch('toastr', type: 'success', message: session()->get('success') ?? __('Processing Complete!'));
+    } catch (\Exception $e) {
+      Log::error("ApprovalDashboard: Approval processing failed for Approval ID: " . $this->currentApproval->id . ". Error: " . $e->getMessage(), ['user_id' => Auth::id()]);
+      session()->flash('error', __('An unexpected error occurred while processing the approval.'));
+      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
+    }
+
     $this->closeApprovalModal();
-
-    // Refresh the Livewire component to update the list of pending approvals
     $this->dispatch('$refresh');
   }
-
 
   /**
    * Method to view details of the related application in a dedicated page.
@@ -202,55 +206,73 @@ class ApprovalDashboard extends Component
    * @param int $approvalId The ID of the pending Approval record.
    * @return \Illuminate\Routing\Redirector|\Illuminate\Http\RedirectResponse
    */
-  public function viewDetails($approvalId)
+  public function viewDetails(int $approvalId): RedirectResponse
   {
-    // Find the specific Approval record
     try {
-      $approval = Approval::findOrFail($approvalId);
-    } catch (ModelNotFoundException $e) { // Catch ModelNotFoundException
-      session()->flash('error', 'Approval task not found.');
-      return redirect()->route('approvals'); // FIX: Return a redirect on this path
+      $approval = Approval::where('id', $approvalId)
+        ->where('officer_id', Auth::id())
+        ->with('approvable')
+        ->firstOrFail();
+    } catch (ModelNotFoundException $e) {
+      Log::warning('ApprovalDashboard: Attempted to view details for unassigned or non-existent approval task.', [
+        'approval_id' => $approvalId,
+        'user_id' => Auth::id()
+      ]);
+      session()->flash('error', __('Approval task not found or not assigned to you.'));
+      return redirect()->route('approvals');
     }
 
+    try {
+      $this->authorize('view', $approval);
+    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+      Log::warning('ApprovalDashboard: Authorization failed during viewDetails.', [
+        'approval_id' => $approval->id,
+        'user_id' => Auth::id()
+      ]);
+      session()->flash('error', __('You are not authorized to view details for this approval task.'));
+      return redirect()->route('approvals');
+    }
 
-    // Authorize if the user can view this specific Approval record (policy should check officer_id, etc.)
-    $this->authorize('view', $approval); // Assuming an ApprovalPolicy exists with a 'view' method
-
-
-    // Get the related approvable model (EmailApplication or LoanApplication)
     $approvable = $approval->approvable;
-
-    // Determine the route name based on the approvable type
     $routeName = null;
+    $routeParameters = [];
+
     if ($approvable instanceof EmailApplication) {
-      $routeName = 'email-applications.show'; // Assuming you have named routes like 'email-applications.show'
+      $routeName = 'email-applications.show';
+      $routeParameters = ['emailApplication' => $approvable->id];
     } elseif ($approvable instanceof LoanApplication) {
-      $routeName = 'loan-applications.show'; // Assuming you have named routes like 'loan-applications.show'
+      $routeName = 'loan-applications.show';
+      $routeParameters = ['loanApplication' => $approvable->id];
+    } else {
+      // Handle cases where approvable type is unknown or route logic fails BEFORE redirecting
+      Log::error("ApprovalDashboard: Could not determine details page route or approvable is missing for Approval ID: " . $approvalId, ['approvable_type' => get_class($approvable), 'user_id' => Auth::id()]);
+      session()->flash('error', __('Could not determine details page for this application type.'));
+      return redirect()->route('approvals'); // Redirect on unknown type
     }
 
-    // Redirect to the show page for the specific application type, passing the approvable model ID
-    if ($routeName && $approvable) {
-      return redirect()->route($routeName, $approvable->id); // Use route model binding or just pass ID
-    } else {
-      // Handle cases where approvable type is unknown or route is not defined
-      session()->flash('error', 'Could not determine details page for this application type.');
-      Log::error("Could not determine details page for approvable type: " . get_class($approvable) . " for Approval ID: " . $approvalId); // Use Log facade
-      return redirect()->route('approvals'); // FIX: Return a redirect on this path
+    try {
+      // Use the determined route name and parameters
+      return redirect()->route($routeName, $routeParameters);
+    } catch (RouteNotFoundException $e) { // Using Symfony's RouteNotFoundException
+      // Catch error if route name is not defined
+      Log::error("ApprovalDashboard: Route not found for approvable type: " . get_class($approvable) . " for Approval ID: " . $approvalId, ['route_name' => $routeName, 'exception' => $e, 'user_id' => Auth::id()]);
+      session()->flash('error', __('Details page route not defined for this application type.'));
+      return redirect()->route('approvals'); // Redirect on route not found
     }
   }
 
   // Method to update filters and reset pagination
-  public function updatedFilterType()
+  public function updatedFilterType(): void
   {
-    $this->resetPage(); // Reset to the first page when filter changes
-  }
-  public function updatedFilterStatus()
-  {
-    $this->resetPage(); // Reset to the first page when filter changes
-    // Note: Current render method hardcodes status to 'pending', so this filter might not be fully utilized yet.
-    // You would modify the render query to filter by $this->filterStatus if you want to show approved/rejected/all.
+    $this->resetPage();
+    // Livewire re-fetches data automatically on state change
   }
 
+  public function updatedFilterStatus(): void
+  {
+    $this->resetPage();
+    // Livewire re-fetches data automatically on state change
+  }
 
-  // Add other methods as needed (e.g., sorting, bulk actions)
+  // ... other methods ...
 }

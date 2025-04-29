@@ -39,7 +39,8 @@
     @endsection
 
     {{-- Alerts --}}
-    @include('_partials/_alerts/alert-general') {{-- Adjust path if needed --}}
+    {{-- Ensure the path '_partials/_alerts/alert-general' is correct for your project --}}
+    @include('_partials/_alerts/alert-general')
 
     {{-- <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -103,7 +104,7 @@
                                     @endcan
 
                                     {{-- 👇 New MOTAC Resource Management Links 👇 --}}
-                                    {{-- CORRECTED ROUTE NAMES CONFIRMED --}}
+                                    {{-- Ensure these route names ('email-applications.create' and 'loan-applications.create') are correctly defined in your web.php --}}
                                     <li><a class="dropdown-item" href="{{ route('email-applications.create') }}"><i
                                                 class="ti ti-mail ti-xs me-1"></i>
                                             {{ __('Email/User ID Request') }}</a></li> {{-- New link --}}
@@ -254,6 +255,7 @@
                                     {{-- Use approval-status-badge component here --}}
                                     <td>{{ $application->created_at->format('Y-m-d') }}</td>
                                     <td>
+                                        {{-- Ensure the route 'my-applications.email.show' is correctly defined in your web.php --}}
                                         <a href="{{ route('my-applications.email.show', $application) }}"
                                             class="btn btn-sm btn-outline-primary waves-effect">View</a>
                                         {{-- Link to show page --}}
@@ -274,6 +276,7 @@
                                     {{-- Use approval-status-badge component here --}}
                                     <td>{{ $application->created_at->format('Y-m-d') }}</td>
                                     <td>
+                                        {{-- Ensure the route 'my-applications.loan.show' is correctly defined in your web.php --}}
                                         <a href="{{ route('my-applications.loan.show', $application) }}"
                                             class="btn btn-sm btn-outline-primary waves-effect">View</a>
                                         {{-- Link to show page --}}
@@ -458,7 +461,8 @@
     </div>
 
     {{-- Existing Modals --}}
-    @include('_partials/_modals/modal-leaveWithEmployee') {{-- Adjust path if needed --}}
+    {{-- Ensure the path '_partials/_modals/modal-leaveWithEmployee' is correct for your project --}}
+    @include('_partials/_modals/modal-leaveWithEmployee')
 
     @push('custom-scripts')
         {{-- Assuming this works in Livewire view, often needs to be in main layout --}}

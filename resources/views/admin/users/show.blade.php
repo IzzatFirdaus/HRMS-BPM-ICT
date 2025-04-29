@@ -10,6 +10,8 @@
 {{-- Adjust 'layouts.app' if your admin layout is different --}}
 @extends('layouts.app')
 
+@section('title', __('User Details') . ': ' . ($user->name ?? ($user->full_name ?? 'N/A'))) {{-- Set the page title using translation --}}
+
 @section('content')
     <div class="container mx-auto px-4 py-8">
         <div class="flex items-center justify-between mb-6">
@@ -21,7 +23,8 @@
             {{-- Back Button --}}
             {{-- Assuming a route named 'admin.users.index' for the user list --}}
             <a href="{{ route('resource-management.admin.users.index') }}"
-                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+                {{-- Added focus/transition --}}
                 {{ __('Back to Users List') }}
             </a>
         </div>
@@ -75,7 +78,7 @@
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-500">{{ __('Status') }}:</p>
-                            <p class="mt-1 text-gray-900">{{ $user->status ?? 'N/A' }}</p>
+                            <p class="mt-1 text-gray-900">{{ __($user->status ?? 'N/A') }}</p> {{-- Translated status --}}
                         </div>
 
                         {{-- New MOTAC Specific Fields --}}
@@ -104,11 +107,13 @@
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-500">{{ __('Service Status') }}:</p>
-                            <p class="mt-1 text-gray-900">{{ $user->service_status ?? 'N/A' }}</p>
+                            <p class="mt-1 text-gray-900">{{ __($user->service_status ?? 'N/A') }}</p>
+                            {{-- Translated status --}}
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-500">{{ __('Appointment Type') }}:</p>
-                            <p class="mt-1 text-gray-900">{{ $user->appointment_type ?? 'N/A' }}</p>
+                            <p class="mt-1 text-gray-900">{{ __($user->appointment_type ?? 'N/A') }}</p>
+                            {{-- Translated type --}}
                         </div>
 
                         {{-- Audit Fields (Protected by policy if needed) --}}
@@ -117,7 +122,8 @@
                         <div>
                             <p class="text-sm font-medium text-gray-500">{{ __('Created By') }}:</p>
                             {{-- Assuming 'createdBy' relationship exists on User model --}}
-                            <p class="mt-1 text-gray-900">{{ $user->createdBy->name ?? 'System' }}</p>
+                            <p class="mt-1 text-gray-900">{{ $user->createdBy->name ?? __('System') }}</p>
+                            {{-- Translated System --}}
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-500">{{ __('Updated By') }}:</p>
@@ -172,7 +178,8 @@
                                     <a href="{{ route('my-applications.email.show', $application) }}"
                                         class="text-blue-600 hover:underline">
                                         {{ __('Application ID') }}: {{ $application->id }} -
-                                        {{ $application->created_at->format('Y-m-d') }} (Status: {{ $application->status }})
+                                        {{ $application->created_at->format('Y-m-d') }} ({{ __('Status') }}:
+                                        {{ __($application->status) }}) {{-- Translated Status --}}
                                     </a>
                                 </li>
                             @endforeach
@@ -193,7 +200,8 @@
                                     <a href="{{ route('my-applications.loan.show', $application) }}"
                                         class="text-blue-600 hover:underline">
                                         {{ __('Application ID') }}: {{ $application->id }} -
-                                        {{ $application->created_at->format('Y-m-d') }} (Status: {{ $application->status }})
+                                        {{ $application->created_at->format('Y-m-d') }} ({{ __('Status') }}:
+                                        {{ __($application->status) }}) {{-- Translated Status --}}
                                     </a>
                                 </li>
                             @endforeach
@@ -218,7 +226,8 @@
                     @can('update', $user)
                         {{-- Assuming 'admin.users.edit' route exists --}}
                         <a href="{{ route('resource-management.admin.users.edit', $user) }}"
-                            class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded">
+                            class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition">
+                            {{-- Added focus/transition --}}
                             {{ __('Edit User') }}
                         </a>
                     @endcan
@@ -230,7 +239,9 @@
                             onsubmit="return confirm('{{ __('Are you sure you want to delete this user?') }}');">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                            <button type="submit"
+                                class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
+                                {{-- Added focus/transition --}}
                                 {{ __('Delete User') }}
                             </button>
                         </form>
@@ -246,7 +257,8 @@
                                 {{-- Assuming a PUT or POST route for restore --}}
                                 @method('PUT') {{-- Or @method('POST') if your route is POST --}}
                                 <button type="submit"
-                                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">
+                                    {{-- Added focus/transition --}}
                                     {{ __('Restore User') }}
                                 </button>
                             </form>
@@ -257,7 +269,8 @@
                                 @csrf
                                 @method('DELETE') {{-- Or @method('POST') --}}
                                 <button type="submit"
-                                    class="bg-red-700 hover:bg-red-900 text-white font-bold py-2 px-4 rounded">
+                                    class="bg-red-700 hover:bg-red-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-700 transition">
+                                    {{-- Added focus/transition --}}
                                     {{ __('Force Delete User') }}
                                 </button>
                             </form>

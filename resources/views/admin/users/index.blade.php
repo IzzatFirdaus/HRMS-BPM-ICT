@@ -11,6 +11,8 @@
 {{-- Adjust 'layouts.app' if your admin layout is different --}}
 @extends('layouts.app')
 
+@section('title', __('User List')) {{-- Set the page title using translation --}}
+
 @section('content')
     <div class="container mx-auto px-4 py-8">
         <div class="flex items-center justify-between mb-6">
@@ -23,7 +25,8 @@
                 {{-- Assuming a 'create users' permission exists --}}
                 {{-- Assuming a route named 'resource-management.admin.users.create' --}}
                 <a href="{{ route('resource-management.admin.users.create') }}"
-                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                    class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition">
+                    {{-- Added focus/transition --}}
                     {{ __('Add New User') }}
                 </a>
             @endcan
@@ -31,7 +34,8 @@
 
         {{-- Users Table Card --}}
         <div class="bg-white shadow-md rounded-lg p-6">
-            <div class="table-responsive">
+            {{-- Replaced table-responsive with Tailwind overflow-x-auto --}}
+            <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
@@ -82,7 +86,7 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         {{-- Loop through the users --}}
                         @forelse ($users as $user)
-                            <tr>
+                            <tr class="hover:bg-gray-100"> {{-- Added hover effect --}}
                                 {{-- Existing Data Cells --}}
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ $user->name ?? 'N/A' }}
@@ -94,8 +98,18 @@
                                     {{ $user->getRoleNames()->implode(', ') }} {{-- Display user roles (requires Spatie HasRoles) --}}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {{-- You might want a colored badge for status here, similar to the dashboard --}}
-                                    {{ $user->status ?? 'N/A' }}
+                                    {{-- Added colored badge for status --}}
+                                    @php
+                                        $statusClass = match ($user->status) {
+                                            'Active' => 'bg-green-100 text-green-800',
+                                            'Inactive' => 'bg-red-100 text-red-800',
+                                            default => 'bg-gray-100 text-gray-800',
+                                        };
+                                    @endphp
+                                    <span
+                                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $statusClass }}">
+                                        {{ __($user->status ?? 'N/A') }} {{-- Translated status --}}
+                                    </span>
                                 </td>
 
                                 {{-- 👇 New MOTAC Data Cells 👇 --}}
@@ -118,43 +132,48 @@
 
                                 {{-- Actions Column --}}
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    {{-- View Button --}}
-                                    @can('view', $user)
-                                        {{-- Assuming a 'view User' permission/policy exists --}}
-                                        <a href="{{ route('resource-management.admin.users.show', $user) }}"
-                                            class="text-blue-600 hover:text-blue-900 mr-2">
-                                            {{ __('View') }}
-                                        </a>
-                                    @endcan
+                                    {{-- Wrapped actions in a flex container for layout --}}
+                                    <div class="flex items-center justify-end space-x-2"> {{-- Used space-x for spacing --}}
+                                        {{-- View Button --}}
+                                        @can('view', $user)
+                                            {{-- Assuming a 'view User' permission/policy exists --}}
+                                            <a href="{{ route('resource-management.admin.users.show', $user) }}"
+                                                class="text-blue-600 hover:text-blue-900"> {{-- Removed mr-2, using space-x on parent --}}
+                                                {{ __('View') }}
+                                            </a>
+                                        @endcan
 
-                                    {{-- Edit Button --}}
-                                    @can('update', $user)
-                                        {{-- Assuming an 'update User' permission/policy exists --}}
-                                        <a href="{{ route('resource-management.admin.users.edit', $user) }}"
-                                            class="text-yellow-600 hover:text-yellow-900 mr-2">
-                                            {{ __('Edit') }}
-                                        </a>
-                                    @endcan
+                                        {{-- Edit Button --}}
+                                        @can('update', $user)
+                                            {{-- Assuming an 'update User' permission/policy exists --}}
+                                            <a href="{{ route('resource-management.admin.users.edit', $user) }}"
+                                                class="text-yellow-600 hover:text-yellow-900"> {{-- Removed mr-2, using space-x on parent --}}
+                                                {{ __('Edit') }}
+                                            </a>
+                                        @endcan
 
-                                    {{-- Delete Button --}}
-                                    @can('delete', $user)
-                                        {{-- Assuming a 'delete User' permission/policy exists --}}
-                                        {{-- Implement a confirmation dialog for deletion --}}
-                                        <form action="{{ route('resource-management.admin.users.destroy', $user) }}"
-                                            method="POST" class="inline"
-                                            onsubmit="return confirm('{{ __('Are you sure you want to delete this user?') }}');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="text-red-600 hover:text-red-900">
-                                                {{ __('Delete') }}
-                                            </button>
-                                        </form>
-                                    @endcan
+                                        {{-- Delete Button --}}
+                                        @can('delete', $user)
+                                            {{-- Assuming a 'delete User' permission/policy exists --}}
+                                            {{-- Implement a confirmation dialog for deletion --}}
+                                            {{-- Removed non-Tailwind inline class --}}
+                                            <form action="{{ route('resource-management.admin.users.destroy', $user) }}"
+                                                method="POST" class="inline-flex items-center" {{-- Added inline-flex items-center for button alignment --}}
+                                                onsubmit="return confirm('{{ __('Are you sure you want to delete this user?') }}');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="text-red-600 hover:text-red-900">
+                                                    {{ __('Delete') }}
+                                                </button>
+                                            </form>
+                                        @endcan
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             {{-- Message when no users are found --}}
                             <tr>
+                                {{-- Increased colspan to match the number of columns --}}
                                 <td colspan="9" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                     {{ __('No users found.') }}
                                 </td>
@@ -162,7 +181,7 @@
                         @endforelse
                     </tbody>
                 </table>
-            </div>
+            </div> {{-- End overflow-x-auto --}}
 
             {{-- Pagination Links --}}
             @if ($users->hasPages())
@@ -171,6 +190,6 @@
                     {{ $users->links() }} {{-- Render pagination links --}}
                 </div>
             @endif
-        </div>
-    </div>
+        </div> {{-- End bg-white card --}}
+    </div> {{-- End container --}}
 @endsection
