@@ -6,137 +6,160 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Support\Collection; // Import Collection
+use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 
-// Import the models needed for this notification
 use App\Models\LoanApplication;
 use App\Models\LoanTransaction;
-use App\Models\User; // Import User model if needed
+use App\Models\User;
+use App\Models\Equipment;
 
 class EquipmentIssuedNotification extends Notification implements ShouldQueue
 {
   use Queueable;
 
+  /**
+   * @var LoanApplication
+   */
   public LoanApplication $loanApplication;
-  public Collection $issuedTransactions; // Collection of LoanTransaction models for the issued items
+
+  /**
+   * @var Collection<int, LoanTransaction>
+   */
+  public Collection $issuedTransactions;
 
   /**
    * Create a new notification instance.
-   * This notification is sent to the applicant/responsible officer when equipment is issued.
    *
-   * @param LoanApplication $loanApplication The loan application related to the issuance.
-   * @param Collection<LoanTransaction> $issuedTransactions A collection of LoanTransaction records for the specific items issued.
+   * @param LoanApplication $loanApplication
+   * @param Collection<int, LoanTransaction> $issuedTransactions
    */
   public function __construct(LoanApplication $loanApplication, Collection $issuedTransactions)
   {
-    $this->loanApplication = $loanApplication;
-    $this->issuedTransactions = $issuedTransactions;
+    // Eager‐load relationships to avoid N+1
+    $this->loanApplication    = $loanApplication->loadMissing(['user', 'responsibleOfficer']);
+    $this->issuedTransactions = $issuedTransactions->loadMissing('equipment');
   }
 
   /**
-   * Get the notification's delivery channels.
-   * This notification is typically sent to the applicant and optionally the responsible officer.
+   * Channels the notification will be sent on.
    *
+   * @param  mixed  $notifiable
    * @return array<int, string>
    */
   public function via(object $notifiable): array
   {
-    // 'notifiable' here would be the User model (the applicant or responsible officer)
-    return ['mail']; // Specify that this notification should be sent via email
-    // Add 'database' here if you want to store notifications in the database
+    return ['mail'];
   }
 
   /**
-   * Get the mail representation of the notification.
+   * Build the mail message.
    *
-   * @param object $notifiable The entity ($user) being notified (applicant or responsible officer).
-   * @return \Illuminate\Notifications\Messages\MailMessage
+   * @param  mixed  $notifiable
+   * @return MailMessage
    */
   public function toMail(object $notifiable): MailMessage
   {
-    // Determine the recipient's name for the greeting
-    $recipientName = $notifiable->name ?? 'Pemohon/Pegawai Bertanggungjawab';
+    // Greeting
+    $applicantName = $notifiable->getAttribute('full_name')
+      ?? $notifiable->getAttribute('name')
+      ?? 'Pemohon';
 
-    // Format loan dates
-    $startDate = $this->loanApplication->loan_start_date?->format('Y-m-d') ?? 'Tidak Dinyatakan';
-    $endDate = $this->loanApplication->loan_end_date?->format('Y-m-d') ?? 'Tidak Dinyatakan';
+    // Core details
+    $applicationId = $this->loanApplication->getAttribute('id') ?? 'N/A';
+    $purpose       = $this->loanApplication->getAttribute('purpose') ?? 'Tidak Dinyatakan';
+    $location      = $this->loanApplication->getAttribute('location') ?? 'Tidak Dinyatakan';
+    $startDate     = optional($this->loanApplication->getAttribute('loan_start_date'))->format('Y-m-d') ?? 'Tidak Dinyatakan';
+    $endDate       = optional($this->loanApplication->getAttribute('loan_end_date'))->format('Y-m-d')   ?? 'Tidak Dinyatakan';
 
-    $mailMessage = (new MailMessage)
-      ->subject('Peralatan Pinjaman ICT Anda Telah Dikeluarkan') // Email subject line
-      ->greeting('Salam ' . $recipientName . ',') // Greeting
-      ->line('Dimaklumkan bahawa peralatan pinjaman ICT bagi permohonan anda telah berjaya dikeluarkan.') // Main message
-      ->line('**Nombor Rujukan Permohonan:** #' . $this->loanApplication->id)
-      ->line('**Tujuan Permohonan:** ' . $this->loanApplication->purpose)
-      ->line('**Tarikh Pinjaman:** ' . $startDate)
-      ->line('**Tarikh Dijangka Pulang:** ' . $endDate)
-      ->line('Berikut adalah senarai peralatan yang dikeluarkan untuk pinjaman ini:');
+    $mail = (new MailMessage)
+      ->subject("Peralatan Pinjaman ICT Telah Dikeluarkan (Permohonan #{$applicationId})")
+      ->greeting("Salam {$applicantName},")
+      ->line("Permohonan #: **{$applicationId}**")
+      ->line("Tujuan Permohonan: {$purpose}")
+      ->line("Lokasi Penggunaan: {$location}")
+      ->line("Tarikh Pinjaman: {$startDate}")
+      ->line("Tarikh Dijangka Pulang: {$endDate}")
+      ->line('')
+      ->line('Berikut adalah senarai peralatan yang telah dikeluarkan:')
+      ->line('---');
 
-    // Add details for each issued equipment item from the transactions
-    $mailMessage->line('---'); // Separator
-    foreach ($this->issuedTransactions as $transaction) {
-      // Ensure the equipment relationship is loaded on the transaction
-      $transaction->loadMissing('equipment');
-      $equipment = $transaction->equipment;
+    /** @var LoanTransaction $tx */
+    foreach ($this->issuedTransactions as $tx) {
+      /** @var Equipment|null $equipment */
+      $equipment = $tx->equipment;
 
-      if ($equipment) {
-        $mailMessage->line(
-          '- **' . ($equipment->asset_type ?? 'Peralatan') . '**'
-            . ($equipment->brand ? ' (' . $equipment->brand . ')' : '')
-            . ($equipment->model ? ' ' . $equipment->model : '')
+      if ($equipment instanceof Equipment) {
+        $assetType    = $equipment->getAttribute('asset_type')     ?? 'Peralatan';
+        $brand        = $equipment->getAttribute('brand');
+        $model        = $equipment->getAttribute('model');
+        $serialNumber = $equipment->getAttribute('serial_number')  ?? 'Tidak Dinyatakan';
+        $tagId        = $equipment->getAttribute('tag_id')         ?? 'Tidak Dinyatakan';
+        $notes        = $tx->getAttribute('issue_notes');
+
+        $mail->line(
+          "- **{$assetType}**"
+            . ($brand ? " ({$brand})" : '')
+            . ($model ? " {$model}" : '')
         );
-        $mailMessage->line('  Nombor Siri: ' . ($equipment->serial_number ?? 'Tidak Dinyatakan'));
-        $mailMessage->line('  ID Tag MOTAC: ' . ($equipment->tag_id ?? 'Tidak Dinyatakan'));
-        // Optionally include accessory checklist for this item if stored per transaction/item
-        // if ($transaction->accessories_checklist_on_issue) {
-        //      $mailMessage->line('  Aksesori: ' . implode(', ', $transaction->accessories_checklist_on_issue));
-        // }
+        $mail->line("  Nombor Siri: {$serialNumber}");
+        $mail->line("  ID Tag MOTAC: {$tagId}");
+        if ($notes) {
+          $mail->line("  Catatan Pengeluaran: {$notes}");
+        }
       } else {
-        $mailMessage->line('- Peralatan (Butiran tidak tersedia)'); // Fallback if equipment details are missing
+        $txId = $tx->getAttribute('id') ?? 'N/A';
+        $mail->line("- Peralatan (Butiran tidak tersedia) — Transaksi ID: {$txId}");
       }
-      $mailMessage->line('---'); // Separator
+
+      $mail->line('---');
     }
 
+    // Action button to loan-application details
+    $loanAppId = $this->loanApplication->getAttribute('id');
+    if ($loanAppId) {
+      $mail->action('Lihat Butiran Pinjaman', url("/loan-applications/{$loanAppId}"));
+    }
 
-    $mailMessage->line('Sila pastikan peralatan dijaga dengan baik sepanjang tempoh pinjaman dan dipulangkan tepat pada masanya.'); // Reminder
-    $mailMessage->line('Sila hubungi Bahagian Pengurusan Maklumat (BPM) sekiranya terdapat sebarang isu atau jika anda memerlukan pelanjutan tempoh pinjaman (tertakluk kepada kelulusan).'); // Contact/Extension info
-
-    // Optional: Add a button linking to the application/loan details page
-    // ->action('Lihat Butiran Pinjaman', url('/my-loans/' . $this->loanApplication->id));
-
-    $mailMessage->salutation('Sekian, terima kasih.'); // Closing
-
-    return $mailMessage;
+    return $mail->salutation('Sekian, terima kasih.');
   }
 
   /**
-   * Get the array representation of the notification.
+   * Array payload for “database” channel.
    *
+   * @param  mixed  $notifiable
    * @return array<string, mixed>
    */
   public function toArray(object $notifiable): array
   {
-    // Prepare data for database storage
-    $issuedItemsData = $this->issuedTransactions->map(function ($transaction) {
-      $transaction->loadMissing('equipment');
-      return [
-        'transaction_id' => $transaction->id,
-        'equipment_id' => $transaction->equipment_id,
-        'asset_type' => $transaction->equipment->asset_type ?? 'N/A',
-        'serial_number' => $transaction->equipment->serial_number ?? 'N/A',
-        'tag_id' => $transaction->equipment->tag_id ?? 'N/A',
-      ];
-    })->toArray();
+    $items = $this->issuedTransactions
+      ->map(function (LoanTransaction $tx) {
+        $equip = $tx->equipment;
+        return [
+          'transaction_id' => $tx->getAttribute('id'),
+          'equipment_id'   => $tx->getAttribute('equipment_id'),
+          'asset_type'     => $equip?->getAttribute('asset_type')    ?? 'N/A',
+          'serial_number'  => $equip?->getAttribute('serial_number') ?? 'N/A',
+          'tag_id'         => $equip?->getAttribute('tag_id')        ?? 'N/A',
+          'issue_notes'    => $tx->getAttribute('issue_notes')       ?? null,
+        ];
+      })
+      ->toArray();
 
+    $loanAppId = $this->loanApplication->getAttribute('id');
+    $applicant = $this->loanApplication->getAttribute('user_id');
+    $officer   = $this->loanApplication->getAttribute('responsible_officer_id');
 
     return [
-      // Optionally store notification data in a database table if using the 'database' channel
-      'loan_application_id' => $this->loanApplication->id,
-      'status' => 'equipment_issued',
-      'message' => 'Peralatan untuk Permohonan Pinjaman #' . $this->loanApplication->id . ' telah dikeluarkan.',
-      'issued_items' => $issuedItemsData, // Store details of issued items
+      'application_type'       => 'Loan Application',
+      'loan_application_id'    => $loanAppId,
+      'applicant_id'           => $applicant,
+      'responsible_officer_id' => $officer,
+      'status'                 => 'equipment_issued',
+      'subject'                => 'Peralatan Pinjaman Dikeluarkan',
+      'message'                => "Peralatan bagi Permohonan #{$loanAppId} telah dikeluarkan.",
+      'url'                    => $loanAppId ? url("/loan-applications/{$loanAppId}") : '#',
+      'issued_items'           => $items,
     ];
   }
-
-  // Implement toDatabase method if using the 'database' channel
-  // public function toDatabase(object $notifiable): array { ... }
 }
