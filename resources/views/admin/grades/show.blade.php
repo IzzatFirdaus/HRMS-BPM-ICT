@@ -1,195 +1,130 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"> {{-- Use app locale for language --}}
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Butiran Gred</title>
+    <meta charset="utf-8"> {{-- Correct charset --}}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> {{-- Correct viewport --}}
+    <title>{{ __('Grade Details') }}: {{ $grade->name ?? 'N/A' }}</title> {{-- Translate title with grade name --}}
+    {{-- Link Tailwind CSS via CDN --}}
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Optional: Add custom styles if needed, but prefer Tailwind */
-        .alert {
-            padding: 1rem;
-            border-radius: 0.25rem;
-            margin-bottom: 1rem;
-            border-width: 1px;
-        }
-
-        .alert-success {
-            background-color: #d1fae5;
-            /* green-100 */
-            border-color: #a7f3d0;
-            /* green-200 */
-            color: #065f46;
-            /* green-800 */
-        }
-
-        .alert-danger {
-            background-color: #fee2e2;
-            /* red-100 */
-            border-color: #fecaca;
-            /* red-200 */
-            color: #991b1b;
-            /* red-800 */
-        }
-
-        .card {
-            border: 1px solid #d1d5db;
-            /* gray-300 */
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            background-color: #fff;
-            /* white */
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-        }
-
-        .card-title {
-            font-size: 1.25rem;
-            /* text-xl */
-            font-weight: bold;
-            margin-bottom: 1rem;
-            color: #1f2937;
-            /* gray-800 */
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem 1.25rem;
-            border-radius: 0.375rem;
-            /* rounded-md */
-            font-weight: 600;
-            /* font-semibold */
-            transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .btn-secondary {
-            background-color: #e5e7eb;
-            /* gray-200 */
-            color: #1f2937;
-            /* gray-800 */
-            border: 1px solid #e5e7eb;
-        }
-
-        .btn-secondary:hover {
-            background-color: #d1d5db;
-            /* gray-300 */
-            border-color: #d1d5db;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            /* rounded-full */
-            font-size: 0.75rem;
-            /* text-xs */
-            font-weight: 600;
-            /* font-semibold */
-            line-height: 1;
-        }
-
-        .badge-success {
-            background-color: #d1fae5;
-            /* green-100 */
-            color: #065f46;
-            /* green-800 */
-        }
-
-        .badge-danger {
-            background-color: #fee2e2;
-            /* red-100 */
-            border-color: #fecaca;
-            /* red-200 */
-            color: #991b1b;
-            /* red-800 */
-        }
-
-        .badge-secondary {
-            background-color: #e5e7eb;
-            /* gray-200 */
-            color: #374151;
-            /* gray-700 */
-        }
-    </style>
+    {{-- Removed the inline <style> block and custom CSS classes --}}
+    {{-- Add any necessary custom CSS if Tailwind alone is insufficient --}}
 </head>
 
-<body class="bg-gray-100 p-6">
+<body class="bg-gray-100 p-6"> {{-- Applied Tailwind background and padding to body --}}
 
-    {{-- Extend a layout if you have one, otherwise include basic HTML structure --}}
+    {{-- Extend your main layout --}}
     @extends('layouts.app')
 
+    {{-- Define the content section --}}
     @section('content')
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8 py-8"> {{-- Container for the content --}}
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6"> {{-- Card-like container --}}
+        {{-- Main container with max width and centering --}}
+        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8 py-8"> {{-- Increased vertical padding slightly --}}
+            {{-- Main card-like container (already using some Tailwind) --}}
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
 
-                <h2 class="text-2xl font-bold mb-6 text-gray-800">Butiran Gred: {{ $grade->name ?? 'N/A' }}</h2>
-                {{-- Title with grade name --}}
+                {{-- Page Title --}}
+                {{-- Translate title with grade name --}}
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">{{ __('Grade Details') }}: {{ $grade->name ?? 'N/A' }}</h2>
 
-                {{-- Display success or error messages --}}
+                {{-- Display success or error messages from session (using flash messages) --}}
                 @if (session()->has('success'))
-                    <div class="alert alert-success mb-4">
+                    {{-- Replaced custom alert-success with Tailwind classes --}}
+                    <div class="bg-green-100 border border-green-200 text-green-800 p-4 rounded-md mb-4">
                         {{ session('success') }}
                     </div>
                 @endif
 
                 @if (session()->has('error'))
-                    <div class="alert alert-danger mb-4">
+                    {{-- Replaced custom alert-danger with Tailwind classes --}}
+                    <div class="bg-red-100 border border-red-200 text-red-800 p-4 rounded-md mb-4">
                         {{ session('error') }}
                     </div>
                 @endif
 
-                {{-- Grade Details --}}
-                <div class="card">
-                    <h3 class="card-title">Butiran Gred</h3>
+                {{-- Grade Details Block --}}
+                {{-- Streamlined the card structure, using Tailwind classes on the main div --}}
+                <div class="border border-gray-200 rounded-md p-4 mb-6 bg-gray-50"> {{-- Added simple border, padding, background, and bottom margin --}}
+                    {{-- Replaced custom card-title with Tailwind classes --}}
+                    <h3 class="text-xl font-bold mb-4 text-gray-800">{{ __('Grade Details') }}</h3> {{-- Translate title --}}
 
-                    <p class="mb-2"><span class="font-semibold">Nama Gred:</span> {{ $grade->name ?? 'N/A' }}</p>
-                    <p class="mb-2"><span class="font-semibold">Kod Gred:</span> {{ $grade->code ?? 'N/A' }}</p>
-                    <p class="mb-2"><span class="font-semibold">Penerangan:</span> {{ $grade->description ?? '-' }}</p>
-                    <p class="mb-2">
-                        <span class="font-semibold">Memerlukan Kelulusan:</span>
+                    {{-- Grade detail items with consistent styling --}}
+                    <p class="mb-2"><span class="font-semibold">{{ __('Grade Name:') }}</span> {{-- Translate label and add font-semibold --}}
+                        {{ $grade->name ?? 'N/A' }}</p>
+                    <p class="mb-2"><span class="font-semibold">{{ __('Grade Code:') }}</span> {{-- Translate label --}}
+                        {{ $grade->code ?? 'N/A' }}</p>
+                    <p class="mb-2"><span class="font-semibold">{{ __('Description:') }}</span> {{-- Translate label --}}
+                        {{ $grade->description ?? '-' }}</p>
+                    <p class="mb-2 flex items-center"> {{-- Use flex to align label and status/icon --}}
+                        <span class="font-semibold mr-2">{{ __('Requires Approval:') }}</span> {{-- Translate label and add right margin --}}
+                        {{-- Display status with icons and translated text using Tailwind classes --}}
                         @if ($grade->requires_approval)
-                            <span class="text-green-600 font-semibold">Ya</span>
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                {{ __('Yes') }} {{-- Translate text --}}
+                            </span>
                         @else
-                            <span class="text-red-600 font-semibold">Tidak</span>
+                            <span
+                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                                <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                {{ __('No') }} {{-- Translate text --}}
+                            </span>
                         @endif
                     </p>
-                </div> {{-- End card --}}
+
+                    {{-- TODO: Add more details here if needed (e.g., Created At, Updated At, Linked Positions count) --}}
+                    {{-- Assuming audit columns like created_at and updated_at exist and are populated --}}
+                    {{-- <p class="mb-2"><span class="font-semibold">{{ __('Created At:') }}</span> {{ $grade->created_at?->format('Y-m-d H:i') ?? '-' }}</p> --}}
+                    {{-- <p class="mb-2"><span class="font-semibold">{{ __('Last Updated At:') }}</span> {{ $grade->updated_at?->format('Y-m-d H:i') ?? '-' }}</p> --}}
+
+
+                </div> {{-- End details block --}}
 
                 {{-- Optional: Link to edit grade --}}
                 {{-- @can('update', $grade) --}}
                 <div class="mt-6 text-center">
-                    <a href="{{ route('admin.grades.edit', $grade) }}" class="btn btn-primary">
+                    {{-- Standardized button styling --}}
+                    <a href="{{ route('admin.grades.edit', $grade) }}"
+                        class="inline-flex items-center justify-center px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-md border border-blue-500 hover:bg-blue-600 hover:border-blue-600 focus:outline-none focus:ring focus:ring-blue-500 focus:ring-opacity-50 transition">
+                        {{-- SVG icon --}}
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round"
                                 d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
-                        Edit Gred
+                        {{ __('Edit Grade') }} {{-- Translate button text --}}
                     </a>
                 </div>
                 {{-- @endcan --}}
 
 
-                {{-- Back Button --}}
+                {{-- Back Button (Centered) --}}
                 <div class="mt-6 text-center"> {{-- Centered the back button --}}
-                    <a href="{{ route('admin.grades.index') }}" class="btn btn-secondary">
+                    {{-- Standardized button styling --}}
+                    <a href="{{ route('admin.grades.index') }}"
+                        class="inline-flex items-center justify-center px-5 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-md border border-gray-200 hover:bg-gray-300 hover:border-gray-300 focus:outline-none focus:ring focus:ring-gray-500 focus:ring-opacity-50 transition">
+                        {{-- Adjusted focus ring color --}}
+                        {{-- SVG icon --}}
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                         </svg>
-                        Kembali ke Senarai Gred
+                        {{ __('Back to Grades List') }} {{-- Translate button text --}}
                     </a>
                 </div>
 
-            </div> {{-- End bg-white card --}}
-        </div> {{-- End container --}}
+            </div> {{-- End outer bg-white card --}}
+        </div> {{-- End main container --}}
     @endsection
+
+    {{-- You might have other scripts or footer content in your layout --}}
 
 </body>
 
