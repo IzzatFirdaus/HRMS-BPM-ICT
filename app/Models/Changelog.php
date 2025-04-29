@@ -2,14 +2,86 @@
 
 namespace App\Models;
 
-use App\Traits\CreatedUpdatedDeletedBy;
+use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and adds audit FKs/methods
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo for trait relationships
 
+
+/**
+ * App\Models\Changelog
+ *
+ * @property int $id
+ * @property string $version The application version this changelog entry belongs to.
+ * @property string $title The title of the changelog entry.
+ * @property string $description The detailed description of the changes.
+ * @property int|null $created_by Foreign key to the user who created the record.
+ * @property int|null $updated_by Foreign key to the user who last updated the record.
+ * @property int|null $deleted_by Foreign key to the user who soft deleted the record.
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read \App\Models\User|null $createdBy
+ * @property-read \App\Models\User|null $deletedBy
+ * @property-read \App\Models\User|null $updatedBy
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog query()
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereDeletedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereDescription($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereTitle($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereUpdatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog whereVersion($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog withTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|Changelog withoutTrashed()
+ * @mixin \Eloquent
+ */
 class Changelog extends Model
 {
-    use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;
+  // Use the traits for factory, soft deletes, and audit columns
+  use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;
 
-    protected $fillable = ['id', 'version', 'title', 'description'];
+  /**
+   * The attributes that are mass assignable.
+   * 'id' is excluded as it is the primary key.
+   *
+   * @var array<int, string>
+   */
+  protected $fillable = [
+    'version',
+    'title',
+    'description',
+    // 'created_by', // Handled by trait
+    // 'updated_by', // Handled by trait
+    // 'deleted_by', // Handled by trait
+  ];
+
+  /**
+   * The attributes that should be cast.
+   * Ensures dates are Carbon instances.
+   *
+   * @var array<string, string>
+   */
+  protected $casts = [
+    'version' => 'string', // Explicitly cast version as string
+    'title' => 'string', // Explicitly cast title as string
+    'description' => 'string', // Explicitly cast description as string
+    'created_at' => 'datetime', // Explicitly cast timestamps
+    'updated_at' => 'datetime',
+    'deleted_at' => 'datetime', // Cast soft delete timestamp
+  ];
+
+  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
+  // public function createdBy(): BelongsTo;
+  // public function updatedBy(): BelongsTo;
+  // public function deletedBy(): BelongsTo;
+
+  // No other specific relationships are typically needed for a simple changelog model.
 }

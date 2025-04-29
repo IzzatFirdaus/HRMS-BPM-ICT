@@ -33,8 +33,13 @@ class ProvisioningFailedNotification extends Mailable implements ShouldQueue // 
    */
   public function envelope(): Envelope
   {
+    // Use a dynamic subject including the application ID and applicant name for clarity
+    $applicantName = $this->application->user->name ?? 'Pemohon'; // Assuming user relationship and name attribute
+
     return new Envelope(
-      subject: 'Email Provisioning Failed for Application ID: ' . $this->application->id,
+      subject: "Ralat Peruntukan Emel: Gagal Untuk Permohonan #{$this->application->id} ({$applicantName})", // Dynamic and translated Email Subject
+      // Recipient is typically set when sending this Mailable, e.g., to IT support staff
+      // Mail::to(config('app.it_support_email'))->send(new ProvisioningFailedNotification(...));
     );
   }
 
@@ -57,8 +62,8 @@ class ProvisioningFailedNotification extends Mailable implements ShouldQueue // 
     // return new Content(
     //     view: 'emails.provisioning-failed-blade', // Ensure this view path exists
     //     with: [ // Data passed to the view
-    //         'application' => $this->application,
-    //         'errorMessage' => $this->errorMessage,
+    //     'application' => $this->application,
+    //     'errorMessage' => $this->errorMessage,
     //     ],
     // );
   }

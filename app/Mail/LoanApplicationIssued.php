@@ -9,7 +9,16 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use App\Models\LoanApplication; // Assuming your LoanApplication model is in App\Models
+use Illuminate\Mail\Mailables\Address; // Import Address for 'to' recipient
+use Illuminate\Support\Facades\Log; // Import Log facade for error logging
 
+
+/**
+ * Class LoanApplicationIssued
+ *
+ * Mailable class for notifying the applicant when their loan application equipment has been issued.
+ * This email is intended to be queued for better performance.
+ */
 class LoanApplicationIssued extends Mailable implements ShouldQueue
 {
   use Queueable, SerializesModels;
@@ -19,10 +28,13 @@ class LoanApplicationIssued extends Mailable implements ShouldQueue
    *
    * @var \App\Models\LoanApplication
    */
-  public $loanApplication;
+  public LoanApplication $loanApplication;
 
   /**
    * Create a new message instance.
+   *
+   * @param \App\Models\LoanApplication $loanApplication The loan application model instance.
+   * @return void
    */
   public function __construct(LoanApplication $loanApplication)
   {
@@ -31,36 +43,92 @@ class LoanApplicationIssued extends Mailable implements ShouldQueue
 
   /**
    * Get the message envelope.
+   * Defines the subject, sender, and recipients of the email.
+   * Also includes tags and metadata for tracking.
+   *
+   * @return \Illuminate\Mail\Mailables\Envelope
    */
   public function envelope(): Envelope
   {
+    // Use a dynamic subject including the application ID and applicant name for clarity
+    // Safely access applicant name using optional chaining and null coalescing
+    $applicantName = $this->loanApplication->user?->full_name ?? $this->loanApplication->user?->name ?? 'Pemohon'; // Assuming user relationship and full_name/name attribute
+    $applicationId = $this->loanApplication->id;
+
+    // Safely get the recipient's email address
+    // Use optional chaining (?->) to handle cases where $this->loanApplication->user or user->email might be null.
+    $recipientEmail = $this->loanApplication->user?->email;
+
+    // Ensure there is a valid recipient email before creating the Envelope
+    $to = [];
+    if ($recipientEmail) {
+      // Use Address object for better recipient handling, including name if available
+      $to[] = new Address($recipientEmail, $applicantName);
+    } else {
+      // Handle the case where the recipient email is not found, e.g., log an error
+      Log::error("LoanApplicationIssued Mailable: Recipient email not found for Loan Application ID: {$applicationId}");
+      // Optionally, you could set a fallback recipient from configuration:
+      // $to[] = config('mail.from.address'); // Send to a default admin address
+    }
+
+
     return new Envelope(
-      subject: 'Notifikasi Peralatan Pinjaman ICT Telah Dikeluarkan', // Email Subject
-      // You might want to set the recipient here if not doing it when sending
-      // to: $this->loanApplication->user->email, // Assuming user relationship and email attribute
+      // Subject: Use dynamic elements for clarity
+      subject: "Notifikasi Peralatan Pinjaman ICT Telah Dikeluarkan (Permohonan #{$applicationId} - {$applicantName})", // Dynamic Email Subject
+
+      // Set the recipient(s). Use the array of Address objects or email strings.
+      to: $to,
+
+      // Add tags for tracking emails in services like Postmark, Mailgun, or AWS SES.
+      tags: ['loan-application', 'issued-notification'],
+
+      // Add metadata for tracking emails.
+      metadata: [
+        'loan_application_id' => $this->loanApplication->id,
+        'applicant_id' => $this->loanApplication->user_id, // Assuming user_id is directly available
+      ],
+
+      // You can also set 'from', 'cc', 'bcc', 'replyTo' here if needed
+      // from: new Address(config('mail.from.address'), config('mail.from.name')),
+      // cc: [...],
+      // bcc: [...],
+      // replyTo: [...],
     );
   }
 
   /**
    * Get the message content definition.
+   * Defines the Blade view and data passed to the view.
+   *
+   * @return \Illuminate\Mail\Mailables\Content
    */
   public function content(): Content
   {
     return new Content(
-      view: 'emails.loan-application-issued', // The Blade template
+      view: 'emails.loan-application-issued', // The Blade template file path
       with: [
         'loanApplication' => $this->loanApplication, // Pass the loan application data to the view
+        // Add any other data needed in the email view
       ],
     );
   }
 
   /**
    * Get the attachments for the message.
+   * Optionally attach files (e.g., PDF receipt, terms and conditions).
    *
-   * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+   * @return array<int, \Illuminate\Mail\Mailables\Attachment> An array of Attachment objects.
    */
   public function attachments(): array
   {
-    return [];
+    return [
+      // Example of attaching a file:
+      // Attachment::fromPath('/path/to/your/file.pdf')
+      //           ->as('loan_receipt.pdf')
+      //           ->withMime('application/pdf'),
+    ];
   }
+
+  // Removed separate metadata() and tags() methods to resolve compatibility errors.
+  // Metadata and tags are now defined directly in the envelope() method.
 }

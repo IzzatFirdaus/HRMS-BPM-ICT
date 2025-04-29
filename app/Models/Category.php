@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and adds audit FKs/methods
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany; // Use HasMany trait (for subcategories)
+use Illuminate\Database\Eloquent\Relations\HasMany; // Use HasMany trait
 // Removed BelongsToMany as it's not the correct relationship type here
 use Illuminate\Database\Eloquent\SoftDeletes; // Use SoftDeletes trait
 
@@ -24,38 +24,42 @@ class Category extends Model
    * @var array<int, string>
    */
   protected $fillable = [
-    // Removed 'id' from fillable - it's typically not mass assignable
+    // 'id' is typically not mass assignable as it's the primary key
     'name',
-    // Audit columns are typically handled by the trait
+    // Audit columns like created_by, updated_by are handled by the CreatedUpdatedDeletedBy trait
   ];
 
   /**
    * The attributes that should be cast.
+   * Ensures dates are Carbon instances.
    *
    * @var array<string, string>
    */
   protected $casts = [
-    'created_at' => 'datetime', // Explicitly cast timestamps if trait doesn't handle or for clarity
+    'created_at' => 'datetime', // Explicitly cast timestamps
     'updated_at' => 'datetime',
     'deleted_at' => 'datetime', // Cast soft delete timestamp
   ];
 
 
   // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
-  // public function createdBy(): BelongsTo { ... }
-  // public function updatedBy(): BelongsTo { ... }
-  // public function deletedBy(): BelongsTo { ... }
+  // public function createdBy(): BelongsTo;
+  // public function updatedBy(): BelongsTo;
+  // public function deletedBy(): BelongsTo;
 
 
   // 👉 Relationships
 
   /**
    * Get the subcategories associated with the category.
-   * This is a one-to-many relationship (one category has many subcategories).
+   * This defines a one-to-many relationship where a Category has many SubCategories.
+   * Assumes the 'sub_categories' table has a 'category_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany
    */
-  public function subCategories(): HasMany // Corrected relationship name and type
+  public function subCategories(): HasMany // Added return type hint
   {
-    // Assumes the 'sub_categories' table has a 'category_id' foreign key
+    // Defines a one-to-many relationship with the SubCategory model
     return $this->hasMany(SubCategory::class, 'category_id'); // Explicitly define FK for clarity
   }
 
@@ -68,7 +72,7 @@ class Category extends Model
   //     return Attribute::make(
   //         set: fn (string $value) => ucwords($value), // Capitalize first letter of each word
   //     );
-  //      // Be cautious with this if you have a unique constraint on the 'name' column
-  //      // and names like 'IT' and 'it' should be considered unique by the database.
+  //     // Be cautious with this if you have a unique constraint on the 'name' column
+  //     // and names like 'IT' and 'it' should be considered unique by the database.
   // }
 }

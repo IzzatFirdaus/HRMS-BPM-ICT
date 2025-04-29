@@ -14,6 +14,11 @@ use Laravel\Fortify\TwoFactorAuthenticatable; // Keep if using Fortify 2FA
 use Laravel\Jetstream\HasProfilePhoto; // Keep if using Jetstream profile photos
 use Laravel\Sanctum\HasApiTokens; // Keep if using Sanctum API tokens
 use Spatie\Permission\Traits\HasRoles; // Keep if using Spatie Permissions
+use Illuminate\Support\Carbon; // Import Carbon for type hinting with date/datetime casts
+use Illuminate\Database\Eloquent\Relations\BelongsTo as BelongsToRelation; // Alias if needed
+use Illuminate\Database\Eloquent\Relations\HasMany as HasManyRelation; // Alias if needed
+use Illuminate\Database\Eloquent\Collection; // Import Collection for return type hinting
+
 
 // Import the models needed for relationships
 use App\Models\Department;
@@ -27,6 +32,122 @@ use App\Models\Approval;
 // Add other models if user has relationships to them (e.g., assets/equipment they are assigned)
 
 
+/**
+ * App\Models\User
+ *
+ * Represents a user account in the system, extending Laravel's built-in Authenticatable user.
+ * Includes fields for user details, links to HRMS employee data, organizational structure (department, position, grade),
+ * and relationships to various application/workflow records (email, loan applications, transactions, approvals).
+ * Uses traits for API tokens, factory, profile photos, roles, notifications, soft deletes, 2FA, and audit columns.
+ *
+ * @property int $id
+ * @property string $name Existing HRMS field (e.g., username or short name).
+ * @property string|null $full_name Full official name based on MOTAC design.
+ * @property int|null $employee_id Foreign key to the HRMS Employee model.
+ * @property string|null $nric NRIC/Identification Number based on MOTAC design.
+ * @property string|null $mobile_number Mobile phone number based on MOTAC design.
+ * @property string $email Existing HRMS field (could be primary contact email).
+ * @property \Illuminate\Support\Carbon|null $email_verified_at Timestamp when email was verified.
+ * @property string $password The user's password (hashed).
+ * @property string|null $profile_photo_path Path to the user's profile photo.
+ * @property string|null $remember_token "Remember me" token.
+ * @property string|null $personal_email Personal email based on MOTAC design.
+ * @property string|null $motac_email MOTAC assigned email based on MOTAC design.
+ * @property string|null $user_id_assigned External system assigned user ID based on MOTAC design.
+ * @property int|null $department_id Foreign key to the associated department.
+ * @property int|null $position_id Foreign key to the associated position.
+ * @property int|null $grade_id Foreign key to the associated grade.
+ * @property string|null $service_status Service status based on MOTAC design (e.g., permanent, contract).
+ * @property string|null $appointment_type Appointment type based on MOTAC design.
+ * @property bool $is_admin Flag indicating if the user is an administrator.
+ * @property bool $is_bpm_staff Flag indicating if the user is BPM staff.
+ * @property string|null $status User account status based on MOTAC design (e.g., active, inactive, suspended).
+ * @property string|null $two_factor_secret For Two-Factor Authentication (Fortify).
+ * @property array|null $two_factor_recovery_codes For Two-Factor Authentication (Fortify).
+ * @property \Illuminate\Support\Carbon|null $mobile_verified_at Timestamp when mobile number was verified (if column exists).
+ * @property int|null $created_by Foreign key to the user who created this record.
+ * @property int|null $updated_by Foreign key to the user who last updated this record.
+ * @property int|null $deleted_by Foreign key to the user who soft deleted this record.
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals Approvals made by the user (as an officer).
+ * @property-read int|null $approvals_count
+ * @property-read \App\Models\User|null $createdBy The user who created this record.
+ * @property-read \App\Models\User|null $deletedBy The user who soft deleted this record.
+ * @property-read \App\Models\Department|null $department The department associated with the user.
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\EmailApplication> $emailApplications Email applications submitted by the user.
+ * @property-read int|null $email_applications_count
+ * @property-read \App\Models\Employee|null $employee The related Employee record from the HRMS system.
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $employees Inverse relationship (if User is linked from Employee via employee_id - check migration).
+ * @property-read int|null $employees_count
+ * @property-read \App\Models\Grade|null $grade The grade associated with the user.
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $issuedTransactions Loan transactions where the user was the issuing officer.
+ * @property-read int|null $issued_transactions_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanApplication> $loanApplications Loan applications submitted by the user.
+ * @property-read int|null $loan_applications_count
+ * @property-read \Illuminate\Notifications\DatabaseNotificationCollection<int, \Illuminate\Notifications\DatabaseNotification> $notifications Notifications received by the user.
+ * @property-read int|null $notifications_count
+ * @property-read \App\Models\Position|null $position The position associated with the user.
+ * @property-read string|null $profile_photo_url The URL to the user's profile photo.
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $receivedTransactions Loan transactions where the user was the receiving officer (on issue).
+ * @property-read int|null $received_transactions_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanApplication> $responsibleLoanApplications Loan applications where the user was the responsible officer.
+ * @property-read int|null $responsible_loan_applications_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $returningTransactions Loan transactions where the user was the returning officer.
+ * @property-read int|null $returning_transactions_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $acceptedReturnTransactions Loan transactions where the user was the return accepting officer.
+ * @property-read int|null $accepted_return_transactions_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Permission> $permissions The permissions belonging to the model.
+ * @property-read int|null $permissions_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Role> $roles The roles belonging to the model.
+ * @property-read int|null $roles_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\EmailApplication> $supportedEmailApplications Email applications reviewed/supported by the user.
+ * @property-read int|null $supported_email_applications_count
+ * @property-read \App\Models\User|null $updatedBy The user who last updated this record.
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Laravel\Sanctum\PersonalAccessToken> $tokens
+ * @property-read int|null $tokens_count
+ * @method static \Database\Factories\UserFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|User onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|User permission($permissions, $guardName = null)
+ * @method static \Illuminate\Database\Eloquent\Builder|User query()
+ * @method static \Illuminate\Database\Eloquent\Builder|User role($roles, $guardName = null)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereAppointmentType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereDeletedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereDepartmentId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereEmailVerifiedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereEmployeeId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereFullName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereGradeId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereIsAdmin($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereIsBpmStaff($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereMobileNumber($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereMobileVerifiedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereNric($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User wherePassword($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User wherePersonalEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User wherePositionId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereProfilePhotoPath($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereRememberToken($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereServiceStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereTwoFactorRecoveryCodes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereTwoFactorSecret($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereUpdatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereUserIdAssigned($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|User withTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|User withoutTrashed()
+ * @mixin \Eloquent
+ */
 class User extends Authenticatable
 {
   // Keep existing traits
@@ -41,6 +162,8 @@ class User extends Authenticatable
 
   /**
    * The attributes that are mass assignable.
+   * Includes standard user fields, new fields from MOTAC design, and audit columns.
+   * 'id' is typically not mass assignable.
    *
    * @var array<int, string>
    */
@@ -48,43 +171,43 @@ class User extends Authenticatable
     'name', // Existing HRMS field (e.g., username or short name)
     'full_name', // Add full_name based on MOTAC design for official name
     'employee_id', // Existing HRMS field - foreign key to employee model
-    'nric', // ADDED: NRIC based on MOTAC design
-    'mobile_number', // ADDED: Mobile number based on MOTAC design
-    // Removed 'identification_number', 'mobile', 'phone_number' - assumed 'nric' and 'mobile_number' are the standard fields
+    'nric', // NRIC based on MOTAC design
+    'mobile_number', // Mobile number based on MOTAC design
 
     'email', // Existing HRMS field (could be primary contact email)
     'email_verified_at', // Existing HRMS field
     'password', // Existing HRMS field
-    'profile_photo_path', // Existing HRMS field
-    'remember_token', // Existing HRMS field
+    // 'profile_photo_path', // Handled by HasProfilePhoto trait usually, remove from fillable unless explicitly needed
+    // 'remember_token', // Managed by Laravel's built-in authentication
 
-    'personal_email', // Add personal email based on MOTAC design
-    'motac_email', // Add motac_email based on MOTAC design (assigned after provisioning)
-    'user_id_assigned', // Add user_id_assigned based on MOTAC design (assigned after provisioning, e.g., external system ID)
+    'personal_email', // Personal email based on MOTAC design
+    'motac_email', // MOTAC email based on MOTAC design (assigned after provisioning)
+    'user_id_assigned', // External user ID based on MOTAC design (assigned after provisioning)
 
-    'department_id', // Add department_id based on MOTAC design (foreign key to departments table)
-    'position_id', // Add position_id based on MOTAC design (foreign key to positions table)
-    'grade_id', // Add grade_id based on MOTAC design (foreign key to grades table)
+    'department_id', // Foreign key to departments table
+    'position_id', // Foreign key to positions table
+    'grade_id', // Foreign key to grades table
 
-    'service_status', // Add service_status based on MOTAC design (e.g., permanent, contract)
-    'appointment_type', // Add appointment_type based on MOTAC design
+    'service_status', // Service status based on MOTAC design (e.g., permanent, contract)
+    'appointment_type', // Appointment type based on MOTAC design
 
-    'is_admin', // Add is_admin flag
-    'is_bpm_staff', // Add is_bpm_staff flag
-    'status', // Add user account status based on MOTAC design (e.g., active, inactive, suspended)
+    'is_admin', // Flag indicating administrator role
+    'is_bpm_staff', // Flag indicating BPM staff role
+    'status', // User account status based on MOTAC design (e.g., active, inactive, suspended)
 
-    // Audit columns (created_by, updated_by, deleted_by) are typically handled by the CreatedUpdatedDeletedBy trait on *other* models.
-    // If the User model itself HAS audit columns referencing *other* users (less common), add them here.
-    // Based on 2025_04_22_083508_add_motac_columns_to_users_table, User table *does* have audit columns.
-    // The trait needs to handle applying these to the User model itself if used here, OR you list them manually.
-    // Assuming the trait on User model means User records *have* audit columns referencing *other* users.
-    'created_by',
-    'updated_by',
-    'deleted_by',
+    // Audit columns are handled by CreatedUpdatedDeletedBy trait if applied to User model.
+    // Otherwise, include here manually if you need to mass assign them.
+    // Based on migration, User table *does* have audit columns. Assuming trait handles on this model.
+    // If trait does NOT handle on User model itself, uncomment these:
+    // 'created_by',
+    // 'updated_by',
+    // 'deleted_by',
   ];
 
   /**
    * The attributes that should be hidden for serialization.
+   * Prevents sensitive or unnecessary fields from being included in JSON responses.
+   * Includes password, security tokens, and typically audit columns.
    *
    * @var array<int, string>
    */
@@ -93,214 +216,318 @@ class User extends Authenticatable
     'remember_token',
     'two_factor_recovery_codes', // Keep if using Fortify 2FA
     'two_factor_secret', // Keep if using Fortify 2FA
-    // Audit columns can be hidden if you don't want them in JSON/array output by default
+    // Audit columns are often hidden unless explicitly needed
     'created_by',
     'updated_by',
     'deleted_by',
     'deleted_at', // Hide soft delete timestamp
+    // Consider hiding profile_photo_path if profile_photo_url accessor is used
+    'profile_photo_path',
   ];
 
   /**
    * The attributes that should be cast.
+   * Ensures data types are correct, especially for dates, booleans, and potential JSON.
    *
    * @var array<string, string>
    */
   protected $casts = [
-    'email_verified_at' => 'datetime',
+    'name' => 'string', // Explicitly cast string attributes
+    'full_name' => 'string',
+    'nric' => 'string',
+    'mobile_number' => 'string',
+    'email' => 'string',
+    'password' => 'string', // Passwords are strings (hashed)
+    'profile_photo_path' => 'string', // Path is a string
+    'remember_token' => 'string', // Token is a string
+    'personal_email' => 'string',
+    'motac_email' => 'string',
+    'user_id_assigned' => 'string', // Assuming external ID is string
+    'service_status' => 'string',
+    'appointment_type' => 'string',
+    'status' => 'string', // User account status
+    'two_factor_secret' => 'string', // 2FA secret is string
+    'two_factor_recovery_codes' => 'json', // Recovery codes are often stored as JSON
+
+    'employee_id' => 'integer', // Cast FKs to integer
+    'department_id' => 'integer',
+    'position_id' => 'integer',
+    'grade_id' => 'integer',
+    'created_by' => 'integer', // Audit FKs
+    'updated_by' => 'integer',
+    'deleted_by' => 'integer',
+
+    'email_verified_at' => 'datetime', // Cast timestamps to Carbon instances
     'mobile_verified_at' => 'datetime', // Keep existing cast if this column exists
-    'is_admin' => 'boolean', // ADDED: Cast boolean flags
-    'is_bpm_staff' => 'boolean', // ADDED: Cast boolean flags
-    'status' => 'string', // Cast status as string if it's a string/enum in DB
-    'created_at' => 'datetime', // Explicitly cast timestamps if trait doesn't handle or for clarity
+    'created_at' => 'datetime',
     'updated_at' => 'datetime',
-    'deleted_at' => 'datetime', // Cast soft delete timestamp
+    'deleted_at' => 'datetime',
+
+    'is_admin' => 'boolean', // Cast boolean flags
+    'is_bpm_staff' => 'boolean',
   ];
 
-  // If 'full_name' is a direct database column, remove this accessor unless needed for formatting
-  // protected function getFullNameAttribute($value): string
-  // {
-  //     return $value ?? $this->attributes['name'] ?? '';
-  // }
-
-  // Appends are typically virtual attributes. Since 'full_name' is a DB column,
-  // you don't strictly need to append it, it's included by default when accessing the attribute.
-  // Keep profile_photo_url if using Jetstream's trait accessor.
+  /**
+   * The accessors to append to the model's array form.
+   * Includes virtual attributes derived from traits or accessors.
+   *
+   * @var array<int, string>
+   */
   protected $appends = [
-    'profile_photo_url', // Keep existing from HasProfilePhoto trait
-    // 'employee_full_name', // Keep if still deriving from HRMS Employee
+    'profile_photo_url', // Provided by HasProfilePhoto trait
+    // 'employee_full_name', // Uncomment if still deriving from HRMS Employee
+    // Add other virtual attributes you want appended by default
   ];
 
-  // Removed getEmployeeFullNameAttribute if 'full_name' column is now the primary source.
-  // If still needed to get name from HRMS Employee, keep this accessor.
+  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
+
+  /**
+   * Get the user who created this model record.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
+   */
+  // public function createdBy(): BelongsToRelation; // If User model has created_by FK
+
+  /**
+   * Get the user who last updated this model record.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
+   */
+  // public function updatedBy(): BelongsToRelation; // If User model has updated_by FK
+
+  /**
+   * Get the user who soft deleted this model record.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
+   */
+  // public function deletedBy(): BelongsToRelation; // If User model has deleted_by FK
 
 
   // 👉 Existing HRMS Links
   /**
    * Get the related Employee record from the HRMS system.
+   * Defines a many-to-one relationship where a User belongs to one HRMS Employee record.
+   * Assumes the 'users' table has an 'employee_id' foreign key linking to the 'employees' table.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Employee, \App\Models\User>
    */
-  public function employee(): BelongsTo
+  public function employee(): BelongsTo // Added return type hint and refined docblock
   {
     // Link to HRMS Employee model (if it exists), linked by employee_id
-    return $this->belongsTo(Employee::class, 'employee_id');
+    return $this->belongsTo(Employee::class, 'employee_id'); // Explicitly define FK
   }
 
   // 👉 New MOTAC Resource Management Relationships
 
   /**
    * Get the department associated with the user.
+   * Defines a many-to-one relationship where a User belongs to one Department.
+   * Assumes the 'users' table has a 'department_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Department, \App\Models\User>
    */
-  public function department(): BelongsTo
+  public function department(): BelongsTo // Added return type hint
   {
-    return $this->belongsTo(Department::class, 'department_id');
+    // Defines a many-to-one relationship with the Department model
+    return $this->belongsTo(Department::class, 'department_id'); // Explicitly define FK
   }
 
   /**
    * Get the position associated with the user.
+   * Defines a many-to-one relationship where a User belongs to one Position.
+   * Assumes the 'users' table has a 'position_id' foreign key linking to the 'positions' table.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Position, \App\Models\User>
    */
-  public function position(): BelongsTo
+  public function position(): BelongsTo // Added return type hint
   {
     // Link to the Position model (which maps to the 'positions' table), linked by position_id
-    return $this->belongsTo(Position::class, 'position_id');
+    return $this->belongsTo(Position::class, 'position_id'); // Explicitly define FK
   }
 
   /**
    * Get the grade associated with the user.
+   * Defines a many-to-one relationship where a User belongs to one Grade.
+   * Assumes the 'users' table has a 'grade_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Grade, \App\Models\User>
    */
-  public function grade(): BelongsTo
+  public function grade(): BelongsTo // Added return type hint
   {
-    return $this->belongsTo(Grade::class, 'grade_id');
+    // Defines a many-to-one relationship with the Grade model
+    return $this->belongsTo(Grade::class, 'grade_id'); // Explicitly define FK
   }
 
   /**
    * Get the email applications submitted by the user.
+   * Defines a one-to-many relationship where a User has many EmailApplications as the applicant.
+   * Assumes the 'email_applications' table has a 'user_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\EmailApplication>
    */
-  public function emailApplications(): HasMany
+  public function emailApplications(): HasMany // Added return type hint
   {
+    // Defines a one-to-many relationship with the EmailApplication model
     return $this->hasMany(EmailApplication::class, 'user_id'); // User as applicant
   }
 
   /**
    * Get the email applications reviewed/supported by the user.
+   * Defines a one-to-many relationship where a User has many EmailApplications as the supporting officer.
+   * Assumes the 'email_applications' table has a 'supporting_officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\EmailApplication>
    */
-  public function supportedEmailApplications(): HasMany
+  public function supportedEmailApplications(): HasMany // Added return type hint
   {
+    // Defines a one-to-many relationship with the EmailApplication model
     return $this->hasMany(EmailApplication::class, 'supporting_officer_id'); // User as supporting officer
   }
 
   /**
    * Get the loan applications submitted by the user.
+   * Defines a one-to-many relationship where a User has many LoanApplications as the applicant.
+   * Assumes the 'loan_applications' table has a 'user_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\LoanApplication>
    */
-  public function loanApplications(): HasMany
+  public function loanApplications(): HasMany // Added return type hint
   {
+    // Defines a one-to-many relationship with the LoanApplication model
     return $this->hasMany(LoanApplication::class, 'user_id'); // User as applicant
   }
 
   /**
    * Get the loan applications where the user was the responsible officer.
+   * Defines a one-to-many relationship where a User is the responsible officer for many LoanApplications.
+   * Assumes the 'loan_applications' table has a 'responsible_officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\LoanApplication>
    */
-  public function responsibleLoanApplications(): HasMany
+  public function responsibleLoanApplications(): HasMany // Added return type hint
   {
+    // Defines a one-to-many relationship with the LoanApplication model
     return $this->hasMany(LoanApplication::class, 'responsible_officer_id'); // User as responsible officer
   }
 
 
   /**
    * Get the loan transactions where the user was the issuing officer.
+   * Defines a one-to-many relationship where a User was the issuing officer for many LoanTransactions.
+   * Assumes the 'loan_transactions' table has an 'issuing_officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\LoanTransaction>
    */
-  public function issuedTransactions(): HasMany
+  public function issuedTransactions(): HasMany // Added return type hint
   {
-    return $this->hasMany(LoanTransaction::class, 'issuing_officer_id');
+    // Defines a one-to-many relationship with the LoanTransaction model
+    return $this->hasMany(LoanTransaction::class, 'issuing_officer_id'); // Explicitly define FK
   }
 
   /**
    * Get the loan transactions where the user was the receiving officer (on issue).
+   * Defines a one-to-many relationship where a User was the receiving officer for many LoanTransactions.
+   * Assumes the 'loan_transactions' table has a 'receiving_officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\LoanTransaction>
    */
-  public function receivedTransactions(): HasMany
+  public function receivedTransactions(): HasMany // Added return type hint
   {
-    return $this->hasMany(LoanTransaction::class, 'receiving_officer_id');
+    // Defines a one-to-many relationship with the LoanTransaction model
+    return $this->hasMany(LoanTransaction::class, 'receiving_officer_id'); // Explicitly define FK
   }
 
   /**
    * Get the loan transactions where the user was the returning officer.
+   * Defines a one-to-many relationship where a User was the returning officer for many LoanTransactions.
+   * Assumes the 'loan_transactions' table has a 'returning_officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\LoanTransaction>
    */
-  public function returningTransactions(): HasMany
+  public function returningTransactions(): HasMany // Added return type hint
   {
-    return $this->hasMany(LoanTransaction::class, 'returning_officer_id');
+    // Defines a one-to-many relationship with the LoanTransaction model
+    return $this->hasMany(LoanTransaction::class, 'returning_officer_id'); // Explicitly define FK
   }
 
   /**
    * Get the loan transactions where the user was the return accepting officer.
+   * Defines a one-to-many relationship where a User was the return accepting officer for many LoanTransactions.
+   * Assumes the 'loan_transactions' table has a 'return_accepting_officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\LoanTransaction>
    */
-  public function acceptedReturnTransactions(): HasMany
+  public function acceptedReturnTransactions(): HasMany // Added return type hint
   {
-    return $this->hasMany(LoanTransaction::class, 'return_accepting_officer_id');
+    // Defines a one-to-many relationship with the LoanTransaction model
+    return $this->hasMany(LoanTransaction::class, 'return_accepting_officer_id'); // Explicitly define FK
   }
 
   /**
    * Get the approvals made by the user (as an officer).
+   * Defines a one-to-many relationship where a User has made many Approvals.
+   * Assumes the 'approvals' table has an 'officer_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Approval>
    */
-  public function approvals(): HasMany
+  public function approvals(): HasMany // Added return type hint
   {
-    return $this->hasMany(Approval::class, 'officer_id');
+    // Defines a one-to-many relationship with the Approval model
+    return $this->hasMany(Approval::class, 'officer_id'); // Explicitly define FK
   }
 
   // 👉 Inverse Audit Relationships (Records created/updated/deleted BY this user)
   // Assuming CreatedUpdatedDeletedBy trait adds audit FKs to OTHER models.
   // Add these relationships to the User model to see what THIS user audited.
+  // A generic relationship to 'all models' created/updated/deleted is complex and not standard Eloquent.
+  // Define specific relationships for models you want to track audit actions BY this user on.
 
   /**
-   * Get all records created by this user.
+   * Get all Department records created by this user.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Department>
    */
-  public function createdRecords(): HasMany
-  {
-    // You would need a specific implementation if you want ALL models.
-    // Often defined per model, e.g., $user->createdDepartments().
-    // Or a generic relation if the trait supports it and you define it.
-    // Example for a specific model:
-    // public function createdDepartments(): HasMany { return $this->hasMany(Department::class, 'created_by'); }
-
-    // A more general approach might require a package or more complex query/relation setup.
-    // For simplicity, list specific ones or rely on the trait's documentation if it provides a generic way.
-    // Let's define specific ones for demonstration.
-    return $this->hasMany(Department::class, 'created_by'); // Example: Records created in the departments table
-    // Add more as needed:
-    // return $this->hasMany(Position::class, 'created_by');
-    // return $this->hasMany(Equipment::class, 'created_by');
-    // etc.
-  }
+  // public function createdDepartments(): HasMany // Example specific inverse audit relationship
+  // {
+  //      return $this->hasMany(Department::class, 'created_by');
+  // }
 
   /**
-   * Get all records updated by this user.
+   * Get all Department records updated by this user.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Department>
    */
-  public function updatedRecords(): HasMany
-  {
-    return $this->hasMany(Department::class, 'updated_by'); // Example
-    // Add more as needed
-  }
+  // public function updatedDepartments(): HasMany // Example specific inverse audit relationship
+  // {
+  //      return $this->hasMany(Department::class, 'updated_by');
+  // }
 
   /**
-   * Get all records deleted by this user (soft deletes).
+   * Get all Department records deleted by this user (soft deletes).
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Department>
    */
-  public function deletedRecords(): HasMany
-  {
-    return $this->hasMany(Department::class, 'deleted_by'); // Example
-    // Add more as needed
-  }
+  // public function deletedDepartments(): HasMany // Example specific inverse audit relationship
+  // {
+  //      return $this->hasMany(Department::class, 'deleted_by');
+  // }
+
+  // Add more specific inverse audit relationships as needed for other models.
 
 
   // 👉 New MOTAC Resource Management Helper Methods
 
   /**
    * Check if the user has a grade level required for approval.
-   * Assumes grade relationship is loaded and Grade model has 'level' attribute.
-   * Assumes min_approver_grade_level is set in config('motac.approval').
+   * Checks if the user's grade level is greater than or equal to the minimum approver grade level defined in config.
+   * Note: Requires the 'grade' relationship to be loaded before calling this method to avoid N+1 issues.
    *
-   * @return bool
+   * @return bool True if the user's grade meets or exceeds the minimum approver grade level, false otherwise.
    */
-  public function hasApprovalGrade(): bool
+  public function hasApprovalGrade(): bool // Added return type hint and refined docblock
   {
     // Ensure the grade relationship is loaded and not null before accessing level
-    // Use optional chaining (?->) for safety
+    // Use optional chaining (?->) for safety and null coalescing (??) for grade level default
     return $this->relationLoaded('grade')
       && $this->grade !== null
       && ($this->grade->level ?? 0) >= config('motac.approval.min_approver_grade_level', 0); // Default config value to 0 for safety
@@ -308,43 +535,66 @@ class User extends Authenticatable
 
 
   /**
-   * Check if the user is an administrator (based on is_admin flag or roles).
-   * Using the is_admin column as per your fillable. Can combine with role check.
+   * Check if the user is an administrator.
+   * Directly returns the boolean value of the 'is_admin' attribute after casting.
    *
-   * @return bool
+   * @return bool True if the user is an administrator, false otherwise.
    */
-  public function isAdmin(): bool
+  public function isAdmin(): bool // Added return type hint and refined docblock
   {
-    // Assuming a boolean column 'is_admin' exists
-    return (bool) $this->is_admin;
+    // Assuming a boolean column 'is_admin' exists and is cast to boolean via $casts
+    return $this->is_admin;
     // Or combine with role check if needed:
-    // return (bool) $this->is_admin || $this->hasRole('Admin');
+    // return $this->is_admin || $this->hasRole('Admin');
   }
 
   /**
-   * Check if the user is BPM staff (based on is_bpm_staff flag or role).
-   * Using the is_bpm_staff column as per your fillable. Can combine with role check.
+   * Check if the user is BPM staff.
+   * Directly returns the boolean value of the 'is_bpm_staff' attribute after casting.
    *
-   * @return bool
+   * @return bool True if the user is BPM staff, false otherwise.
    */
-  public function isBpmStaff(): bool
+  public function isBpmStaff(): bool // Added return type hint and refined docblock
   {
-    // Assuming a boolean column 'is_bpm_staff' exists
-    return (bool) $this->is_bpm_staff;
+    // Assuming a boolean column 'is_bpm_staff' exists and is cast to boolean via $casts
+    return $this->is_bpm_staff;
     // Or combine with role check if needed:
-    // return (bool) $this->is_bpm_staff || $this->hasRole('BPM Staff');
+    // return $this->is_bpm_staff || $this->hasRole('BPM Staff');
   }
 
   /**
-   * Check if the user has a specific status.
+   * Check if the user account has a specific status.
+   * Checks the status column against the provided status string.
    *
-   * @param string $status The status to check against.
-   * @return bool
+   * @param string $status The status string to check against (e.g., 'active', 'inactive').
+   * @return bool True if the user's status matches the provided status, false otherwise.
    */
-  public function hasStatus(string $status): bool
+  public function hasStatus(string $status): bool // Added type hint and return type hint, refined docblock
   {
-    // Assuming a string column 'status' exists
+    // Assuming a string column 'status' exists and is cast to string via $casts
     return $this->status === $status;
+  }
+
+  /**
+   * Check if the user account is active.
+   * Uses the hasStatus helper method.
+   *
+   * @return bool True if the user status is 'active', false otherwise.
+   */
+  public function isActive(): bool // Added specific status checker
+  {
+    return $this->hasStatus('active'); // Assuming 'active' is the status string for active users
+  }
+
+  /**
+   * Check if the user account is inactive.
+   * Uses the hasStatus helper method.
+   *
+   * @return bool True if the user status is 'inactive', false otherwise.
+   */
+  public function isInactive(): bool // Added specific status checker
+  {
+    return $this->hasStatus('inactive'); // Assuming 'inactive' is the status string for inactive users
   }
 
 
