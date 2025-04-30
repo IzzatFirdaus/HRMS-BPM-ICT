@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-// Import the custom LoginRequest Form Request provided by Laravel Fortify
+// Import the custom LoginRequest Form Request provided by Laravel Fortify (or Breeze)
 use App\Http\Requests\Auth\LoginRequest;
 // Import the default redirection service provider
 use App\Providers\RouteServiceProvider;
@@ -12,8 +12,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 // Import the Auth facade for authentication operations
 use Illuminate\Support\Facades\Auth;
-// Import the View class for type hinting
-use Illuminate\View\View;
+use Illuminate\View\View; // Import the View class for type hinting
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
 
 // This controller handles the authentication session lifecycle: login and logout.
 // It is typically published as part of Laravel Fortify (which is used by Jetstream) or Laravel Breeze.
@@ -53,10 +53,27 @@ class AuthenticatedSessionController extends Controller
     // to Fortify's `AttemptToAuthenticate` action. If authentication fails,
     // an exception is thrown, and Laravel's validation handling redirects back
     // with errors automatically.
+    //
+    // CUSTOMIZATION NOTE: If you need to enforce specific checks *after*
+    // credentials are valid but *before* login (e.g., user must be 'active'),
+    // you should typically implement this logic within the `LoginRequest`'s
+    // `authenticate()` method itself or modify Fortify's authentication pipeline.
+    // Do NOT add Auth::user()->status check *after* $request->authenticate()
+    // because the user session is not fully established until after this method completes.
     $request->authenticate();
 
     // Regenerate the session ID to prevent session fixation attacks.
     $request->session()->regenerate();
+
+    // Optional: Log successful login attempt
+    if (Auth::check()) {
+      Log::info('User successfully logged in.', [
+        'user_id' => Auth::id(),
+        'ip_address' => $request->ip(),
+        'user_agent' => $request->header('User-Agent'),
+      ]);
+    }
+
 
     // Redirect the user to their intended destination (the page they tried to access before login)
     // or fall back to the default home path defined in RouteServiceProvider::HOME
@@ -75,8 +92,16 @@ class AuthenticatedSessionController extends Controller
    */
   public function destroy(Request $request): RedirectResponse
   {
+    // Optional: Log logout attempt/success
+    if (Auth::check()) {
+      Log::info('User logging out.', [
+        'user_id' => Auth::id(),
+        'ip_address' => $request->ip(),
+        'user_agent' => $request->header('User-Agent'),
+      ]);
+    }
+
     // Log the user out from the default web guard.
-    // Fortify's logout action is typically handled by this core Laravel call.
     Auth::guard('web')->logout();
 
     // Invalidate the user's session. This clears all session data.
@@ -88,8 +113,9 @@ class AuthenticatedSessionController extends Controller
 
     // Redirect the user after logging out.
     // Commonly redirects to the application's root URL ('/') or the login page ('/login').
-    return redirect('/'); // Redirect to the homepage
-    // Alternatively, to redirect to the login page:
+    return redirect('/'); // Redirect to the homepage or landing page
+
+    // Alternatively, to redirect specifically to the login page:
     // return redirect()->route('login');
   }
 }

@@ -10,6 +10,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 // Import the View class for type hinting
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
+use Illuminate\Support\Facades\Auth; // Import Auth facade to get authenticated user ID
+
 
 // This controller's sole purpose is to display the email verification notice view.
 // It is typically used in conjunction with the 'verified' middleware.
@@ -39,6 +42,12 @@ class EmailVerificationPromptController extends Controller
 
     // Check if the authenticated user's email address is already verified.
     if ($request->user()->hasVerifiedEmail()) {
+      // Optional: Log if a verified user somehow reaches this prompt (shouldn't happen with correct middleware)
+      Log::warning('Verified user redirected from verification prompt.', [
+        'user_id' => Auth::id(), // Log the ID of the authenticated user
+        'ip_address' => $request->ip(),
+      ]);
+
       // If the email is already verified, redirect the user to their intended
       // destination (the page they were trying to access before being
       // redirected by the 'verified' middleware) or fall back to the
@@ -46,6 +55,13 @@ class EmailVerificationPromptController extends Controller
       // There is no need to show the verification prompt if they are already verified.
       return redirect()->intended(RouteServiceProvider::HOME);
     }
+
+    // Log that an unverified user is being shown the verification prompt
+    Log::info('Unverified user shown email verification prompt.', [
+      'user_id' => Auth::id(), // Log the ID of the authenticated user
+      'ip_address' => $request->ip(),
+    ]);
+
 
     // If the email address is NOT verified, display the email verification notice view.
     // This view typically informs the user that their email is not verified and

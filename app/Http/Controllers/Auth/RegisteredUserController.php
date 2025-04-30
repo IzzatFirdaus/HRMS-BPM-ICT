@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth; // Ensure the namespace matches your project structure
 
 use App\Http\Controllers\Controller; // Extend the base Controller
-// Import the User model
+// Import the User model (though less needed if creation logic is in the action)
 use App\Models\User;
 // Import the default redirection service provider
 use App\Providers\RouteServiceProvider;
@@ -16,17 +16,18 @@ use Illuminate\Http\Request; // Import base Request if needed, though Form Reque
 use Illuminate\Support\Facades\Auth;
 // Import the Hash facade (less needed if using Fortify action for hashing)
 use Illuminate\Support\Facades\Hash;
-// Import common validation rules, like the Password rule
+// Import common validation rules, like the Password rule (less needed if using Form Request)
 use Illuminate\Validation\Rules;
 // Import the View class for type hinting the create method
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
 
 // Import Fortify's action and request (assuming Fortify setup)
 // The CreateNewUser action contains the core logic for creating a user record.
 use App\Actions\Fortify\CreateNewUser;
 // The NewUserRequest is a custom Form Request provided by Fortify/Breeze for validation.
 // Note: The exact name might be just 'RegisterRequest' in some setups.
-use App\Http\Requests\NewUserRequest;
+use App\Http\Requests\NewUserRequest; // <<< Verify this Form Request name is correct
 
 
 // This controller handles the user registration process.
@@ -43,7 +44,7 @@ class RegisteredUserController extends Controller
    *
    * This method shows the form that new users fill out to register for an account.
    *
-   * @return \Illuminate\View\View  The view containing the registration form.
+   * @return \Illuminate\View\View The view containing the registration form.
    */
   public function create(): View
   {
@@ -63,28 +64,30 @@ class RegisteredUserController extends Controller
    * to perform the actual user creation in the database and then logs the
    * newly created user in.
    *
-   * @param  \App\Http\Requests\NewUserRequest  $request  The validated incoming registration request.
-   * (Note: If your Fortify setup uses a different request name, update this type hint)
-   * @return \Illuminate\Http\RedirectResponse  A redirect response after successful registration and login.
+   * @param  \App\Http\Requests\NewUserRequest  $request The validated incoming registration request.
+   * (Note: Verify that 'NewUserRequest' is the correct Form Request name for your setup)
+   * @return \Illuminate\Http\RedirectResponse A redirect response after successful registration and login.
    */
-  public function store(NewUserRequest $request): RedirectResponse
+  public function store(NewUserRequest $request): RedirectResponse // Form Request handles validation
   {
     // The `NewUserRequest` Form Request (or whatever your Fortify setup uses)
     // handles the validation of the incoming request data automatically
     // before it reaches this method. The validated data is available via
     // `$request->validated()`.
+    //
+    // The logic for mapping registration form fields (e.g., full_name, nric, etc.)
+    // to the User model fields and hashing the password should be contained
+    // within the `App\Actions\Fortify\CreateNewUser` action's `create` method
+    // and the validation rules in the `NewUserRequest` Form Request.
 
     // Use Fortify's `CreateNewUser` action to perform the core user creation logic.
-    // This action is responsible for:
-    // - Creating the User model instance.
-    // - Hashing the password.
-    // - Saving the user record to the database.
-    // - Potentially performing any other necessary steps after user creation.
-    $creator = app(CreateNewUser::class); // Resolve the CreateNewUser action from the Laravel service container
+    $creator = app(CreateNewUser::class); // Resolve the CreateNewUser action from the service container
 
-    // Call the `create` method on the resolved action, passing all the validated request data.
+    // Call the `create` method on the resolved action, passing the request data.
     // The action returns the newly created User model instance.
-    $user = $creator->create($request->all()); // Pass all request data or $request->validated()
+    // Passing $request->all() or $request->validated() is common here.
+    $user = $creator->create($request->all()); // <<< Ensure CreateNewUser action correctly handles this data
+
 
     // Fire the `Registered` event.
     // Laravel has built-in listeners for this event, such as one that sends
@@ -96,9 +99,20 @@ class RegisteredUserController extends Controller
     // This uses the default authentication guard ('web').
     Auth::login($user);
 
+    // Optional: Log successful registration and login
+    Log::info('New user registered and logged in.', [
+      'user_id' => $user->id, // Log the ID of the newly created user
+      'email' => $user->email, // Log the user's email (or login credential field)
+      'ip_address' => $request->ip(),
+    ]);
+
+
     // Redirect the user to the home page (or their intended destination before registration)
     // after they have successfully registered and been logged in.
     // RouteServiceProvider::HOME is typically '/dashboard'.
     return redirect(RouteServiceProvider::HOME);
+
+    // If you want to redirect with a success message, you can add ->with('status', 'registered') or similar.
+    // return redirect(RouteServiceProvider::HOME)->with('status', 'registered');
   }
 }

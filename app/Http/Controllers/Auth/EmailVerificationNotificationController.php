@@ -8,6 +8,8 @@ use App\Providers\RouteServiceProvider;
 // Import necessary classes for HTTP responses and requests
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
+use Illuminate\Support\Facades\Auth; // Import Auth facade to get authenticated user ID
 
 // This controller handles the action of sending a new email verification notification.
 // It is typically published as part of Laravel Fortify (used by Jetstream) or Laravel Breeze.
@@ -38,6 +40,12 @@ class EmailVerificationNotificationController extends Controller
 
     // Check if the authenticated user's email address is already verified.
     if ($request->user()->hasVerifiedEmail()) {
+      // Log if a user attempts to resend verification but is already verified
+      Log::info('User attempted to resend verification email but was already verified.', [
+        'user_id' => Auth::id(), // Log the ID of the authenticated user
+        'ip_address' => $request->ip(),
+      ]);
+
       // If the email is already verified, there's no need to resend the notification.
       // Redirect the user to their intended destination (the page they were trying
       // to access before being redirected by the verification middleware) or
@@ -48,6 +56,13 @@ class EmailVerificationNotificationController extends Controller
     // If the email address is not verified, trigger the sending of a new
     // email verification notification to the user.
     $request->user()->sendEmailVerificationNotification();
+
+    // Log that a verification email has been sent
+    Log::info('New email verification notification sent.', [
+      'user_id' => Auth::id(), // Log the ID of the authenticated user
+      'ip_address' => $request->ip(),
+    ]);
+
 
     // Redirect the user back to the page they were on (typically the email
     // verification notice page) and include a session flash message with a
@@ -60,10 +75,23 @@ class EmailVerificationNotificationController extends Controller
   // If you implement this as a single-action controller, the code would look like this:
   // public function __invoke(Request $request): RedirectResponse
   // {
-  //     if ($request->user()->hasVerifiedEmail()) {
-  //         return redirect()->intended(RouteServiceProvider::HOME);
-  //     }
-  //     $request->user()->sendEmailVerificationNotification();
-  //     return back()->with('status', 'verification-link-sent');
+  //      // Log if a user attempts to resend verification but is already verified
+  //      if ($request->user()->hasVerifiedEmail()) {
+  //          Log::info('User attempted to resend verification email but was already verified.', [
+  //              'user_id' => Auth::id(),
+  //              'ip_address' => $request->ip(),
+  //          ]);
+  //          return redirect()->intended(RouteServiceProvider::HOME);
+  //      }
+  //
+  //      $request->user()->sendEmailVerificationNotification();
+  //
+  //      // Log that a verification email has been sent
+  //      Log::info('New email verification notification sent.', [
+  //          'user_id' => Auth::id(),
+  //          'ip_address' => $request->ip(),
+  //      ]);
+  //
+  //      return back()->with('status', 'verification-link-sent');
   // }
 }

@@ -5,30 +5,48 @@ namespace App\Http\Controllers\Admin; // Ensure the namespace is correct for you
 use App\Http\Controllers\Controller; // Extend the base Controller
 use App\Models\User; // Import the User model
 use App\Models\Department; // Assuming Department model exists
-use App\Models\Position; // Import the Position model, assuming it's now named Position.php
+use App\Models\Position; // Import the Position model
 use App\Models\Grade; // Assuming Grade model exists
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash; // For hashing passwords
-// REMOVED: use Illuminate\Support\Facades\Mail; // Removed as email sending logic is moved
-// REMOVED: use App\Mail\WelcomeEmail; // Removed as email sending logic is moved
 use Illuminate\Validation\Rule; // For using validation rules like Rule::in, Rule::unique
-use Illuminate\Support\Facades\Gate; // For manual authorization checks if not using policies only
-use Illuminate\Support\Facades\Log; // Import the Log facade for logging - Keep for other potential logging
+use Illuminate\Support\Facades\Log; // Import the Log facade for logging
+use Illuminate\Support\Facades\Auth; // Import Auth facade for getting logged-in user
+use Exception; // Import Exception for general errors
+use Illuminate\Database\QueryException; // Import QueryException for database errors
 
 class UserController extends Controller
 {
   /**
-   * Display a listing of the resource.
+   * Apply authentication middleware and authorizeResource for policy checks.
+   */
+  public function __construct()
+  {
+    // Apply authentication middleware
+    $this->middleware('auth');
+    // Apply authorization policy checks automatically
+    $this->authorizeResource(User::class, 'user');
+    // Note: When using authorizeResource, you don't need separate $this->authorize() calls
+    // in each method (index, create, store, show, edit, update, destroy),
+    // provided your UserPolicy is set up correctly.
+  }
+
+  /**
+   * Display a listing of the resource (Users).
+   *
+   * @return \Illuminate\View\View
    */
   public function index()
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('viewAny', User::class); // Assuming a UserPolicy exists with a viewAny method
+    // Authorization is handled by authorizeResource in the constructor
 
     // Fetch users with their related data for the index table
     // Relationships ('department', 'position', 'grade') must match the method names in the User model
     // Use pagination to avoid loading too many users at once
-    $users = User::with(['department', 'position', 'grade'])->paginate(15); // Paginate results
+    // If using soft deletes, you might want to include trashed users for admin view: ->withTrashed()
+    $users = User::with(['department', 'position', 'grade'])
+      ->latest() // Order by latest creation date
+      ->paginate(15); // Paginate results
 
     // Return the view with the list of users
     // Assuming your admin user views are located in resources/views/admin/users
@@ -36,59 +54,62 @@ class UserController extends Controller
   }
 
   /**
-   * Show the form for creating a new resource.
+   * Show the form for creating a new resource (User).
+   *
+   * @return \Illuminate\View\View
    */
   public function create()
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('create', User::class); // Assuming a UserPolicy exists with a create method
+    // Authorization is handled by authorizeResource in the constructor
 
     // Load data needed for the user creation form (e.g., departments, positions, grades, service statuses)
     $departments = Department::all(); // Assuming Department model exists
-    $positions = Position::all(); // Load Positions (using the Position model)
+    $positions = Position::all(); // Load Positions
     $grades = Grade::all(); // Assuming Grade model exists
-    // Define service statuses as a simple array or retrieve from a config file/enum if applicable
-    $serviceStatuses = ['permanent', 'contract', 'mystep', 'intern', 'other_agency']; // Match enum in migration
-    $userStatuses = ['active', 'inactive', 'suspended']; // Match enum in migration
 
+    // Define enums as arrays. Match enum in migration.
+    $serviceStatuses = ['permanent', 'contract', 'mystep', 'intern', 'other_agency'];
+    $userStatuses = ['active', 'inactive', 'suspended']; // Match enum in migration
 
     // Return the view for creating a user
     return view('admin.users.create', compact('departments', 'positions', 'grades', 'serviceStatuses', 'userStatuses'));
   }
 
   /**
-   * Store a newly created resource in storage.
+   * Store a newly created resource (User) in storage.
+   *
+   * @param  \Illuminate\Http\Request  $request  The incoming request.
+   * @return \Illuminate\Http\RedirectResponse
    */
   public function store(Request $request)
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('create', User::class); // Assuming a UserPolicy exists with a create method
+    // Authorization is handled by authorizeResource in the constructor
 
     // 1. Validate the incoming request data
     // Adjust validation rules based on the fields you added to the 'users' table and your form
     $validatedData = $request->validate([
       'full_name' => 'required|string|max:255',
-      'nric' => 'required|string|unique:users,identification_number|max:20', // Validate against 'identification_number' column
+      'identification_number' => 'required|string|unique:users,identification_number|max:20', // Corrected field name to match DB schema
       'personal_email' => 'required|email|unique:users,personal_email|max:255', // Personal email should be unique
       'mobile_number' => 'nullable|string|max:20', // Assuming mobile number is optional
       'department_id' => 'nullable|exists:departments,id', // Validate existence in departments table
-      'position_id' => 'nullable|exists:positions,id', // Validate existence in positions table (using the model name)
+      'position_id' => 'nullable|exists:positions,id', // Validate existence in positions table
       'grade_id' => 'nullable|exists:grades,id', // Validate existence in grades table
       'service_status' => ['required', Rule::in(['permanent', 'contract', 'mystep', 'intern', 'other_agency'])],
       'appointment_type' => 'nullable|string|max:255',
-      // 'motac_email' => 'nullable|email|unique:users,motac_email|max:255', // MOTAC email likely assigned later via email provisioning workflow
-      // 'user_id_assigned' => 'nullable|string|unique:users,user_id_assigned|max:255', // System User ID likely assigned later via email provisioning workflow
+      // motac_email and user_id_assigned are likely assigned later via email provisioning workflow
+      // 'motac_email' => 'nullable|email|unique:users,motac_email|max:255',
+      // 'user_id_assigned' => 'nullable|string|unique:users,user_id_assigned|max:255',
       'password' => 'required|string|min:8|confirmed', // Admin sets initial password, requires confirmation
       'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])], // User account status
-      // Add validation for any other user fields you are collecting in the form
-      // Ensure 'email' field from HRMS is handled if still used for login (e.g., for system login)
-      // 'email' => 'required|email|unique:users,email|max:255', // If 'email' is for system login
+      // If 'email' field from HRMS is used for system login, validate it here
+      // 'email' => 'required|email|unique:users,email|max:255',
     ]);
 
     // 2. Create the new user in the database
     $user = User::create([
       'full_name' => $validatedData['full_name'],
-      'identification_number' => $validatedData['nric'], // Map NRIC input to identification_number column
+      'identification_number' => $validatedData['identification_number'], // Use validated field name
       'personal_email' => $validatedData['personal_email'],
       'mobile_number' => $validatedData['mobile_number'],
       'department_id' => $validatedData['department_id'],
@@ -96,122 +117,105 @@ class UserController extends Controller
       'grade_id' => $validatedData['grade_id'],
       'service_status' => $validatedData['service_status'],
       'appointment_type' => $validatedData['appointment_type'],
-      'password' => Hash::make($validatedData['password']), // Hash the password before saving!
+      'password' => Hash::make($validatedData['password']), // Hash the password!
       'status' => $validatedData['status'],
-      // Assign default values or null for motac_email, user_id_assigned as they are part of provisioning workflow
+      // Assign default values or null for fields managed by provisioning workflow
       'motac_email' => null,
       'user_id_assigned' => null,
-      // Add other fields as mapped from $validatedData, e.g., 'email' if separate login email
-      // 'email' => $validatedData['email'], // If 'email' is for system login
-      'name' => $validatedData['full_name'], // Assuming HRMS 'name' is derived from full_name
+      // If 'email' field from HRMS is used for system login
+      // 'email' => $validatedData['email'] ?? null, // Use validated field name
+      // Map 'name' for HRMS template compatibility if needed, deriving from full_name
+      'name' => $validatedData['full_name'],
     ]);
 
-    // 3. REMOVED EMAIL SENDING LOGIC FROM HERE.
-    // This email (WelcomeEmail) is intended to be sent *after* the user's MOTAC email
-    // account has been provisioned and the credentials (MOTAC email and password) are known.
-    // You should trigger the WelcomeEmail sending from the email provisioning workflow,
-    // passing the provisioned MOTAC email and the initial password for that account.
-    /*
-         // Original email sending code (REMOVED):
-         try {
-           if ($user->personal_email) {
-             Mail::to($user->personal_email)
-                 ->send(new WelcomeEmail($user)); // <-- THIS LINE CAUSED THE ERROR
-             Log::info("Welcome email sent to user ID: " . $user->id . " at " . $user->personal_email);
-           } else {
-             Log::warning("Skipped sending welcome email for user ID: " . $user->id . " as personal email is missing.");
-             session()->flash('warning_email', 'User created, but personal email is missing, welcome email was not sent.');
-           }
-         } catch (\Exception $e) {
-           Log::error("Failed to send welcome email to user ID: " . $user->id . ". Error: " . $e->getMessage());
-           session()->flash('warning_email', 'User created, but failed to send welcome email.');
-         }
-        */
+    // Optional: Log the creation
+    Log::info('User created', [
+      'user_id' => $user->id,
+      'full_name' => $user->full_name,
+      'created_by' => Auth::id() // Log the ID of the user who created this record
+    ]);
 
-
-    // 4. Redirect to the user index page with a success message
-    // Assuming you have a named route for the admin user index like 'admin.users.index'
-    return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
+    // 3. Redirect to the user index page with a success message
+    // Changed message to Malay
+    return redirect()->route('admin.users.index')->with('success', 'Pengguna berjaya ditambah.');
+    // Or redirect to show: return redirect()->route('admin.users.show', $user)->with('success', 'Pengguna berjaya ditambah.');
   }
 
   /**
-   * Display the specified resource.
+   * Display the specified resource (User).
+   *
+   * @param  \App\Models\User  $user  The user instance resolved by route model binding.
+   * @return \Illuminate\View\View
    */
-  public function show(User $user)
+  public function show(User $user) // Use route model binding
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('view', $user); // Assuming a UserPolicy exists with a view method
+    // Authorization is handled by authorizeResource in the constructor
 
-    // Eager load relationships if needed for the show view
-    $user->load(['department', 'position', 'grade']);
+    // Eager load relationships needed for the show view
+    $user->load(['department', 'position', 'grade']); // Load related data
 
     // Return the view to show user details
     return view('admin.users.show', compact('user'));
   }
 
   /**
-   * Show the form for editing the specified resource.
+   * Show the form for editing the specified resource (User).
+   *
+   * @param  \App\Models\User  $user  The user instance resolved by route model binding.
+   * @return \Illuminate\View\View
    */
-  public function edit(User $user)
+  public function edit(User $user) // Use route model binding
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('update', $user); // Assuming a UserPolicy exists with an update method
+    // Authorization is handled by authorizeResource in the constructor
 
     // Load data needed for the edit form (e.g., departments, positions, grades, service statuses)
     $departments = Department::all();
-    $positions = Position::all(); // Load Positions (using the Position model)
+    $positions = Position::all();
     $grades = Grade::all();
-    $serviceStatuses = ['permanent', 'contract', 'mystep', 'intern', 'other_agency']; // Match enum in migration
-    $userStatuses = ['active', 'inactive', 'suspended']; // Match enum in migration
-
+    $serviceStatuses = ['permanent', 'contract', 'mystep', 'intern', 'other_agency'];
+    $userStatuses = ['active', 'inactive', 'suspended'];
 
     // Return the view for editing a user
     return view('admin.users.edit', compact('user', 'departments', 'positions', 'grades', 'serviceStatuses', 'userStatuses'));
   }
 
   /**
-   * Update the specified resource in storage.
+   * Update the specified resource (User) in storage.
+   *
+   * @param  \Illuminate\Http\Request  $request  The incoming request.
+   * @param  \App\Models\User  $user  The user instance resolved by route model binding.
+   * @return \Illuminate\Http\RedirectResponse
    */
-  public function update(Request $request, User $user)
+  public function update(Request $request, User $user) // Use route model binding
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('update', $user); // Assuming a UserPolicy exists with an update method
+    // Authorization is handled by authorizeResource in the constructor
 
     // 1. Validate the incoming request data for update
     // Use Rule::unique ignore to allow the user's current NRIC/email
     $validatedData = $request->validate([
       'full_name' => 'required|string|max:255',
-      'nric' => ['required', 'string', 'max:20', Rule::unique('users', 'identification_number')->ignore($user->id)], // Validate against 'identification_number' column
+      'identification_number' => ['required', 'string', 'max:20', Rule::unique('users', 'identification_number')->ignore($user->id)], // Corrected field name, ignore current user
       'personal_email' => ['required', 'email', 'max:255', Rule::unique('users', 'personal_email')->ignore($user->id)], // Personal email unique, ignore current user
       'mobile_number' => 'nullable|string|max:20',
       'department_id' => 'nullable|exists:departments,id',
-      'position_id' => 'nullable|exists:positions,id', // Validate existence in positions table (using the model name)
-      'grade_id' => 'nullable|exists:grades,id', // Validate existence in grades table
+      'position_id' => 'nullable|exists:positions,id',
+      'grade_id' => 'nullable|exists:grades,id',
       'service_status' => ['required', Rule::in(['permanent', 'contract', 'mystep', 'intern', 'other_agency'])],
       'appointment_type' => 'nullable|string|max:255',
-      // motac_email and user_id_assigned might have specific update logic elsewhere and may need unique ignore rules too
-      // 'motac_email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'motac_email')->ignore($user->id)], // If updatable via this form
-      // 'user_id_assigned' => ['nullable', 'string', 'max:255', Rule::unique('users', 'user_id_assigned')->ignore($user->id)], // If updatable via this form
-      'password' => 'nullable|string|min:8|confirmed', // Allow updating password, but not required
+      // motac_email and user_id_assigned might be updatable via this form by admin, add unique ignore rule if so
+      // 'motac_email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'motac_email')->ignore($user->id)],
+      // 'user_id_assigned' => ['nullable', 'string', 'max:255', Rule::unique('users', 'user_id_assigned')->ignore($user->id)],
+      'password' => 'nullable|string|min:8|confirmed', // Allow updating password, but not required, requires confirmation if present
       'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])], // User account status
-      // Add validation for any other fields being updated
-      // Ensure 'email' field from HRMS is handled if still used for login
-      // 'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)], // If 'email' is for login
+      // If 'email' field from HRMS is used for system login
+      // 'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
     ]);
 
     // 2. Update the user model
-    // Handle password update separately if provided
-    if (isset($validatedData['password'])) {
-      $validatedData['password'] = Hash::make($validatedData['password']);
-    } else {
-      unset($validatedData['password']); // Don't update password if not provided
-    }
-
-    // Map validated data to User model columns
-    // Note: 'name' is derived from 'full_name' here, adjust if your HRMS uses 'name' differently
+    // Prepare data for update, handling password separately
     $userData = [
       'full_name' => $validatedData['full_name'],
-      'identification_number' => $validatedData['nric'],
+      'identification_number' => $validatedData['identification_number'], // Use validated field name
       'personal_email' => $validatedData['personal_email'],
       'mobile_number' => $validatedData['mobile_number'],
       'department_id' => $validatedData['department_id'],
@@ -220,82 +224,162 @@ class UserController extends Controller
       'service_status' => $validatedData['service_status'],
       'appointment_type' => $validatedData['appointment_type'],
       'status' => $validatedData['status'],
-      // Include password if it was set in validation
-      'password' => $validatedData['password'] ?? $user->password, // Use new hashed password or existing one
-      // Add other fields as mapped
-      'name' => $validatedData['full_name'], // Assuming HRMS 'name' is derived from full_name
-      // Handle 'email' field if used for login separately
-      // 'email' => $validatedData['email'] ?? $user->email, // If 'email' is for login
+      // If 'email' field from HRMS is used for system login
+      // 'email' => $validatedData['email'] ?? $user->email, // Use validated field name or existing
+      // Map 'name' for HRMS template compatibility if needed
+      'name' => $validatedData['full_name'],
     ];
 
+    // Only update password if it was provided and validated
+    if (!empty($validatedData['password'])) {
+      $userData['password'] = Hash::make($validatedData['password']);
+    }
 
     $user->update($userData);
 
+    // Optional: Log the update
+    Log::info('User updated', [
+      'user_id' => $user->id,
+      'full_name' => $user->full_name,
+      'updated_by' => Auth::id() // Log the ID of the user who updated this record
+    ]);
 
     // 3. Redirect to the user details page or index page
-    return redirect()->route('admin.users.show', $user)->with('success', 'User updated successfully.'); // Redirect to show view
-    // Or redirect to index: return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
+    // Changed message to Malay
+    return redirect()->route('admin.users.show', $user)->with('success', 'Pengguna berjaya dikemaskini.');
+    // Or redirect to index: return redirect()->route('admin.users.index')->with('success', 'Pengguna berjaya dikemaskini.');
   }
 
   /**
-   * Remove the specified resource from storage.
+   * Remove the specified resource (User) from storage.
+   * This method should ideally perform a SOFT DELETE to maintain data integrity
+   * for related records like email applications, loan transactions, approvals, etc.
+   * Ensure your User model uses the Illuminate\Database\Eloquent\SoftDeletes trait.
+   *
+   * @param  \App\Models\User  $user  The user instance resolved by route model binding.
+   * @return \Illuminate\Http\RedirectResponse
    */
-  public function destroy(User $user)
+  public function destroy(User $user) // Use route model binding
   {
-    // Optional: Add authorization check using a Policy
-    // $this->authorize('delete', $user); // Assuming a UserPolicy exists with a delete method
+    // Authorization is handled by authorizeResource in the constructor
 
-    // 1. Delete the user (consider soft deletes if applicable)
-    // If using soft deletes, this will set the 'deleted_at' timestamp
-    $user->delete();
+    // IMPORTANT: For data integrity, soft deleting users is highly recommended
+    // rather than permanent deletion, especially if users have associated
+    // records (applications, loans, approvals, etc.).
+    // Ensure your User model uses the `SoftDeletes` trait.
 
-    // 2. Redirect with a success message
-    return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
+    try {
+      $userId = $user->id; // Store ID before deletion
+      $fullName = $user->full_name; // Store name before deletion
+
+      // Perform soft delete if SoftDeletes trait is used, otherwise permanent delete
+      $user->delete();
+
+      // Optional: Log the deletion (this logs soft deletion as well)
+      Log::info('User deleted (soft deleted)', [
+        'user_id' => $userId,
+        'full_name' => $fullName,
+        'deleted_by' => Auth::id() // Log the ID of the user who initiated deletion
+      ]);
+
+      // 2. Redirect with a success message
+      // Changed message to Malay
+      return redirect()->route('admin.users.index')->with('success', 'Pengguna berjaya dibuang (soft delete).');
+    } catch (QueryException $e) {
+      Log::error('Failed to delete User ID ' . ($user->id ?? 'unknown') . ' due to database constraint: ' . $e->getMessage(), [
+        'user_id' => $user->id ?? 'unknown',
+        'error' => $e->getMessage(),
+        'deleted_by' => Auth::id()
+      ]);
+      // Changed error message to Malay
+      return redirect()->route('admin.users.index')->with('error', 'Gagal membuang Pengguna disebabkan ralat pangkalan data. Pastikan Soft Delete diaktifkan pada model.');
+    } catch (Exception $e) {
+      Log::error('An unexpected error occurred while deleting User ID ' . ($user->id ?? 'unknown') . ': ' . $e->getMessage(), [
+        'user_id' => $user->id ?? 'unknown',
+        'error' => $e->getMessage(),
+        'deleted_by' => Auth::id()
+      ]);
+      // Changed error message to Malay
+      return redirect()->route('admin.users.index')->with('error', 'Gagal membuang Pengguna disebabkan ralat tidak dijangka.');
+    }
   }
 
   // You can add other admin-specific methods here if needed,
-  // e.g., for assigning roles/permissions, resetting passwords without current password, etc.
+  // e.g., for assigning roles/permissions, restoring soft-deleted users, force deleting users, etc.
+
   /**
-   * Show the form for editing user roles and permissions.
-   * You might need a separate view for this.
+   * Restore a soft-deleted user.
+   * Requires the User model to use the SoftDeletes trait.
+   *
+   * @param int $id The ID of the soft-deleted user.
+   * @return \Illuminate\Http\RedirectResponse
    */
-  // public function editRolesPermissions(User $user)
+  // public function restore($id)
   // {
-  //     // Optional: Add authorization check using a Policy
-  //     // $this->authorize('assignRolesPermissions', $user); // Assuming a policy check
+  //     // Authorize restoration if using a Policy
+  //     // $this->authorize('restore', User::class); // Or specific policy logic
 
-  //     // Load roles and permissions (assuming Spatie/Laravel-Permission)
-  //     // use Spatie\Permission\Models\Role;
-  //     // use Spatie\Permission\Models\Permission;
-  //     // $roles = Role::all();
-  //     // $permissions = Permission::all();
+  //     $user = User::onlyTrashed()->findOrFail($id);
 
-  //     // Return the view for editing roles and permissions
-  //     // return view('admin.users.roles_permissions', compact('user', 'roles', 'permissions'));
+  //     // Authorize specific user restoration
+  //     // $this->authorize('restore', $user);
+
+  //     $user->restore();
+
+  //     Log::info('User restored', [
+  //         'user_id' => $user->id,
+  //         'full_name' => $user->full_name,
+  //         'restored_by' => Auth::id()
+  //     ]);
+
+  //     return redirect()->route('admin.users.index')->with('success', 'Pengguna berjaya dipulihkan.');
   // }
 
   /**
-   * Update user roles and permissions.
-   * You might need a specific Request class for validation.
+   * Permanently delete a user.
+   * Requires the User model to use the SoftDeletes trait.
+   *
+   * @param int $id The ID of the user to force delete.
+   * @return \Illuminate\Http\RedirectResponse
    */
-  // public function updateRolesPermissions(Request $request, User $user)
+  // public function forceDelete($id)
   // {
-  //     // Optional: Add authorization check using a Policy
-  //     // $this->authorize('assignRolesPermissions', $user); // Assuming a policy check
+  //      // Authorize force deletion if using a Policy
+  //      // $this->authorize('forceDelete', User::class); // Or specific policy logic
 
-  //     // Validate the incoming request data for roles and permissions
-  //     // $validatedData = $request->validate([
-  //     //     'roles' => 'nullable|array',
-  //     //     'roles.*' => 'exists:roles,name', // Validate role names exist
-  //     //     'permissions' => 'nullable|array',
-  //     //     'permissions.*' => 'exists:permissions,name', // Validate permission names exist
-  //     // ]);
+  //     $user = User::onlyTrashed()->findOrFail($id);
 
-  //     // Sync roles and permissions (assuming Spatie/Laravel-Permission)
-  //     // $user->syncRoles($validatedData['roles'] ?? []);
-  //     // $user->syncPermissions($validatedData['permissions'] ?? []);
+  //      // Authorize specific user force deletion
+  //      // $this->authorize('forceDelete', $user);
 
-  //     // Redirect with a success message
-  //     // return redirect()->route('admin.users.show', $user)->with('success', 'Roles and permissions updated successfully.');
+  //     try {
+  //         $userId = $user->id;
+  //         $fullName = $user->full_name;
+
+  //         $user->forceDelete(); // Permanently delete
+
+  //         Log::info('User permanently deleted', [
+  //             'user_id' => $userId,
+  //             'full_name' => $fullName,
+  //             'force_deleted_by' => Auth::id()
+  //         ]);
+
+  //         return redirect()->route('admin.users.index')->with('success', 'Pengguna berjaya dibuang secara kekal.');
+
+  //     } catch (QueryException $e) {
+  //          Log::error('Failed to force delete User ID ' . ($id ?? 'unknown') . ' due to database constraint: ' . $e->getMessage(), [
+  //              'user_id' => $id ?? 'unknown',
+  //              'error' => $e->getMessage(),
+  //              'force_deleted_by' => Auth::id()
+  //          ]);
+  //         return redirect()->route('admin.users.index')->with('error', 'Gagal membuang Pengguna secara kekal disebabkan ralat pangkalan data.');
+  //     } catch (Exception $e) {
+  //          Log::error('An unexpected error occurred while force deleting User ID ' . ($id ?? 'unknown') . ': ' . $e->getMessage(), [
+  //              'user_id' => $id ?? 'unknown',
+  //              'error' => $e->getMessage(),
+  //              'force_deleted_by' => Auth::id()
+  //          ]);
+  //         return redirect()->route('admin.users.index')->with('error', 'Gagal membuang Pengguna secara kekal disebabkan ralat tidak dijangka.');
+  //     }
   // }
 }

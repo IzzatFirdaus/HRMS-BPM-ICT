@@ -1,20 +1,17 @@
 <?php
 
-namespace App\Http\Controllers\Admin; // Ensure the namespace is correct for your project (likely Admin)
+namespace App\Http\Controllers\Admin; // Ensure the namespace is correct for your project
 
 use App\Http\Controllers\Controller; // Extend the base Controller
 use App\Models\Equipment; // Import the Equipment model
-use App\Models\User; // Import User if needed for relationships (e.g., assigned_to)
-use App\Models\Department; // Import Department if needed for relationships
-use App\Models\Position; // Import Position (or Designation) if needed for relationships
+use App\Models\Department; // Import Department for relationships/form data
+use App\Models\Position; // Import Position for relationships/form data
 use Illuminate\Http\Request; // Standard Request object
 use Illuminate\Validation\Rule; // Import Rule for validation rules (e.g., unique, in)
-use Illuminate\Support\Facades\Auth; // Import Auth facade if needed
-use Illuminate\Support\Facades\Gate; // Import Gate if needed (Policies are preferred with $this->authorize)
-
-// Import Form Requests if you create them for validation
-// use App\Http\Requests\Admin\StoreEquipmentRequest;
-// use App\Http\Requests\Admin\UpdateEquipmentRequest;
+use Illuminate\Support\Facades\Auth; // Import Auth facade for getting logged-in user
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
+use Illuminate\Database\QueryException; // Import QueryException for database errors
+use Exception; // Import Exception for general errors
 
 
 class EquipmentController extends Controller
@@ -27,10 +24,11 @@ class EquipmentController extends Controller
   {
     // Apply authentication middleware
     $this->middleware('auth');
-    // Apply admin middleware if this controller is only for admin access
-    // $this->middleware('admin'); // Assuming you have an 'admin' middleware alias
-    // Or apply a permission check middleware
-    // $this->middleware('can:manage-equipment'); // Assuming a Spatie permission or Gate
+    // Apply authorization policy checks automatically
+    $this->authorizeResource(Equipment::class, 'equipment');
+    // Note: When using authorizeResource, you don't need separate $this->authorize() calls
+    // in each method (index, create, store, show, edit, update, destroy),
+    // provided your EquipmentPolicy is set up correctly.
   }
 
   /**
@@ -40,12 +38,14 @@ class EquipmentController extends Controller
    */
   public function index()
   {
-    // Authorize if the user can view any equipment (using a Policy)
-    $this->authorize('viewAny', Equipment::class); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
-    // Fetch all equipment, eager-loading necessary relationships (e.g., current loan transaction)
-    // Order by latest creation date or tag ID
-    $equipment = Equipment::with(['activeLoanTransaction.user', 'department', 'position'])->latest()->paginate(10); // Eager load active loan and user on it
+    // Fetch all equipment, eager-loading necessary relationships
+    // Eager load active loan transaction and the user associated with it
+    // Also eager load department and position if equipment is linked to them
+    $equipment = Equipment::with(['activeLoanTransaction.user', 'department', 'position'])
+      ->latest() // Order by latest creation date
+      ->paginate(10); // Paginate for better performance
 
     // Return the view with the list of equipment
     // Ensure your view file name matches: resources/views/admin/equipment/index.blade.php
@@ -59,14 +59,15 @@ class EquipmentController extends Controller
    */
   public function create()
   {
-    // Authorize if the user can create equipment
-    $this->authorize('create', Equipment::class); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
     // Load data needed for the form (e.g., departments, positions, equipment types, statuses)
     $departments = Department::all(); // Assuming Department model exists
-    $positions = Position::all(); // Assuming Position (or Designation) model exists
+    $positions = Position::all(); // Assuming Position model exists
+
     // Define equipment types and statuses as arrays or from a config file
-    $equipmentTypes = ['Laptop', 'Desktop', 'Monitor', 'Printer', 'Projector', 'Other']; // Example types
+    // Aligned asset types with the system design document's enum examples (lowercase)
+    $equipmentTypes = ['laptop', 'projector', 'printer', 'monitor', 'desktop', 'other']; // Match enum in migration
     $equipmentStatuses = ['available', 'on_loan', 'under_maintenance', 'disposed']; // Match enum in migration
 
     // Return the view for creating equipment
@@ -80,36 +81,46 @@ class EquipmentController extends Controller
    * @param  \Illuminate\Http\Request  $request  The incoming request.
    * @return \Illuminate\Http\RedirectResponse
    */
-  public function store(Request $request) // Use StoreEquipmentRequest if created
+  public function store(Request $request)
   {
-    // Authorize if the user can create equipment
-    $this->authorize('create', Equipment::class); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
     // 1. Validate the incoming request data
     // Adjust validation rules based on the fields in your 'equipment' table and your form
-    // If using a Form Request (StoreEquipmentRequest), validation is handled there.
     $validatedData = $request->validate([
       'tag_id' => 'required|string|max:50|unique:equipment,tag_id', // Tag ID should be unique
-      'asset_type' => ['required', 'string', 'max:50', Rule::in(['Laptop', 'Desktop', 'Monitor', 'Printer', 'Projector', 'Other'])], // Validate against defined types
+      // Validate against the defined lowercase enum values from the system design
+      'asset_type' => ['required', 'string', 'max:50', Rule::in(['laptop', 'projector', 'printer', 'monitor', 'desktop', 'other'])],
       'brand' => 'nullable|string|max:100',
       'model' => 'nullable|string|max:100',
-      'serial_number' => 'nullable|string|max:100|unique:equipment,serial_number', // Serial number should be unique if provided
-      'description' => 'nullable|string',
+      // Serial number should be unique if provided
+      'serial_number' => 'nullable|string|max:100|unique:equipment,serial_number',
+      'description' => 'nullable|string', // Added based on the provided code, not explicitly in system design table but seems reasonable
       'purchase_date' => 'nullable|date',
       'warranty_expiry_date' => 'nullable|date|after_or_equal:purchase_date',
-      'status' => ['required', Rule::in(['available', 'on_loan', 'under_maintenance', 'disposed'])], // Validate against defined statuses
+      // Validate against the defined lowercase enum values from the system design
+      'status' => ['required', Rule::in(['available', 'on_loan', 'under_maintenance', 'disposed'])],
       'notes' => 'nullable|string',
-      // Add validation for relationships if setting them on creation (less common)
-      // 'department_id' => 'nullable|exists:departments,id',
-      // 'position_id' => 'nullable|exists:designations,id', // Assuming designations table
+      // Add validation for relationships if setting them on creation
+      // 'department_id' => 'nullable|exists:departments,id', // If you link equipment directly to department
+      // 'position_id' => 'nullable|exists:positions,id', // If you link equipment directly to position
     ]);
 
     // 2. Create the new equipment record in the database
     $equipment = Equipment::create($validatedData);
 
+    // Optional: Log the creation
+    Log::info('Equipment created', [
+      'equipment_id' => $equipment->id,
+      'tag_id' => $equipment->tag_id,
+      'asset_type' => $equipment->asset_type,
+      'created_by' => Auth::id()
+    ]);
+
     // 3. Redirect to the equipment index page or show page with a success message
-    return redirect()->route('admin.equipment.index')->with('success', 'Equipment added successfully!');
-    // Or redirect to show: return redirect()->route('admin.equipment.show', $equipment)->with('success', 'Equipment added successfully!');
+    // Changed message to Malay
+    return redirect()->route('admin.equipment.index')->with('success', 'Peralatan ICT berjaya ditambah.');
+    // Or redirect to show: return redirect()->route('admin.equipment.show', $equipment)->with('success', 'Peralatan ICT berjaya ditambah.');
   }
 
   /**
@@ -120,11 +131,16 @@ class EquipmentController extends Controller
    */
   public function show(Equipment $equipment) // Use route model binding
   {
-    // Authorize if the user can view this specific equipment
-    $this->authorize('view', $equipment); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
     // Eager load relationships needed for the show view (e.g., department, position, loan history)
-    $equipment->load(['department', 'position', 'loanTransactions.user', 'loanTransactions.issuingOfficer', 'loanTransactions.returnAcceptingOfficer']); // Load loan history and related users
+    $equipment->load([
+      'department',
+      'position',
+      'loanTransactions.user', // Load the user who was the applicant/responsible officer
+      'loanTransactions.issuingOfficer', // Load the officer who issued the equipment
+      'loanTransactions.returnAcceptingOfficer' // Load the officer who accepted the return
+    ]);
 
     // Return the view to show equipment details
     // Ensure your view file name matches: resources/views/admin/equipment/show.blade.php
@@ -139,13 +155,13 @@ class EquipmentController extends Controller
    */
   public function edit(Equipment $equipment) // Use route model binding
   {
-    // Authorize if the user can update this equipment
-    $this->authorize('update', $equipment); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
     // Load data needed for the form (e.g., departments, positions, equipment types, statuses)
     $departments = Department::all();
-    $positions = Position::all(); // Assuming Position (or Designation) model exists
-    $equipmentTypes = ['Laptop', 'Desktop', 'Monitor', 'Printer', 'Projector', 'Other']; // Example types
+    $positions = Position::all();
+    // Aligned asset types with the system design document's enum examples (lowercase)
+    $equipmentTypes = ['laptop', 'projector', 'printer', 'monitor', 'desktop', 'other']; // Match enum in migration
     $equipmentStatuses = ['available', 'on_loan', 'under_maintenance', 'disposed']; // Match enum in migration
 
 
@@ -161,36 +177,45 @@ class EquipmentController extends Controller
    * @param  \App\Models\Equipment  $equipment  The equipment instance resolved by route model binding.
    * @return \Illuminate\Http\RedirectResponse
    */
-  public function update(Request $request, Equipment $equipment) // Use UpdateEquipmentRequest if created
+  public function update(Request $request, Equipment $equipment)
   {
-    // Authorize if the user can update this equipment
-    $this->authorize('update', $equipment); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
     // 1. Validate the incoming request data for update
     // Use Rule::unique ignore to allow the equipment's current tag ID/serial number
-    // If using a Form Request (UpdateEquipmentRequest), validation is handled there.
     $validatedData = $request->validate([
       'tag_id' => ['required', 'string', 'max:50', Rule::unique('equipment', 'tag_id')->ignore($equipment->id)],
-      'asset_type' => ['required', 'string', 'max:50', Rule::in(['Laptop', 'Desktop', 'Monitor', 'Printer', 'Projector', 'Other'])],
+      // Validate against the defined lowercase enum values from the system design
+      'asset_type' => ['required', 'string', 'max:50', Rule::in(['laptop', 'projector', 'printer', 'monitor', 'desktop', 'other'])],
       'brand' => 'nullable|string|max:100',
       'model' => 'nullable|string|max:100',
+      // Serial number should be unique if provided, ignoring the current equipment
       'serial_number' => ['nullable', 'string', 'max:100', Rule::unique('equipment', 'serial_number')->ignore($equipment->id)],
-      'description' => 'nullable|string',
+      'description' => 'nullable|string', // Added based on the provided code
       'purchase_date' => 'nullable|date',
       'warranty_expiry_date' => 'nullable|date|after_or_equal:purchase_date',
+      // Validate against the defined lowercase enum values from the system design
       'status' => ['required', Rule::in(['available', 'on_loan', 'under_maintenance', 'disposed'])],
       'notes' => 'nullable|string',
       // Add validation for relationships if updating them
       // 'department_id' => 'nullable|exists:departments,id',
-      // 'position_id' => 'nullable|exists:designations,id',
+      // 'position_id' => 'nullable|exists:positions,id',
     ]);
 
     // 2. Update the equipment model
     $equipment->update($validatedData);
 
+    // Optional: Log the update
+    Log::info('Equipment updated', [
+      'equipment_id' => $equipment->id,
+      'tag_id' => $equipment->tag_id,
+      'updated_by' => Auth::id()
+    ]);
+
     // 3. Redirect to the equipment show page or index page with a success message
-    return redirect()->route('admin.equipment.show', $equipment)->with('success', 'Equipment updated successfully.');
-    // Or redirect to index: return redirect()->route('admin.equipment.index')->with('success', 'Equipment updated successfully.');
+    // Changed message to Malay
+    return redirect()->route('admin.equipment.show', $equipment)->with('success', 'Peralatan ICT berjaya dikemaskini.');
+    // Or redirect to index: return redirect()->route('admin.equipment.index')->with('success', 'Peralatan ICT updated successfully.');
   }
 
   /**
@@ -201,21 +226,52 @@ class EquipmentController extends Controller
    */
   public function destroy(Equipment $equipment) // Use route model binding
   {
-    // Authorize if the user can delete this equipment
-    $this->authorize('delete', $equipment); // Assuming an EquipmentPolicy exists
+    // Authorization is handled by authorizeResource in the constructor
 
-    // Consider if equipment with active loans or history should be deleted.
-    // You might prevent deletion if it has related loan transactions.
+    // Prevent deletion if equipment has any associated loan transactions (active or historical)
     if ($equipment->loanTransactions()->exists()) {
-      return redirect()->back()->with('error', 'Cannot delete equipment with existing loan history.');
+      Log::warning('Attempted to delete Equipment ID ' . $equipment->id . ' with existing loan history', [
+        'equipment_id' => $equipment->id,
+        'deleted_by' => Auth::id()
+      ]);
+      // Changed error message to Malay and redirect to index
+      return redirect()->route('admin.equipment.index')->with('error', 'Tidak dapat memadam Peralatan ICT kerana terdapat rekod pinjaman berkaitan.');
     }
 
-
     // 1. Delete the equipment
-    $equipment->delete();
+    try {
+      $equipmentId = $equipment->id; // Store ID before deletion
+      $equipmentTag = $equipment->tag_id; // Store Tag ID before deletion
 
-    // 2. Redirect to the index page with a success message
-    return redirect()->route('admin.equipment.index')->with('success', 'Equipment deleted successfully.');
+      $equipment->delete();
+
+      // Optional: Log the deletion
+      Log::info('Equipment deleted', [
+        'equipment_id' => $equipmentId,
+        'tag_id' => $equipmentTag,
+        'deleted_by' => Auth::id()
+      ]);
+
+      // 2. Redirect to the index page with a success message
+      // Changed message to Malay
+      return redirect()->route('admin.equipment.index')->with('success', 'Peralatan ICT berjaya dibuang.');
+    } catch (QueryException $e) {
+      Log::error('Failed to delete Equipment ID ' . ($equipment->id ?? 'unknown') . ' due to database constraint: ' . $e->getMessage(), [
+        'equipment_id' => $equipment->id ?? 'unknown',
+        'error' => $e->getMessage(),
+        'deleted_by' => Auth::id()
+      ]);
+      // Changed error message to Malay
+      return redirect()->route('admin.equipment.index')->with('error', 'Gagal membuang Peralatan ICT disebabkan ralat pangkalan data.');
+    } catch (Exception $e) {
+      Log::error('An unexpected error occurred while deleting Equipment ID ' . ($equipment->id ?? 'unknown') . ': ' . $e->getMessage(), [
+        'equipment_id' => $equipment->id ?? 'unknown',
+        'error' => $e->getMessage(),
+        'deleted_by' => Auth::id()
+      ]);
+      // Changed error message to Malay
+      return redirect()->route('admin.equipment.index')->with('error', 'Gagal membuang Peralatan ICT disebabkan ralat tidak dijangka.');
+    }
   }
 
   // You can add other methods here if needed, e.g., for bulk actions or specific reports

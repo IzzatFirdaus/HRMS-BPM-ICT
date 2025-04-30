@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 // Import the View class for type hinting
 use Illuminate\View\View;
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
 
 // This controller handles the "Confirm Password" feature.
 // It displays the form for users to re-enter their password before accessing sensitive areas
@@ -29,7 +30,7 @@ class ConfirmablePasswordController extends Controller
    * re-enter their current password to confirm their identity
    * before proceeding to a protected action.
    *
-   * @return \Illuminate\View\View  The view containing the password confirmation form.
+   * @return \Illuminate\View\View The view containing the password confirmation form.
    */
   public function show(): View
   {
@@ -45,9 +46,9 @@ class ConfirmablePasswordController extends Controller
    * It validates the provided password against the authenticated user's password
    * using the configured authentication guard.
    *
-   * @param  \Illuminate\Http\Request  $request  The incoming request containing the password.
-   * @return \Illuminate\Http\RedirectResponse  A redirect response after successful confirmation.
-   * @throws \Illuminate\Validation\ValidationException  If the provided password is incorrect.
+   * @param  \Illuminate\Http\Request  $request The incoming request containing the password.
+   * @return \Illuminate\Http\RedirectResponse A redirect response after successful confirmation.
+   * @throws \Illuminate\Validation\ValidationException If the provided password is incorrect.
    */
   public function store(Request $request): RedirectResponse
   {
@@ -57,22 +58,43 @@ class ConfirmablePasswordController extends Controller
       'password' => ['required', 'string'],
     ]);
 
+    // --- IMPORTANT VALIDATION FIELD NOTE ---
+    // The field used below ('email') MUST match the actual field
+    // used for user authentication/login in your system.
+    // Based on your system design, users might log in using
+    // 'motac_email' or 'user_id_assigned'.
+    // You MUST update the key and the source of the value below ($request->user()->...)
+    // to match your authentication setup.
+    // Example if using 'motac_email': 'motac_email' => $request->user()->motac_email
+    // Example if using 'user_id_assigned': 'user_id_assigned' => $request->user()->user_id_assigned
+
     // Attempt to validate the provided password against the authenticated user's password
     // using the default authentication guard ('web').
     // Auth::guard('web')->validate() does not log the user in, it only checks credentials.
-    // It uses the authenticated user's credentials (email or configured username) and the submitted password.
-    // Fortify hooks into this method to perform the actual password verification using its `ConfirmUserPassword` action.
     if (! Auth::guard('web')->validate([
-      'email' => $request->user()->email, // Use the authenticated user's email (or configured login field)
-      'password' => $request->password,   // Use the password from the request input
+      // Use the field name that matches your authentication setup:
+      'email' => $request->user()->email, // <<< Adjust 'email' and the value source as needed
+      'password' => $request->password,
     ])) {
+      // Log failed confirmation attempt
+      Log::warning('Password confirmation failed for user.', [
+        'user_id' => Auth::id(), // Log the ID of the authenticated user attempting confirmation
+        'ip_address' => $request->ip(),
+      ]);
+
       // If the password validation fails (password does not match):
       // Throw a ValidationException. This will automatically redirect the user
       // back to the form with a validation error message associated with the 'password' field.
       throw ValidationException::withMessages([
-        'password' => __('auth.password'), // Use the standard translation key for password validation failure
+        'password' => __('auth.password'), // Use the standard translation key (can be translated in lang files)
       ]);
     }
+
+    // Log successful confirmation
+    Log::info('Password successfully confirmed for user.', [
+      'user_id' => Auth::id(), // Log the ID of the authenticated user
+      'ip_address' => $request->ip(),
+    ]);
 
     // If the password is confirmed successfully:
     // Store a timestamp in the user's session to mark that their password

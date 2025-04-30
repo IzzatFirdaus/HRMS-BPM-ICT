@@ -12,6 +12,9 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 // Import necessary classes for HTTP responses
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log; // Import Log facade for logging
+use Illuminate\Support\Facades\Auth; // Import Auth facade to get authenticated user ID
+
 
 // This controller is a single-action controller that handles the email verification link.
 // When a user clicks the signed verification link in the email, this controller's
@@ -43,6 +46,12 @@ class VerifyEmailController extends Controller
     // The `hasVerifiedEmail()` method is provided by the `Illuminate\Contracts\Auth\MustVerifyEmail` interface,
     // which your User model should implement.
     if ($request->user()->hasVerifiedEmail()) {
+      // Log if a user attempts to verify but is already verified
+      Log::info('User attempted to verify email but was already verified.', [
+        'user_id' => Auth::id(), // Log the ID of the authenticated user
+        'ip_address' => $request->ip(),
+      ]);
+
       // If the email is already verified, redirect the user to their intended
       // destination (the page they tried to access before being redirected
       // by the 'verified' middleware) or fall back to the default home path.
@@ -57,6 +66,12 @@ class VerifyEmailController extends Controller
     // It returns `true` if the email was successfully marked as verified (i.e., it wasn't already verified),
     // and `false` if it was already verified (though the check above handles this case).
     if ($request->user()->markEmailAsVerified()) {
+      // Log that the email was successfully marked as verified
+      Log::info('User email successfully marked as verified.', [
+        'user_id' => Auth::id(), // Log the ID of the authenticated user
+        'ip_address' => $request->ip(),
+      ]);
+
       // If the email was successfully marked as verified (i.e., it just happened),
       // fire the `Illuminate\Auth\Events\Verified` event.
       // You can listen to this event in your application's EventServiceProvider
