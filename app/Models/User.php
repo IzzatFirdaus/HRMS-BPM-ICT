@@ -3,31 +3,42 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail; // Keep if your user needs email verification
-use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and is used for audit columns on *other* models
+// Assuming this trait exists and is used for audit columns on *other* models
+// If this trait also adds audit FKs to the User model itself, keep it.
+use App\Traits\CreatedUpdatedDeletedBy;
+// Import Carbon for type hinting with date/datetime casts
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+// Use the relationships directly without aliasing unless you need aliases for specific reasons
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany; // Keep if used for roles/permissions via HasRoles trait
 use Illuminate\Database\Eloquent\Relations\HasMany;
+// use Illuminate\Database\Eloquent\Relations\MorphMany; // Keep if User model has any MorphMany relationships
 use Illuminate\Database\Eloquent\SoftDeletes; // Keep if using soft deletes for users (migration supports this)
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Casts\Attribute; // Keep if using Attribute casts/accessors
+// Import Collection for return type hinting on HasMany/BelongsToMany relationships
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Foundation\Auth\User as Authenticatable; // Extend Laravel's base user class
+use Illuminate\Notifications\Notifiable; // Keep if using notifications
 use Laravel\Fortify\TwoFactorAuthenticatable; // Keep if using Fortify 2FA
 use Laravel\Jetstream\HasProfilePhoto; // Keep if using Jetstream profile photos
 use Laravel\Sanctum\HasApiTokens; // Keep if using Sanctum API tokens
-use Spatie\Permission\Traits\HasRoles; // Keep if using Spatie Permissions
-use Illuminate\Support\Carbon; // Import Carbon for type hinting with date/datetime casts
-use Illuminate\Database\Eloquent\Relations\BelongsTo as BelongsToRelation; // Alias if needed
-use Illuminate\Database\Eloquent\Relations\HasMany as HasManyRelation; // Alias if needed
-use Illuminate\Database\Eloquent\Collection; // Import Collection for return type hinting
+use Spatie\Permission\Traits\HasRoles; // Keep if using Spatie Permissions - Adds 'roles' and 'permissions' relationships
 
 
-// Import the models needed for relationships
+// Import the models needed for relationships if they are in a different namespace
 use App\Models\Department;
 use App\Models\Position;
 use App\Models\Grade;
-use App\Models\Employee; // For employee_id relationship
+// Assuming App\Models\Employee exists and users are linked to it
+use App\Models\Employee;
+// Assuming App\Models\EmailApplication exists
 use App\Models\EmailApplication;
+// Assuming App\Models\LoanApplication exists
 use App\Models\LoanApplication;
+// Assuming App\Models\LoanTransaction exists
 use App\Models\LoanTransaction;
+// Assuming App\Models\Approval exists
 use App\Models\Approval;
 // Add other models if user has relationships to them (e.g., assets/equipment they are assigned)
 
@@ -48,7 +59,7 @@ use App\Models\Approval;
  * @property string|null $mobile_number Mobile phone number based on MOTAC design.
  * @property string $email Existing HRMS field (could be primary contact email).
  * @property \Illuminate\Support\Carbon|null $email_verified_at Timestamp when email was verified.
- * @property string $password The user's password (hashed).
+ * @property mixed $password The user's password (hashed string). Use mixed or string.
  * @property string|null $profile_photo_path Path to the user's profile photo.
  * @property string|null $remember_token "Remember me" token.
  * @property string|null $personal_email Personal email based on MOTAC design.
@@ -63,23 +74,24 @@ use App\Models\Approval;
  * @property bool $is_bpm_staff Flag indicating if the user is BPM staff.
  * @property string|null $status User account status based on MOTAC design (e.g., active, inactive, suspended).
  * @property string|null $two_factor_secret For Two-Factor Authentication (Fortify).
- * @property array|null $two_factor_recovery_codes For Two-Factor Authentication (Fortify).
- * @property \Illuminate\Support\Carbon|null $mobile_verified_at Timestamp when mobile number was verified (if column exists).
- * @property int|null $created_by Foreign key to the user who created this record.
- * @property int|null $updated_by Foreign key to the user who last updated this record.
- * @property int|null $deleted_by Foreign key to the user who soft deleted this record.
+ * @property string|null $two_factor_recovery_codes For Two-Factor Authentication (Fortify - typically string after casting to json).
+ * @property \Illuminate\Support\Carbon|null $mobile_verified_at Timestamp when mobile number was verified (if column exists and cast).
+ * @property int|null $created_by Foreign key to the user who created this record (handled by trait if applied here).
+ * @property int|null $updated_by Foreign key to the user who last updated this record (handled by trait if applied here).
+ * @property int|null $deleted_by Foreign key to the user who soft deleted this record (handled by trait if applied here).
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
+ *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals Approvals made by the user (as an officer).
  * @property-read int|null $approvals_count
- * @property-read \App\Models\User|null $createdBy The user who created this record.
- * @property-read \App\Models\User|null $deletedBy The user who soft deleted this record.
+ * @property-read \App\Models\User|null $createdBy Relation to the user who created this record (if trait adds this).
+ * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted this record (if trait adds this).
  * @property-read \App\Models\Department|null $department The department associated with the user.
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\EmailApplication> $emailApplications Email applications submitted by the user.
  * @property-read int|null $email_applications_count
  * @property-read \App\Models\Employee|null $employee The related Employee record from the HRMS system.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $employees Inverse relationship (if User is linked from Employee via employee_id - check migration).
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $employees Inverse relationship (if User is linked from Employee via employee_id - confirm migration/relationship definition).
  * @property-read int|null $employees_count
  * @property-read \App\Models\Grade|null $grade The grade associated with the user.
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $issuedTransactions Loan transactions where the user was the issuing officer.
@@ -88,32 +100,33 @@ use App\Models\Approval;
  * @property-read int|null $loan_applications_count
  * @property-read \Illuminate\Notifications\DatabaseNotificationCollection<int, \Illuminate\Notifications\DatabaseNotification> $notifications Notifications received by the user.
  * @property-read int|null $notifications_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Permission> $permissions The permissions belonging to the model (from HasRoles trait).
+ * @property-read int|null $permissions_count
  * @property-read \App\Models\Position|null $position The position associated with the user.
- * @property-read string|null $profile_photo_url The URL to the user's profile photo.
+ * @property-read string|null $profile_photo_url The URL to the user's profile photo (from HasProfilePhoto trait).
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $receivedTransactions Loan transactions where the user was the receiving officer (on issue).
  * @property-read int|null $received_transactions_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanApplication> $responsibleLoanApplications Loan applications where the user was the responsible officer.
  * @property-read int|null $responsible_loan_applications_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Role> $roles The roles belonging to the model (from HasRoles trait).
+ * @property-read int|null $roles_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $returningTransactions Loan transactions where the user was the returning officer.
  * @property-read int|null $returning_transactions_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $acceptedReturnTransactions Loan transactions where the user was the return accepting officer.
  * @property-read int|null $accepted_return_transactions_count
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Permission> $permissions The permissions belonging to the model.
- * @property-read int|null $permissions_count
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Role> $roles The roles belonging to the model.
- * @property-read int|null $roles_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\EmailApplication> $supportedEmailApplications Email applications reviewed/supported by the user.
  * @property-read int|null $supported_email_applications_count
- * @property-read \App\Models\User|null $updatedBy The user who last updated this record.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \Laravel\Sanctum\PersonalAccessToken> $tokens
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Laravel\Sanctum\PersonalAccessToken> $tokens API tokens belonging to the user (from HasApiTokens trait).
  * @property-read int|null $tokens_count
+ * @property-read \App\Models\User|null $updatedBy The user who last updated this record (if trait adds this).
+ *
  * @method static \Database\Factories\UserFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|User onlyTrashed()
- * @method static \Illuminate\Database\Eloquent\Builder|User permission($permissions, $guardName = null)
+ * @method static \Illuminate\Database\Eloquent\Builder|User permission($permissions, $guardName = null) // From HasRoles trait
  * @method static \Illuminate\Database\Eloquent\Builder|User query()
- * @method static \Illuminate\Database\Eloquent\Builder|User role($roles, $guardName = null)
+ * @method static \Illuminate\Database\Eloquent\Builder|User role($roles, $guardName = null) // From HasRoles trait
  * @method static \Illuminate\Database\Eloquent\Builder|User whereAppointmentType($value)
  * @method static \Illuminate\Database\Eloquent\Builder|User whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder|User whereCreatedBy($value)
@@ -152,12 +165,12 @@ class User extends Authenticatable
 {
   // Keep existing traits
   use CreatedUpdatedDeletedBy, // Keep if this trait adds audit FKs to the User model itself (less common for User model, but possible)
-    HasApiTokens,
-    HasFactory,
-    HasProfilePhoto,
-    HasRoles, // Keep if using Spatie Permissions
-    Notifiable,
-    SoftDeletes, // Keep if using soft deletes for users
+    HasApiTokens,           // Keep if using Sanctum API tokens
+    HasFactory,             // Keep if using factories
+    HasProfilePhoto,        // Keep if using Jetstream profile photos
+    HasRoles,               // Keep if using Spatie Permissions
+    Notifiable,             // Keep if using notifications
+    SoftDeletes,            // Keep if using soft deletes for users
     TwoFactorAuthenticatable; // Keep if using Fortify 2FA
 
   /**
@@ -168,32 +181,32 @@ class User extends Authenticatable
    * @var array<int, string>
    */
   protected $fillable = [
-    'name', // Existing HRMS field (e.g., username or short name)
-    'full_name', // Add full_name based on MOTAC design for official name
-    'employee_id', // Existing HRMS field - foreign key to employee model
-    'nric', // NRIC based on MOTAC design
-    'mobile_number', // Mobile number based on MOTAC design
+    'name',                 // Existing HRMS field (e.g., username or short name)
+    'full_name',            // Add full_name based on MOTAC design for official name
+    'employee_id',          // Existing HRMS field - foreign key to employee model
+    'nric',                 // NRIC based on MOTAC design
+    'mobile_number',        // Mobile number based on MOTAC design
 
-    'email', // Existing HRMS field (could be primary contact email)
-    'email_verified_at', // Existing HRMS field
-    'password', // Existing HRMS field
+    'email',                // Existing HRMS field (could be primary contact email)
+    'email_verified_at',    // Existing HRMS field
+    'password',             // Existing HRMS field
     // 'profile_photo_path', // Handled by HasProfilePhoto trait usually, remove from fillable unless explicitly needed
-    // 'remember_token', // Managed by Laravel's built-in authentication
+    // 'remember_token',     // Managed by Laravel's built-in authentication
 
-    'personal_email', // Personal email based on MOTAC design
-    'motac_email', // MOTAC email based on MOTAC design (assigned after provisioning)
-    'user_id_assigned', // External user ID based on MOTAC design (assigned after provisioning)
+    'personal_email',       // Personal email based on MOTAC design
+    'motac_email',          // MOTAC email based on MOTAC design (assigned after provisioning)
+    'user_id_assigned',     // External user ID based on MOTAC design (assigned after provisioning)
 
-    'department_id', // Foreign key to departments table
-    'position_id', // Foreign key to positions table
-    'grade_id', // Foreign key to grades table
+    'department_id',        // Foreign key to departments table
+    'position_id',          // Foreign key to positions table
+    'grade_id',             // Foreign key to grades table
 
-    'service_status', // Service status based on MOTAC design (e.g., permanent, contract)
-    'appointment_type', // Appointment type based on MOTAC design
+    'service_status',       // Service status based on MOTAC design (e.g., permanent, contract)
+    'appointment_type',     // Appointment type based on MOTAC design
 
-    'is_admin', // Flag indicating administrator role
-    'is_bpm_staff', // Flag indicating BPM staff role
-    'status', // User account status based on MOTAC design (e.g., active, inactive, suspended)
+    'is_admin',             // Flag indicating administrator role
+    'is_bpm_staff',         // Flag indicating BPM staff role
+    'status',               // User account status based on MOTAC design (e.g., active, inactive, suspended)
 
     // Audit columns are handled by CreatedUpdatedDeletedBy trait if applied to User model.
     // Otherwise, include here manually if you need to mass assign them.
@@ -215,7 +228,7 @@ class User extends Authenticatable
     'password',
     'remember_token',
     'two_factor_recovery_codes', // Keep if using Fortify 2FA
-    'two_factor_secret', // Keep if using Fortify 2FA
+    'two_factor_secret',         // Keep if using Fortify 2FA
     // Audit columns are often hidden unless explicitly needed
     'created_by',
     'updated_by',
@@ -232,39 +245,39 @@ class User extends Authenticatable
    * @var array<string, string>
    */
   protected $casts = [
-    'name' => 'string', // Explicitly cast string attributes
-    'full_name' => 'string',
-    'nric' => 'string',
-    'mobile_number' => 'string',
-    'email' => 'string',
-    'password' => 'string', // Passwords are strings (hashed)
-    'profile_photo_path' => 'string', // Path is a string
-    'remember_token' => 'string', // Token is a string
-    'personal_email' => 'string',
-    'motac_email' => 'string',
-    'user_id_assigned' => 'string', // Assuming external ID is string
-    'service_status' => 'string',
-    'appointment_type' => 'string',
-    'status' => 'string', // User account status
-    'two_factor_secret' => 'string', // 2FA secret is string
-    'two_factor_recovery_codes' => 'json', // Recovery codes are often stored as JSON
+    'name'                    => 'string',    // Explicitly cast string attributes
+    'full_name'               => 'string',
+    'nric'                    => 'string',
+    'mobile_number'           => 'string',
+    'email'                   => 'string',
+    'password'                => 'string',    // Passwords are strings (hashed)
+    'profile_photo_path'      => 'string',    // Path is a string
+    'remember_token'          => 'string',    // Token is a string
+    'personal_email'          => 'string',
+    'motac_email'             => 'string',
+    'user_id_assigned'        => 'string',    // Assuming external ID is string
+    'service_status'          => 'string',
+    'appointment_type'        => 'string',
+    'status'                  => 'string',    // User account status
+    'two_factor_secret'       => 'string',    // 2FA secret is string
+    'two_factor_recovery_codes' => 'json',    // Recovery codes are often stored as JSON
 
-    'employee_id' => 'integer', // Cast FKs to integer
-    'department_id' => 'integer',
-    'position_id' => 'integer',
-    'grade_id' => 'integer',
-    'created_by' => 'integer', // Audit FKs
-    'updated_by' => 'integer',
-    'deleted_by' => 'integer',
+    'employee_id'             => 'integer',   // Cast FKs to integer
+    'department_id'           => 'integer',
+    'position_id'             => 'integer',
+    'grade_id'                => 'integer',
+    'created_by'              => 'integer',   // Audit FKs (if cast here)
+    'updated_by'              => 'integer',
+    'deleted_by'              => 'integer',
 
-    'email_verified_at' => 'datetime', // Cast timestamps to Carbon instances
-    'mobile_verified_at' => 'datetime', // Keep existing cast if this column exists
-    'created_at' => 'datetime',
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime',
+    'email_verified_at'       => 'datetime',  // Cast timestamps to Carbon instances
+    'mobile_verified_at'      => 'datetime',  // Keep existing cast if this column exists
+    'created_at'              => 'datetime',
+    'updated_at'              => 'datetime',
+    'deleted_at'              => 'datetime',
 
-    'is_admin' => 'boolean', // Cast boolean flags
-    'is_bpm_staff' => 'boolean',
+    'is_admin'                => 'boolean',   // Cast boolean flags
+    'is_bpm_staff'            => 'boolean',
   ];
 
   /**
@@ -279,28 +292,26 @@ class User extends Authenticatable
     // Add other virtual attributes you want appended by default
   ];
 
-  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
+  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships.
+  // Their docblocks are included in the main class docblock above for clarity.
+  // Example docblocks added by the trait (if trait is applied to User model itself):
+  /*
+     * Get the user who created this model record.
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
+     */
+  // public function createdBy(): BelongsTo; // If User model has created_by FK
 
-  /**
-   * Get the user who created this model record.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
-   */
-  // public function createdBy(): BelongsToRelation; // If User model has created_by FK
+  /*
+     * Get the user who last updated this model record.
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
+     */
+  // public function updatedBy(): BelongsTo; // If User model has updated_by FK
 
-  /**
-   * Get the user who last updated this model record.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
-   */
-  // public function updatedBy(): BelongsToRelation; // If User model has updated_by FK
-
-  /**
-   * Get the user who soft deleted this model record.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
-   */
-  // public function deletedBy(): BelongsToRelation; // If User model has deleted_by FK
+  /*
+     * Get the user who soft deleted this model record.
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\User>
+     */
+  // public function deletedBy(): BelongsTo; // If User model has deleted_by FK
 
 
   // 👉 Existing HRMS Links
@@ -528,6 +539,7 @@ class User extends Authenticatable
   {
     // Ensure the grade relationship is loaded and not null before accessing level
     // Use optional chaining (?->) for safety and null coalescing (??) for grade level default
+    // Check if the grade relationship exists and has a 'level' property.
     return $this->relationLoaded('grade')
       && $this->grade !== null
       && ($this->grade->level ?? 0) >= config('motac.approval.min_approver_grade_level', 0); // Default config value to 0 for safety
@@ -600,6 +612,6 @@ class User extends Authenticatable
 
   // Add any other existing methods or accessors/mutators below this line
 
-  // The getProfilePhotoUrlAttribute is provided by the HasProfilePhoto trait
-  // No need to define it here unless you want to override the trait's behavior.
+  // The getProfilePhotoUrlAttribute accessor is typically provided by the HasProfilePhoto trait.
+  // You do not need to define it here unless you want to override the trait's behavior.
 }

@@ -2,25 +2,29 @@
 
 namespace App\Models;
 
-use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and adds audit FKs/methods
-use Carbon\Carbon; // Assuming Carbon is used implicitly with date casts
+// Assuming this trait exists and adds audit FKs/methods like created_by, updated_by, deleted_by
+use App\Traits\CreatedUpdatedDeletedBy;
+// Assuming Carbon is used implicitly with date casts (including explicitly importing here is good practice)
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Use BelongsTo trait
-use Illuminate\Database\Eloquent\Relations\HasMany; // Use HasMany trait
-use Illuminate\Database\Eloquent\Relations\MorphMany; // Use MorphMany trait for polymorphic relationship
-use Illuminate\Database\Eloquent\SoftDeletes; // Use SoftDeletes trait
-use Illuminate\Database\Eloquent\Relations\BelongsTo as BelongsToRelation; // Alias if needed
-use Illuminate\Database\Eloquent\Relations\HasMany as HasManyRelation; // Alias if needed
-use Illuminate\Database\Eloquent\Relations\MorphMany as MorphManyRelation; // Alias if needed
-use Illuminate\Support\Collection; // Import Collection for return type hinting
+// Use the relationships directly without aliasing if you don't need aliases
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+// Use SoftDeletes trait for soft deletion functionality
+use Illuminate\Database\Eloquent\SoftDeletes;
+// Import Collection for return type hinting on HasMany/MorphMany relationships
+use Illuminate\Support\Collection;
+// Assuming Auth is used in the trait or policies (optional include if not used directly in the model)
+use Illuminate\Support\Facades\Auth;
 
 
-// Import models for relationships
-use App\Models\User; // LoanApplication belongs to users (applicant, responsible officer)
+// Import models for relationships if they are in a different namespace
+use App\Models\User;                // LoanApplication belongs to users (applicant, responsible officer)
 use App\Models\LoanApplicationItem; // LoanApplication has many Items
-use App\Models\LoanTransaction; // LoanApplication has many Transactions
-use App\Models\Approval; // LoanApplication has many Approvals (polymorphic)
+use App\Models\LoanTransaction;     // LoanApplication has many Transactions
+use App\Models\Approval;            // LoanApplication has many Approvals (polymorphic)
 
 
 /**
@@ -39,12 +43,13 @@ use App\Models\Approval; // LoanApplication has many Approvals (polymorphic)
  * @property string $status Workflow status (e.g., draft, pending_support, approved, issued, returned, overdue).
  * @property string|null $rejection_reason Reason for rejection (Text).
  * @property \Illuminate\Support\Carbon|null $applicant_confirmation_timestamp Timestamp when applicant confirmed (Timestamp).
- * @property int|null $created_by Foreign key to the user who created the record.
- * @property int|null $updated_by Foreign key to the user who last updated the record.
- * @property int|null $deleted_by Foreign key to the user who soft deleted the record.
+ * @property int|null $created_by Foreign key to the user who created the record (handled by trait).
+ * @property int|null $updated_by Foreign key to the user who last updated the record (handled by trait).
+ * @property int|null $deleted_by Foreign key to the user who soft deleted the record (handled by trait).
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
+ *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals Approvals for the loan application.
  * @property-read int|null $approvals_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanApplicationItem> $items Equipment items requested for the loan application.
@@ -53,9 +58,10 @@ use App\Models\Approval; // LoanApplication has many Approvals (polymorphic)
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanTransaction> $transactions Transactions (issue/return records) for the application.
  * @property-read int|null $transactions_count
  * @property-read \App\Models\User $user The applicant who submitted the application.
- * @property-read \App\Models\User|null $createdBy The user who created the record.
- * @property-read \App\Models\User|null $deletedBy The user who soft deleted the record.
- * @property-read \App\Models\User|null $updatedBy The user who last updated the record.
+ * @property-read \App\Models\User|null $createdBy Relation to the user who created the record.
+ * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record.
+ * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record.
+ *
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication onlyTrashed()
@@ -86,14 +92,14 @@ class LoanApplication extends Model
   use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;
 
   // Define constants for application statuses for better code readability and maintainability
-  public const STATUS_DRAFT = 'draft'; // Application is being created, not yet submitted
+  public const STATUS_DRAFT = 'draft';                 // Application is being created, not yet submitted
   public const STATUS_PENDING_SUPPORT = 'pending_support'; // Submitted, pending review by IT Support/BPM
-  public const STATUS_PENDING_BPM = 'pending_bpm'; // Submitted, pending review/action by BPM (if different from Support)
-  public const STATUS_APPROVED = 'approved'; // Approved by all necessary parties
-  public const STATUS_REJECTED = 'rejected'; // Rejected at some stage
-  public const STATUS_ISSUED = 'issued'; // Equipment has been issued to the applicant
-  public const STATUS_RETURNED = 'returned'; // Equipment has been returned
-  public const STATUS_OVERDUE = 'overdue'; // Equipment is past its return date
+  public const STATUS_PENDING_BPM = 'pending_bpm';       // Submitted, pending review/action by BPM (if different from Support)
+  public const STATUS_APPROVED = 'approved';           // Approved by all necessary parties
+  public const STATUS_REJECTED = 'rejected';           // Rejected at some stage
+  public const STATUS_ISSUED = 'issued';               // Equipment has been issued to the applicant
+  public const STATUS_RETURNED = 'returned';           // Equipment has been returned
+  public const STATUS_OVERDUE = 'overdue';             // Equipment is past its return date
   // Add other statuses as needed (e.g., 'cancelled')
 
 
@@ -105,14 +111,14 @@ class LoanApplication extends Model
    * @var array<int, string>
    */
   protected $fillable = [
-    'user_id', // The applicant who submitted the application (Foreign key)
-    'responsible_officer_id', // Responsible Officer ID (Foreign key)
-    'purpose', // Tujuan (Text)
-    'location', // Lokasi (String)
-    'loan_start_date', // Tarikh Pinjaman (Date)
-    'loan_end_date', // Tarikh Pulangan (Date)
-    'status', // Workflow status (String/Enum)
-    'rejection_reason', // Reason for rejection (Text)
+    'user_id',                      // The applicant who submitted the application (Foreign key)
+    'responsible_officer_id',       // Responsible Officer ID (Foreign key)
+    'purpose',                      // Tujuan (Text)
+    'location',                     // Lokasi (String)
+    'loan_start_date',              // Tarikh Pinjaman (Date)
+    'loan_end_date',                // Tarikh Pulangan (Date)
+    'status',                       // Workflow status (String/Enum)
+    'rejection_reason',             // Reason for rejection (Text)
     'applicant_confirmation_timestamp', // Timestamp when applicant confirmed (Timestamp)
 
     // 'created_by', // Handled by trait
@@ -129,46 +135,44 @@ class LoanApplication extends Model
    * @var array<string, string>
    */
   protected $casts = [
-    'user_id' => 'integer', // Cast FKs to integer
-    'responsible_officer_id' => 'integer',
+    'user_id'                      => 'integer',   // Cast FKs to integer
+    'responsible_officer_id'       => 'integer',
 
-    'purpose' => 'string', // Explicitly cast string attributes
-    'location' => 'string',
-    'status' => 'string', // Cast status as string (or to ApplicationStatus::class if using PHP Enums)
-    'rejection_reason' => 'string',
+    'purpose'                      => 'string',    // Explicitly cast string attributes
+    'location'                     => 'string',
+    'status'                       => 'string',    // Cast status as string (or to ApplicationStatus::class if using PHP Enums)
+    'rejection_reason'             => 'string',
 
-    'loan_start_date' => 'date', // Cast date fields to Carbon instances (YYYY-MM-DD)
-    'loan_end_date' => 'date',
+    'loan_start_date'              => 'date',      // Cast date fields to Carbon instances (YYYY-MM-DD)
+    'loan_end_date'                => 'date',
     'applicant_confirmation_timestamp' => 'datetime', // Cast timestamp to Carbon instance
 
-    'created_at' => 'datetime', // Explicitly cast timestamps
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime', // Cast soft delete timestamp
+    'created_at'                   => 'datetime',  // Explicitly cast timestamps
+    'updated_at'                   => 'datetime',
+    'deleted_at'                   => 'datetime',  // Cast soft delete timestamp
   ];
 
 
-  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
+  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships.
+  // Their docblocks are included in the main class docblock above for clarity.
+  // Example docblocks added by the trait:
+  /*
+     * Get the user who created the model.
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\LoanApplication>
+     */
+  // public function createdBy(): BelongsTo;
 
-  /**
-   * Get the user who created the model.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\LoanApplication>
-   */
-  // public function createdBy(): BelongsToRelation;
+  /*
+     * Get the user who last updated the model.
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\LoanApplication>
+     */
+  // public function updatedBy(): BelongsTo;
 
-  /**
-   * Get the user who last updated the model.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\LoanApplication>
-   */
-  // public function updatedBy(): BelongsToRelation;
-
-  /**
-   * Get the user who soft deleted the model.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\LoanApplication>
-   */
-  // public function deletedBy(): BelongsToRelation;
+  /*
+     * Get the user who soft deleted the model.
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\LoanApplication>
+     */
+  // public function deletedBy(): BelongsTo;
 
 
   // 👉 Relationships
@@ -362,16 +366,17 @@ class LoanApplication extends Model
    */
   public function getStatusTranslatedAttribute(): string // Added accessor for translated status
   {
+    // Use a match statement for cleaner status translation
     return match ($this->status) {
-      self::STATUS_DRAFT => __('Draft'),
+      self::STATUS_DRAFT         => __('Draft'),
       self::STATUS_PENDING_SUPPORT => __('Pending Support Review'),
-      self::STATUS_PENDING_BPM => __('Pending BPM Review'),
-      self::STATUS_APPROVED => __('Approved'),
-      self::STATUS_REJECTED => __('Rejected'),
-      self::STATUS_ISSUED => __('Issued'),
-      self::STATUS_RETURNED => __('Returned'),
-      self::STATUS_OVERDUE => __('Overdue'),
-      default => $this->status, // Return raw status if unknown
+      self::STATUS_PENDING_BPM     => __('Pending BPM Review'),
+      self::STATUS_APPROVED      => __('Approved'),
+      self::STATUS_REJECTED      => __('Rejected'),
+      self::STATUS_ISSUED        => __('Issued'),
+      self::STATUS_RETURNED      => __('Returned'),
+      self::STATUS_OVERDUE       => __('Overdue'),
+      default                    => $this->status, // Return raw status if unknown
     };
   }
 }

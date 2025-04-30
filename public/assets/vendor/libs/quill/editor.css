@@ -834,7 +834,7 @@
 }
 .light-style .ql-snow .ql-picker.ql-font .ql-picker-item[data-value=monospace]::before,
 .light-style .ql-bubble .ql-picker.ql-font .ql-picker-item[data-value=monospace]::before {
-  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: monospace;
 }
 .light-style .ql-snow .ql-picker.ql-size .ql-picker-item[data-value=small]::before,
 .light-style .ql-bubble .ql-picker.ql-size .ql-picker-item[data-value=small]::before {
@@ -952,7 +952,7 @@
 }
 .dark-style .ql-snow .ql-picker.ql-font .ql-picker-item[data-value=monospace]::before,
 .dark-style .ql-bubble .ql-picker.ql-font .ql-picker-item[data-value=monospace]::before {
-  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: monospace;
 }
 .dark-style .ql-snow .ql-picker.ql-size .ql-picker-item[data-value=small]::before,
 .dark-style .ql-bubble .ql-picker.ql-size .ql-picker-item[data-value=small]::before {

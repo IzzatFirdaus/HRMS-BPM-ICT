@@ -284,7 +284,6 @@ var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_RESULT__;function _type
         US: 'az Egyesült Államokban',
         VE: 'Venezuelában' /* Sepcial case */
       },
-
       country: 'Kérlek, hogy %s érvényes telefonszámot adj meg',
       "default": 'Kérlek, hogy érvényes telefonszámot adj meg'
     },

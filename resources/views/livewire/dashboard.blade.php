@@ -4,6 +4,18 @@
         $configData = Helper::appClasses();
         use App\Models\User; // Use the User model directly
         use Carbon\Carbon;
+
+        // Access computed properties and assign them to local variables
+        // Doing this explicitly in the Blade can sometimes work around variable scoping issues
+        $dashboardMessagesStatus = $this->messagesStatus; // Fetch messagesStatus
+        // $dashboardUserNotifications = $this->userNotifications; // Already handled by explicit assignment below
+        $dashboardLeaveRecords = $this->leaveRecords; // Fetch leaveRecords
+        $dashboardUserEmailApplications = $this->userEmailApplications; // Fetch email applications
+        $dashboardUserLoanApplications = $this->userLoanApplications; // Fetch loan applications
+        $dashboardChangelogs = $this->changelogs; // Fetch changelogs
+        // Note: activeEmployees, confirmedId, leaveTypes, selectedEmployeeId,
+        // newLeaveInfo, isEdit, employeeLeaveId, employeeLeaveRecord, fromDateLimit,
+        // employeePhoto are public properties and should ideally be available automatically.
     @endphp
 
     @section('title', 'Dashboard')
@@ -52,7 +64,8 @@
 
     <div class="row match-height">
         <div class="col-xl-4 mb-4 col-lg-5 col-12">
-            <div class="card h-100">
+            {{-- If you find <x-card> here or around the card structure, comment it out --}}
+            <div class="card h-100"> {{-- Currently using div class="card" --}}
                 <div class="card-header pb-0">
                     <div class="d-flex justify-content-between">
                         <div class="card-title mb-0">
@@ -104,13 +117,21 @@
                                     @endcan
 
                                     {{-- 👇 New MOTAC Resource Management Links 👇 --}}
-                                    {{-- Ensure these route names ('email-applications.create' and 'loan-applications.create') are correctly defined in your web.php --}}
-                                    <li><a class="dropdown-item" href="{{ route('email-applications.create') }}"><i
-                                                class="ti ti-mail ti-xs me-1"></i>
-                                            {{ __('Email/User ID Request') }}</a></li> {{-- New link --}}
-                                    <li><a class="dropdown-item" href="{{ route('loan-applications.create') }}"><i
-                                                class="ti ti-laptop ti-xs me-1"></i> {{ __('ICT Equipment Loan') }}</a>
-                                    </li> {{-- New link --}}
+                                    {{-- Using the full, correctly registered route names --}}
+                                    <li>
+                                        <a class="dropdown-item"
+                                            href="{{ route('resource-management.email-applications.create') }}">
+                                            <i class="ti ti-mail ti-xs me-1"></i>
+                                            {{ __('Email/User ID Request') }}
+                                        </a>
+                                    </li> {{-- Updated link --}}
+                                    <li>
+                                        <a class="dropdown-item"
+                                            href="{{ route('resource-management.loan-applications.create') }}">
+                                            <i class="ti ti-laptop ti-xs me-1"></i>
+                                            {{ __('ICT Equipment Loan') }}
+                                        </a>
+                                    </li> {{-- Updated link --}}
                                     {{-- ☝️ End New MOTAC Resource Management Links ☝️ --}}
 
                                 </ul>
@@ -126,11 +147,13 @@
                     </div>
                 </div>
             </div>
+            {{-- If you find </x-card> here, comment it out --}}
         </div>
 
         {{-- Existing Statistics Card --}}
         <div class="col-xl-8 mb-4 col-lg-7 col-12">
-            <div class="card h-100">
+            {{-- If you find <x-card> here or around the card structure, comment it out --}}
+            <div class="card h-100"> {{-- Currently using div class="card" --}}
                 <div class="card-header">
                     <div class="d-flex justify-content-between mb-3">
                         <h5 class="card-title mb-0">{{ __('Statistics') }}</h5>
@@ -172,7 +195,8 @@
                                     <div class="badge rounded-pill bg-label-success me-3 p-2"><i
                                             class="ti ti-speakerphone ti-sm"></i></div>
                                     <div class="card-info">
-                                        <h5 class="mb-0">{{ $messagesStatus['sent'] }}</h5>
+                                        {{-- Use the new local variable --}}
+                                        <h5 class="mb-0">{{ $dashboardMessagesStatus['sent'] }}</h5>
                                         <small>{{ __('Successful SMS') }}</small>
                                     </div>
                                 </div>
@@ -184,7 +208,8 @@
                                         class="badge rounded-pill bg-label-danger me-3 p-2" style="cursor: pointer"><i
                                             class="ti ti-send ti-sm"></i></div>
                                     <div class="card-info">
-                                        <h5 class="mb-0">{{ $messagesStatus['unsent'] }}</h5>
+                                        {{-- Use the new local variable --}}
+                                        <h5 class="mb-0">{{ $dashboardMessagesStatus['unsent'] }}</h5>
                                         <small>{{ __('Pending SMS') }}</small>
                                     </div>
                                 </div>
@@ -211,7 +236,8 @@
                                     <div class="badge rounded-pill bg-label-secondary me-3 p-2"><i
                                             class="ti ti-calendar ti-sm"></i></div>
                                     <div class="card-info">
-                                        <h5 class="mb-0">{{ count($leaveRecords) }}</h5>
+                                        {{-- Use the new local variable --}}
+                                        <h5 class="mb-0">{{ count($dashboardLeaveRecords) }}</h5>
                                         <small>{{ __('Today Records') }}</small>
                                     </div>
                                 </div>
@@ -220,6 +246,7 @@
                     </div>
                 @endcan
             </div>
+            {{-- If you find </x-card> here, comment it out --}}
         </div>
 
         {{-- Kept commented out sections for reference --}}
@@ -230,7 +257,8 @@
     {{-- 👇 New MOTAC Resource Management Overview for User 👇 --}}
     <div class="row mt-4">
         <div class="col-md-6 mb-4">
-            <div class="card">
+            {{-- If you find <x-card> here or around the card structure, comment it out --}}
+            <div class="card"> {{-- Currently using div class="card" --}}
                 <h5 class="card-header">{{ __('My Pending Applications') }}</h5>
                 <div class="table-responsive text-nowrap">
                     <table class="table table-hover">
@@ -244,8 +272,8 @@
                             </tr>
                         </thead>
                         <tbody class="table-border-bottom-0">
-                            {{-- Loop through user's pending Email Applications (assuming Livewire component provides $userEmailApplications) --}}
-                            @forelse($userEmailApplications as $application)
+                            {{-- Loop through user's pending Email Applications (using the new local variable) --}}
+                            @forelse($dashboardUserEmailApplications as $application)
                                 <tr>
                                     <td><i class="ti ti-mail me-2"></i> <strong>{{ __('Email/User ID') }}</strong>
                                     </td>
@@ -265,8 +293,8 @@
                                 {{-- Handle no pending email applications --}}
                             @endforelse
 
-                            {{-- Loop through user's pending Loan Applications (assuming Livewire component provides $userLoanApplications) --}}
-                            @forelse($userLoanApplications as $application)
+                            {{-- Loop through user's pending Loan Applications (using the new local variable) --}}
+                            @forelse($dashboardUserLoanApplications as $application)
                                 <tr>
                                     <td><i class="ti ti-laptop me-2"></i> <strong>{{ __('Equipment Loan') }}</strong>
                                     </td>
@@ -287,7 +315,7 @@
                             @endforelse
 
                             {{-- Display 'No pending applications' if both lists are empty --}}
-                            @if (count($userEmailApplications) === 0 && count($userLoanApplications) === 0)
+                            @if (count($dashboardUserEmailApplications) === 0 && count($dashboardUserLoanApplications) === 0)
                                 <tr>
                                     <td colspan="5" class="text-center">
                                         <div class="mt-2 mb-2" style="text-align: center">
@@ -309,10 +337,12 @@
                     </table>
                 </div>
             </div>
+            {{-- If you find </x-card> here, comment it out --}}
         </div>
 
         <div class="col-md-6 mb-4">
-            <div class="card">
+            {{-- If you find <x-card> here or around the card structure, comment it out --}}
+            <div class="card"> {{-- Currently using div class="card" --}}
                 <h5 class="card-header">{{ __('Recent Notifications') }}</h5>
                 <div class="table-responsive text-nowrap" style="max-height: 300px; overflow-y: auto;">
                     {{-- Added max height and scroll --}}
@@ -326,8 +356,16 @@
                             </tr>
                         </thead>
                         <tbody class="table-border-bottom-0">
-                            {{-- Loop through user's recent notifications (assuming Livewire component provides $userNotifications) --}}
-                            @forelse($userNotifications as $notification)
+                            {{-- Debug line was here --}}
+                            {{-- Explicitly get the computed property value into a local variable --}}
+                            @php
+                                // This was already added for userNotifications
+                                $recentNotifications = $this->userNotifications; // Access the computed property and assign it
+                            @endphp
+
+
+                            {{-- Loop through user's recent notifications using the local variable --}}
+                            @forelse($recentNotifications as $notification)
                                 <tr>
                                     <td><span
                                             class="badge bg-label-info">{{ $notification->data['type'] ?? 'Update' }}</span>
@@ -338,7 +376,7 @@
                                     {{-- Optional actions --}}
                                     {{-- <td>
                                   <a href="{{ $notification->data['link'] ?? '#' }}" class="btn btn-sm btn-outline-secondary waves-effect">View</a>
-                                 </td> --}}
+                                  </td> --}}
                                 </tr>
                             @empty
                                 <tr>
@@ -349,6 +387,7 @@
                     </table>
                 </div>
             </div>
+            {{-- If you find </x-card> here, comment it out --}}
         </div>
     </div>
     {{-- ☝️ End New MOTAC Resource Management Overview for User ☝️ --}}
@@ -357,7 +396,8 @@
     {{-- Existing Today Leaves Card --}}
     <div class="row mt-4"> {{-- Adjusted margin top --}}
         <div class="col">
-            <div class="card">
+            {{-- If you find <x-card> here or around the card structure, comment it out --}}
+            <div class="card"> {{-- Currently using div class="card" --}}
                 <h5 class="card-header">{{ __('Today Leaves') }}</h5>
                 <div class="table-responsive text-nowrap">
                     <table class="table table-hover">
@@ -371,16 +411,15 @@
                             </tr>
                         </thead>
                         <tbody class="table-border-bottom-0">
-                            @forelse($leaveRecords as $leave)
-                                {{-- Assuming $leaveRecords is available --}}
+                            {{-- Loop through leave records (using the new local variable) --}}
+                            @forelse($dashboardLeaveRecords as $leave)
+                                {{-- Assuming $leaveRecords is available and employee/leaveType relationships are eager loaded --}}
                                 <tr>
                                     <td><strong>{{ $leave->id }}</strong></td>
-                                    {{-- Accessing employee name directly from the $leave object --}}
-                                    {{-- IMPORTANT: Ensure your Livewire component eager loads the 'employee' relationship --}}
+                                    {{-- Accessing employee name via relationship --}}
                                     <td class="td">
                                         {{ $leave->employee->full_name ?? ($leave->employee->name ?? 'N/A') }}</td>
-                                    {{-- Accessing leave type directly from the $leave object --}}
-                                    {{-- IMPORTANT: Ensure your Livewire component eager loads the 'leaveType' relationship --}}
+                                    {{-- Accessing leave type via relationship --}}
                                     <td>{{ $leave->leaveType->name ?? 'N/A' }}</td>
                                     <td style="text-align: center">
                                         <span class="badge bg-label-primary mb-2 me-1"
@@ -418,6 +457,7 @@
                                     <td colspan="6">
                                         <div class="mt-2 mb-2" style="text-align: center">
                                             <h3 class="mb-1 mx-2">{{ __('Oopsie-doodle!') }}</h3>
+                                            {{-- Adjusted empty state message --}}
                                             <p class="mb-4 mx-2">
                                                 {{ __('No data found, please sprinkle some data in my virtual bowl, and let the fun begin!') }}
                                             </p>
@@ -438,16 +478,18 @@
                     </table>
                 </div>
             </div>
+            {{-- If you find </x-card> here, comment it out --}}
         </div>
     </div>
 
     {{-- Existing Changelog Card --}}
     <div class="row mt-4">
         <div class="col">
-            <div class="card">
+            {{-- If you find <x-card> here or around the card structure, comment it out --}}
+            <div class="card"> {{-- Currently using div class="card" --}}
                 <h5 class="card-header">{{ __('Changelog') }}</h5>
                 <div class="card-body">
-                    @foreach ($changelogs as $changelog)
+                    @foreach ($dashboardChangelogs as $changelog)
                         {{-- Assuming $changelogs is available --}}
                         <small all class="text-light fw-semibold">{{ $changelog->version }}</small>
                         <dl class="row mt-2">
@@ -457,11 +499,13 @@
                     @endforeach
                 </div>
             </div>
+            {{-- If you find </x-card> here, comment it out --}}
         </div>
     </div>
 
     {{-- Existing Modals --}}
     {{-- Ensure the path '_partials/_modals/modal-leaveWithEmployee' is correct for your project --}}
+    {{-- CHECK THIS PARTIAL for <x-card> tags if the error persists --}}
     @include('_partials/_modals/modal-leaveWithEmployee')
 
     @push('custom-scripts')

@@ -1,315 +1,105 @@
 @isset($pageConfigs)
+    {{-- Assuming Helper::updatePageConfig exists and is used to apply page-specific configurations --}}
     {!! Helper::updatePageConfig($pageConfigs) !!}
 @endisset
 
 @php
+    // Helper function assumed to retrieve application class configurations
     $configData = Helper::appClasses();
-@endphp
 
-{{--
-    This layout file extends a common master layout and provides the structure
-    for the main application content, including menu, navbar, and footer,
-    often used with Livewire components.
---}}
-@extends('layouts/commonMaster')
+    // Define variables for layout structure visibility and classes
+    // These variables are typically passed down or set in the component/controller rendering this layout
+    $contentNavbar = $contentNavbar ?? true; // Controls if the content navbar is shown
+    $containerNav = $containerNav ?? 'container-xxl'; // Class for the main content container
+    $isNavbar = $isNavbar ?? true; // Controls if the main navbar is shown
+    $isMenu = $isMenu ?? true; // Controls if the vertical menu is shown
+    $isFlex = $isFlex ?? false; // Controls layout flex properties
+    $isFooter = $isFooter ?? true; // Controls if the footer is shown
+    $customizerHidden = $customizerHidden ?? ''; // Class for hiding customizer
+    $pricingModal = $pricingModal ?? false; // Controls if a pricing modal is included
 
-@php
-    /* Display elements */
-    $contentNavbar = $contentNavbar ?? true;
-    $containerNav = $containerNav ?? 'container-xxl';
-    $isNavbar = $isNavbar ?? true;
-    $isMenu = $isMenu ?? true;
-    $isFlex = $isFlex ?? false;
-    $isFooter = $isFooter ?? true;
-    $customizerHidden = $customizerHidden ?? '';
-    $pricingModal = $pricingModal ?? false;
-
-    /* HTML Classes */
-    $navbarDetached = 'navbar-detached';
-    $menuFixed = isset($configData['menuFixed']) ? $configData['menuFixed'] : '';
-    $navbarFixed = isset($configData['navbarFixed']) ? $configData['navbarFixed'] : '';
-    $footerFixed = isset($configData['footerFixed']) ? $configData['footerFixed'] : '';
-    $menuCollapsed = isset($configData['menuCollapsed']) ? $configData['menuCollapsed'] : '';
+    /* HTML Classes based on config */
+    $navbarDetached = 'navbar-detached'; // Example class, might depend on config
+    $menuFixed = isset($configData['menuFixed']) ? $configData['menuFixed'] : ''; // Class for fixed menu
+    $navbarFixed = isset($configData['navbarFixed']) ? $configData['navbarFixed'] : ''; // Class for fixed navbar
+    $footerFixed = isset($configData['footerFixed']) ? $configData['footerFixed'] : ''; // Class for fixed footer
+    $menuCollapsed = isset($configData['menuCollapsed']) ? $configData['menuCollapsed'] : ''; // Class for collapsed menu
 
     /* Content classes */
-    $container = $container ?? 'container-xxl';
+    $container = $container ?? 'container-xxl'; // Class for the main content wrapper
+
 @endphp
 
-{{--
-    Add necessary styles here.
-    If your commonMaster layout has a @stack('styles') in the <head>,
-    you can push styles there. Otherwise, you might need to add the Tailwind
-    CDN link directly here or ensure your asset compilation includes Tailwind.
-    For simplicity, adding CDN here. Ensure this ends up in the <head> section
-    rendered by commonMaster.
---}}
-@section('styles')
-    @parent {{-- Include styles from the parent layout --}}
-    {{-- Include Tailwind CSS via CDN. In production, you should compile Tailwind with your assets. --}}
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@^2.0/dist/tailwind.min.css" rel="stylesheet">
+{{-- Extends the base common master layout --}}
+@extends('layouts/commonMaster')
 
-    {{--
-        Include custom styles for components like badges, cards etc.
-        if they are not part of your main compiled CSS or Tailwind setup.
-        These styles seem to mimic some common UI components.
-    --}}
-    <style>
-        .alert {
-            padding: 1rem;
-            border-radius: 0.25rem;
-            margin-bottom: 1rem;
-            border-width: 1px;
-        }
-
-        .alert-success {
-            background-color: #d1fae5;
-            border-color: #a7f3d0;
-            color: #065f46;
-        }
-
-        .alert-danger {
-            background-color: #fee2e2;
-            border-color: #fecaca;
-            color: #991b1b;
-        }
-
-        .alert-info {
-            background-color: #e0f2f7;
-            border-color: #bae6fd;
-            color: #0e7490;
-        }
-
-        .card {
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            background-color: #fff;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-        }
-
-        .card-title {
-            font-size: 1.25rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            color: #1f2937;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.25rem;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem 1.25rem;
-            border-radius: 0.375rem;
-            font-weight: 600;
-            transition: background-color 0.15s ease-in-out;
-            cursor: pointer;
-            /* Add cursor pointer for better UX */
-        }
-
-        .btn-primary {
-            background-color: #3b82f6;
-            color: #fff;
-        }
-
-        .btn-secondary {
-            background-color: #e5e7eb;
-            color: #1f2937;
-        }
-
-        .btn-success {
-            background-color: #48bb78;
-            color: #fff;
-        }
-
-        .btn-danger {
-            background-color: #f56565;
-            color: #fff;
-        }
-
-        .btn-info {
-            background-color: #38b2ac;
-            color: #fff;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            line-height: 1;
-            text-transform: capitalize;
-        }
-
-        .badge-info {
-            background-color: #bfdbfe;
-            color: #1e40af;
-        }
-
-        .badge-success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-
-        .badge-warning {
-            background-color: #fef3c7;
-            color: #b45309;
-        }
-
-        .badge-danger {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-
-        .badge-secondary {
-            background-color: #e5e7eb;
-            color: #374151;
-        }
-
-        .badge-teal {
-            background-color: #b2f5ea;
-            color: #2c7a7b;
-        }
-
-        /* Custom badge for 'issued' */
-        .badge-purple {
-            background-color: #e9d8fd;
-            color: #6b46c1;
-        }
-
-        /* Custom badge for 'returned' */
-        .badge-red {
-            background-color: #feb2b2;
-            color: #c53030;
-        }
-
-        /* Custom badge for 'overdue' */
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-        }
-
-        .table th,
-        .table td {
-            padding: 0.75rem;
-            border: 1px solid #e5e7eb;
-            text-align: left;
-        }
-
-        .table th {
-            background-color: #f9fafb;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            color: #4b5563;
-        }
-
-        .table tbody tr:nth-child(odd) {
-            background-color: #f9fafb;
-        }
-
-        .table tbody tr:hover {
-            background-color: #f3f4f6;
-        }
-
-        .item-list {
-            list-style: disc;
-            padding-left: 1.5rem;
-        }
-
-        .item-list li {
-            margin-bottom: 0.25rem;
-        }
-    </style>
-@endsection
-
-
+{{-- Start of the layout content section defined in commonMaster --}}
 @section('layoutContent')
+    {{-- Layout Wrapper with classes based on $isMenu --}}
     <div class="layout-wrapper layout-content-navbar {{ $isMenu ? '' : 'layout-without-menu' }}">
+        {{-- Layout Container --}}
         <div class="layout-container">
 
+            {{-- Vertical Menu (conditional based on $isMenu) --}}
             @if ($isMenu)
-                {{-- @include('layouts/sections/menu/verticalMenu') --}}
+                {{-- Render the vertical menu Livewire component --}}
+                {{-- The component view (vertical-menu.blade.php) handles its own data fetching ($menuData) and role checks --}}
                 @livewire('sections.menu.verticalMenu')
             @endif
 
             <div class="layout-page">
 
+                {{-- Jetstream Banner Component (commented out note) --}}
                 {{-- Below commented code read by artisan command while installing jetstream. !! Do not remove if you want to use jetstream. --}}
                 <x-banner />
 
+                {{-- Main Navbar (conditional based on $isNavbar) --}}
                 @if ($isNavbar)
-                    {{-- @include('layouts/sections/navbar/navbar') --}}
+                    {{-- Render the navbar Livewire component --}}
+                    {{-- The component view handles its own data fetching --}}
                     @livewire('sections.navbar.navbar')
                 @endif
                 <div class="content-wrapper">
 
+                    {{-- Main Content Area --}}
+                    {{-- Container div with classes based on $container and $isFlex --}}
                     @if ($isFlex)
                         <div class="{{ $container }} d-flex align-items-stretch flex-grow-1 p-0">
                         @else
                             <div class="{{ $container }} flex-grow-1 container-p-y">
                     @endif
 
-                    {{--
-                        Section for displaying session flash messages (notifications).
-                        These are typically set in controllers after an action (e.g., success, error).
-                    --}}
-                    @if (session()->has('success'))
-                        <div class="alert alert-success">
-                            {{ session('success') }}
-                        </div>
-                    @endif
-
-                    @if (session()->has('error'))
-                        <div class="alert alert-danger">
-                            {{ session('error') }}
-                        </div>
-                    @endif
-
-                    @if (session()->has('info'))
-                        <div class="alert alert-info">
-                            {{ session('info') }}
-                        </div>
-                    @endif
-
-                    {{--
-                        This slot renders the main content of the page, which is typically
-                        the view for the current route (e.g., from your controllers).
-                    --}}
+                    {{-- Render the content of the specific page view using the $slot variable --}}
                     {{ $slot }}
 
+                    {{-- Optional Pricing Modal Include --}}
                     @if ($pricingModal)
-                        @include('_partials/_modals/modal-pricing')
+                        @include('_partials/_modals/modal-pricing') {{-- Ensure this path is correct --}}
                     @endif
                 </div>
+                {{-- Main Footer (conditional based on $isFooter) --}}
                 @if ($isFooter)
-                    {{-- @include('layouts/sections/footer/footer') --}}
+                    {{-- Render the footer Livewire component --}}
+                    {{-- The component view handles its own content --}}
                     @livewire('sections.footer.footer')
                 @endif
+                {{-- Content Backdrop (often used for mobile menu overlay) --}}
                 <div class="content-backdrop fade"></div>
             </div>
-
         </div>
     </div>
 
+    {{-- Layout Overlay (often used with offcanvas menus) --}}
     @if ($isMenu)
         <div class="layout-overlay layout-menu-toggle"></div>
     @endif
 
+    {{-- Drag Target Area (often for swiping menus on touch devices) --}}
     <div class="drag-target"></div>
     </div>
-@endsection
+@endsection {{-- End of layoutContent section --}}
+
+{{-- Any scripts pushed to stacks (like 'custom-scripts') will be rendered here if the commonMaster layout has @stack directives --}}
+
+{{-- Note: Scripts for initializing template-specific features (like menu toggles, perfect scrollbar, etc.)
+     are typically included in the commonMaster layout or via @push directives. --}}

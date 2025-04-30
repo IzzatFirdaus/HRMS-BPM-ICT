@@ -654,7 +654,7 @@
 }
 .light-style .ql-editor .ql-font-monospace,
 .light-style .ql-content .ql-font-monospace {
-  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: monospace;
 }
 .light-style .ql-editor .ql-size-large,
 .light-style .ql-content .ql-size-large {
@@ -676,7 +676,7 @@
 }
 .dark-style .ql-editor .ql-font-monospace,
 .dark-style .ql-content .ql-font-monospace {
-  font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: monospace;
 }
 .dark-style .ql-editor .ql-font-serif,
 .dark-style .ql-content .ql-font-serif {

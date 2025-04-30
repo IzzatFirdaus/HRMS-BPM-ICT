@@ -2,19 +2,20 @@
 
 namespace App\Models;
 
-use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and adds audit FKs/methods
+// Assuming this trait exists and adds audit FKs/methods like created_by, updated_by, deleted_by
+use App\Traits\CreatedUpdatedDeletedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Use BelongsTo trait
-use Illuminate\Database\Eloquent\Relations\MorphMany; // Use MorphMany trait for polymorphic relationship
-use Illuminate\Database\Eloquent\SoftDeletes; // Use SoftDeletes trait
-use Illuminate\Database\Eloquent\Relations\BelongsTo as BelongsToRelation; // Alias if needed, though not strictly for BelongsTo
-use Illuminate\Database\Eloquent\Relations\MorphMany as MorphManyRelation; // Alias if needed, though not strictly for MorphMany
-use Illuminate\Support\Facades\Auth; // Assuming Auth is used in the trait or policies
+// Use the relationships directly without aliasing if you don't need aliases
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+// Use SoftDeletes trait for soft deletion functionality
+use Illuminate\Database\Eloquent\SoftDeletes;
+// Assuming Auth is used in the trait or policies (optional include if not used directly in the model)
+use Illuminate\Support\Facades\Auth;
 
-
-// Import models for relationships
-use App\Models\User; // EmailApplication belongs to users (applicant, supporting officer, final assigned)
+// Import models for relationships if they are in a different namespace (User and Approval are typically in App\Models)
+use App\Models\User;     // EmailApplication belongs to users (applicant, supporting officer, final assigned)
 use App\Models\Approval; // EmailApplication has many Approvals (polymorphic)
 
 
@@ -37,20 +38,22 @@ use App\Models\Approval; // EmailApplication has many Approvals (polymorphic)
  * @property string|null $final_assigned_email The actual email address assigned after provisioning (String).
  * @property int|null $final_assigned_user_id The actual User ID assigned after approval/provisioning (Foreign key).
  * @property \Illuminate\Support\Carbon|null $provisioned_at Timestamp when provisioning was completed (Timestamp).
- * @property int|null $created_by Foreign key to the user who created the record.
- * @property int|null $updated_by Foreign key to the user who last updated the record.
- * @property int|null $deleted_by Foreign key to the user who soft deleted the record.
+ * @property int|null $created_by Foreign key to the user who created the record (handled by trait).
+ * @property int|null $updated_by Foreign key to the user who last updated the record (handled by trait).
+ * @property int|null $deleted_by Foreign key to the user who soft deleted the record (handled by trait).
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
+ *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals
  * @property-read int|null $approvals_count
  * @property-read \App\Models\User|null $finalAssignedUser The user who was finally assigned the email address.
  * @property-read \App\Models\User|null $supportingOfficer The supporting officer for the application.
  * @property-read \App\Models\User $user The applicant who submitted the application.
- * @property-read \App\Models\User|null $createdBy
- * @property-read \App\Models\User|null $deletedBy
- * @property-read \App\Models\User|null $updatedBy
+ * @property-read \App\Models\User|null $createdBy Relation to the user who created the record.
+ * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record.
+ * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record.
+ *
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication onlyTrashed()
@@ -88,17 +91,17 @@ class EmailApplication extends Model
   // Define constants for application statuses for better code readability and maintainability
   public const STATUS_DRAFT = 'draft';
   public const STATUS_PENDING_SUPPORT = 'pending_support'; // Pending review by supporting officer
-  public const STATUS_PENDING_ADMIN = 'pending_admin'; // Pending review/action by IT Admin
-  public const STATUS_APPROVED = 'approved'; // Approved by all necessary parties
-  public const STATUS_REJECTED = 'rejected'; // Rejected at some stage
-  public const STATUS_PROCESSING = 'processing'; // Being provisioned by system/IT
-  public const STATUS_COMPLETED = 'completed'; // Provisioning successful and application closed
+  public const STATUS_PENDING_ADMIN = 'pending_admin';   // Pending review/action by IT Admin
+  public const STATUS_APPROVED = 'approved';       // Approved by all necessary parties
+  public const STATUS_REJECTED = 'rejected';       // Rejected at some stage
+  public const STATUS_PROCESSING = 'processing';     // Being provisioned by system/IT
+  public const STATUS_COMPLETED = 'completed';       // Provisioning successful and application closed
 
   // Define constants for service statuses (Taraf Perkhidmatan) based on PDF
-  public const SERVICE_STATUS_PERMANENT = 'permanent'; // Kakitangan Tetap
-  public const SERVICE_STATUS_CONTRACT = 'contract'; // Lantikan Kontrak
-  public const SERVICE_STATUS_MYSTEP = 'mystep'; // Personel MySTEP
-  public const SERVICE_STATUS_INTERN = 'intern'; // Pelajar Latihan Industri (ID Pengguna Sahaja)
+  public const SERVICE_STATUS_PERMANENT = 'permanent';     // Kakitangan Tetap
+  public const SERVICE_STATUS_CONTRACT = 'contract';       // Lantikan Kontrak
+  public const SERVICE_STATUS_MYSTEP = 'mystep';         // Personel MySTEP
+  public const SERVICE_STATUS_INTERN = 'intern';         // Pelajar Latihan Industri (ID Pengguna Sahaja)
   public const SERVICE_STATUS_OTHER_AGENCY = 'other_agency'; // Kakitangan agensi lain (E-mel Sandaran Sahaja)
   // Add other service statuses as needed
 
@@ -111,21 +114,21 @@ class EmailApplication extends Model
    * @var array<int, string>
    */
   protected $fillable = [
-    'user_id', // The applicant who submitted the application (Foreign key)
-    'service_status', // Taraf Perkhidmatan (String/Enum)
-    'purpose', // Tujuan/Catatan (Text)
-    'proposed_email', // Cadangan E-mel/ID (String)
-    'group_email', // Nama Group Email (String)
-    'group_admin_name', // Nama Admin/EO/CC (String)
-    'group_admin_email', // E-mel Admin/EO/CC (String)
+    'user_id',               // The applicant who submitted the application (Foreign key)
+    'service_status',        // Taraf Perkhidmatan (String/Enum)
+    'purpose',               // Tujuan/Catatan (Text)
+    'proposed_email',        // Cadangan E-mel/ID (String)
+    'group_email',           // Nama Group Email (String)
+    'group_admin_name',      // Nama Admin/EO/CC (String)
+    'group_admin_email',     // E-mel Admin/EO/CC (String)
     'supporting_officer_id', // Supporting Officer ID (Foreign key)
-    'status', // Workflow status (String/Enum)
+    'status',                // Workflow status (String/Enum)
     'certification_accepted', // Pengesahan Pemohon checkbox state (Boolean)
     'certification_timestamp', // Timestamp when applicant confirmed (Timestamp)
-    'rejection_reason', // Reason for rejection (Text)
-    'final_assigned_email', // The actual email address assigned after provisioning (String)
+    'rejection_reason',      // Reason for rejection (Text)
+    'final_assigned_email',  // The actual email address assigned after provisioning (String)
     'final_assigned_user_id', // The actual User ID assigned after approval/provisioning (Foreign key)
-    'provisioned_at', // Timestamp when provisioning was completed (Timestamp)
+    'provisioned_at',        // Timestamp when provisioning was completed (Timestamp)
 
     // 'created_by', // Handled by trait
     // 'updated_by', // Handled by trait
@@ -139,26 +142,28 @@ class EmailApplication extends Model
    * @var array<string, string>
    */
   protected $casts = [
-    'user_id' => 'integer', // Cast FKs to integer
+    'user_id'               => 'integer',   // Cast FKs to integer
     'supporting_officer_id' => 'integer',
     'final_assigned_user_id' => 'integer',
 
-    'service_status' => 'string', // Cast service status as string (or to ServiceStatus::class if using PHP Enums)
-    'purpose' => 'string', // Cast purpose as string
-    'proposed_email' => 'string', // Cast proposed_email as string
-    'group_email' => 'string', // Cast group_email as string
-    'group_admin_name' => 'string', // Cast group_admin_name as string
-    'group_admin_email' => 'string', // Cast group_admin_email as string
-    'status' => 'string', // Cast status as string (or to ApplicationStatus::class if using PHP Enums)
-    'rejection_reason' => 'string', // Cast rejection_reason as string
+    'service_status'        => 'string',    // Cast service status as string (or to ServiceStatus::class if using PHP Enums)
+    'purpose'               => 'string',    // Cast purpose as string
+    'proposed_email'        => 'string',    // Cast proposed_email as string
+    'group_email'           => 'string',    // Cast group_email as string
+    'group_admin_name'      => 'string',    // Cast group_admin_name as string
+    'group_admin_email'     => 'string',    // Cast group_admin_email as string
+    'status'                => 'string',    // Cast status as string (or to ApplicationStatus::class if using PHP Enums)
+    'rejection_reason'      => 'string',    // Cast rejection_reason as string
+    'final_assigned_email'  => 'string',    // Cast final_assigned_email as string
 
-    'certification_accepted' => 'boolean', // Cast boolean flag
+
+    'certification_accepted' => 'boolean',   // Cast boolean flag
     'certification_timestamp' => 'datetime', // Cast timestamp to Carbon instance
-    'provisioned_at' => 'datetime', // Cast provisioned_at timestamp
+    'provisioned_at'        => 'datetime',  // Cast provisioned_at timestamp
 
-    'created_at' => 'datetime', // Explicitly cast timestamps
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime', // Cast soft delete timestamp
+    'created_at'            => 'datetime',  // Explicitly cast timestamps
+    'updated_at'            => 'datetime',
+    'deleted_at'            => 'datetime',  // Cast soft delete timestamp
   ];
 
 
@@ -328,13 +333,14 @@ class EmailApplication extends Model
    */
   public function getServiceStatusTranslatedAttribute(): string // Added accessor for translated service status
   {
+    // Use a match statement for cleaner status translation
     return match ($this->service_status) {
       self::SERVICE_STATUS_PERMANENT => __('Permanent Staff'),
       self::SERVICE_STATUS_CONTRACT => __('Contract Staff'),
-      self::SERVICE_STATUS_MYSTEP => __('MySTEP Personnel'),
-      self::SERVICE_STATUS_INTERN => __('Intern'),
+      self::SERVICE_STATUS_MYSTEP    => __('MySTEP Personnel'),
+      self::SERVICE_STATUS_INTERN    => __('Intern'),
       self::SERVICE_STATUS_OTHER_AGENCY => __('Other Agency Staff'),
-      default => $this->service_status, // Return raw status if unknown
+      default                       => $this->service_status, // Return raw status if unknown
     };
   }
 
@@ -345,15 +351,16 @@ class EmailApplication extends Model
    */
   public function getStatusTranslatedAttribute(): string // Added accessor for translated workflow status
   {
+    // Use a match statement for cleaner status translation
     return match ($this->status) {
-      self::STATUS_DRAFT => __('Draft'),
+      self::STATUS_DRAFT          => __('Draft'),
       self::STATUS_PENDING_SUPPORT => __('Pending Support Review'),
-      self::STATUS_PENDING_ADMIN => __('Pending IT Admin Review'),
-      self::STATUS_APPROVED => __('Approved'),
-      self::STATUS_REJECTED => __('Rejected'),
-      self::STATUS_PROCESSING => __('Processing'),
-      self::STATUS_COMPLETED => __('Completed'),
-      default => $this->status, // Return raw status if unknown
+      self::STATUS_PENDING_ADMIN  => __('Pending IT Admin Review'),
+      self::STATUS_APPROVED       => __('Approved'),
+      self::STATUS_REJECTED       => __('Rejected'),
+      self::STATUS_PROCESSING     => __('Processing'),
+      self::STATUS_COMPLETED      => __('Completed'),
+      default                     => $this->status, // Return raw status if unknown
     };
   }
 }

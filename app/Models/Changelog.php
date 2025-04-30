@@ -16,15 +16,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo for tr
  * @property string $version The application version this changelog entry belongs to.
  * @property string $title The title of the changelog entry.
  * @property string $description The detailed description of the changes.
- * @property int|null $created_by Foreign key to the user who created the record.
- * @property int|null $updated_by Foreign key to the user who last updated the record.
- * @property int|null $deleted_by Foreign key to the user who soft deleted the record.
+ * @property int|null $created_by Foreign key to the user who created the record (handled by trait if applied here).
+ * @property int|null $updated_by Foreign key to the user who last updated the record (handled by trait if applied here).
+ * @property int|null $deleted_by Foreign key to the user who soft deleted the record (handled by trait if applied here).
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read \App\Models\User|null $createdBy
- * @property-read \App\Models\User|null $deletedBy
- * @property-read \App\Models\User|null $updatedBy
+ *
+ * @property-read \App\Models\User|null $createdBy Relation to the user who created the record (if trait adds this).
+ * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record (if trait adds this).
+ * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record (if trait adds this).
+ *
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog onlyTrashed()
@@ -58,9 +60,9 @@ class Changelog extends Model
     'version',
     'title',
     'description',
-    // 'created_by', // Handled by trait
-    // 'updated_by', // Handled by trait
-    // 'deleted_by', // Handled by trait
+    // 'created_by', // Handled by trait if applied here
+    // 'updated_by', // Handled by trait if applied here
+    // 'deleted_by', // Handled by trait if applied here
   ];
 
   /**
@@ -70,18 +72,18 @@ class Changelog extends Model
    * @var array<string, string>
    */
   protected $casts = [
-    'version' => 'string', // Explicitly cast version as string
-    'title' => 'string', // Explicitly cast title as string
+    'version'     => 'string', // Explicitly cast version as string
+    'title'       => 'string', // Explicitly cast title as string
     'description' => 'string', // Explicitly cast description as string
-    'created_at' => 'datetime', // Explicitly cast timestamps
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime', // Cast soft delete timestamp
+    'created_at'  => 'datetime', // Explicitly cast timestamps
+    'updated_at'  => 'datetime',
+    'deleted_at'  => 'datetime', // Cast soft delete timestamp
   ];
 
   // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
-  // public function createdBy(): BelongsTo;
-  // public function updatedBy(): BelongsTo;
-  // public function deletedBy(): BelongsTo;
+  // public function createdBy(): BelongsTo; // If trait adds this
+  // public function updatedBy(): BelongsTo; // If trait adds this
+  // public function deletedBy(): BelongsTo; // If trait adds this
 
   // No other specific relationships are typically needed for a simple changelog model.
 }
