@@ -20,7 +20,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\Holiday
- *
+ * 
  * Represents a holiday that can be associated with multiple centers.
  * Tracks holiday name, dates, notes, and links to centers via a pivot table.
  *
@@ -59,6 +59,7 @@ use App\Models\User; // For audit columns (handled by trait)
  * @method static \Illuminate\Database\Eloquent\Builder|Holiday whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Holiday withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Holiday withoutTrashed()
+ * @property-read int $duration_in_days
  * @mixin \Eloquent
  */
 class Holiday extends Model

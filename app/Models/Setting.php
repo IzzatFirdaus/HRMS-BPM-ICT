@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo for Cr
 
 /**
  * App\Models\Setting
- *
+ * 
  * Represents application-wide configuration settings, typically stored in a single database row.
  * Includes settings like SMS API credentials.
  *

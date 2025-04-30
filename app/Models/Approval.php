@@ -15,6 +15,50 @@ use App\Models\User; // Approval belongs to an officer (User)
 // No need to import Approvable models here, they are handled by the morphTo relationship
 
 
+/**
+ * 
+ *
+ * @property int $id
+ * @property string $approvable_type
+ * @property int $approvable_id
+ * @property int $officer_id
+ * @property string|null $stage
+ * @property string $status
+ * @property string|null $comments
+ * @property \Illuminate\Support\Carbon|null $approval_timestamp
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property int|null $created_by
+ * @property int|null $updated_by
+ * @property int|null $deleted_by
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read Model|\Eloquent $approvable
+ * @property-read string $stage_translated
+ * @property-read string $status_translated
+ * @property-read User $officer
+ * @method static \Database\Factories\ApprovalFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereApprovableId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereApprovableType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereApprovalTimestamp($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereComments($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereDeletedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereOfficerId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereStage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval whereUpdatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval withTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Approval withoutTrashed()
+ * @mixin \Eloquent
+ */
 class Approval extends Model
 {
   // Use the traits for factory, soft deletes, and audit columns

@@ -45,7 +45,7 @@ use App\Models\Approval;
 
 /**
  * App\Models\User
- *
+ * 
  * Represents a user account in the system, extending Laravel's built-in Authenticatable user.
  * Includes fields for user details, links to HRMS employee data, organizational structure (department, position, grade),
  * and relationships to various application/workflow records (email, loan applications, transactions, approvals).
@@ -82,7 +82,6 @@ use App\Models\Approval;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals Approvals made by the user (as an officer).
  * @property-read int|null $approvals_count
  * @property-read \App\Models\User|null $createdBy Relation to the user who created this record (if trait adds this).
@@ -119,7 +118,6 @@ use App\Models\Approval;
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \Laravel\Sanctum\PersonalAccessToken> $tokens API tokens belonging to the user (from HasApiTokens trait).
  * @property-read int|null $tokens_count
  * @property-read \App\Models\User|null $updatedBy The user who last updated this record (if trait adds this).
- *
  * @method static \Database\Factories\UserFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
@@ -159,6 +157,9 @@ use App\Models\Approval;
  * @method static \Illuminate\Database\Eloquent\Builder|User whereUserIdAssigned($value)
  * @method static \Illuminate\Database\Eloquent\Builder|User withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|User withoutTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|User whereMotacEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|User withoutPermission($permissions)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|User withoutRole($roles, $guard = null)
  * @mixin \Eloquent
  */
 class User extends Authenticatable

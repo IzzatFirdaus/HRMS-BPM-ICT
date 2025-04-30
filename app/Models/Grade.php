@@ -18,7 +18,7 @@ use App\Models\Employee; // Employee model has grade_id FK
 
 /**
  * App\Models\Grade
- *
+ * 
  * Represents an employee grade (e.g., Grade 41, Grade 44) and tracks if it's an approver grade.
  * Linked to User and Employee models.
  *
@@ -54,6 +54,8 @@ use App\Models\Employee; // Employee model has grade_id FK
  * @method static \Illuminate\Database\Eloquent\Builder|Grade whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Grade withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Grade withoutTrashed()
+ * @method static \Database\Factories\GradeFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Grade whereId($value)
  * @mixin \Eloquent
  */
 class Grade extends Model

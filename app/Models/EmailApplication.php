@@ -44,7 +44,6 @@ use App\Models\Approval; // EmailApplication has many Approvals (polymorphic)
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals
  * @property-read int|null $approvals_count
  * @property-read \App\Models\User|null $finalAssignedUser The user who was finally assigned the email address.
@@ -53,7 +52,6 @@ use App\Models\Approval; // EmailApplication has many Approvals (polymorphic)
  * @property-read \App\Models\User|null $createdBy Relation to the user who created the record.
  * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record.
  * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record.
- *
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication onlyTrashed()
@@ -81,6 +79,10 @@ use App\Models\Approval; // EmailApplication has many Approvals (polymorphic)
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication withoutTrashed()
+ * @property-read string $service_status_translated
+ * @property-read string $status_translated
+ * @method static \Database\Factories\EmailApplicationFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|EmailApplication whereUserId($value)
  * @mixin \Eloquent
  */
 class EmailApplication extends Model

@@ -20,7 +20,7 @@ use App\Models\User; // For officer relationships
 
 /**
  * App\Models\LoanTransaction
- *
+ * 
  * Represents a single transaction record within a loan application,
  * tracking the issue or return of a specific equipment item.
  *
@@ -76,6 +76,9 @@ use App\Models\User; // For officer relationships
  * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction withoutTrashed()
+ * @property-read string $status_translated
+ * @method static \Database\Factories\LoanTransactionFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|LoanTransaction whereId($value)
  * @mixin \Eloquent
  */
 class LoanTransaction extends Model

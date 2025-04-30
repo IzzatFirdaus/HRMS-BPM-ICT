@@ -17,7 +17,7 @@ use App\Models\User; // Import User model
 
 /**
  * App\Models\Notification
- *
+ * 
  * Represents a custom notification record for a user.
  * Stores notification data and read status. Can potentially support polymorphic notifications.
  *

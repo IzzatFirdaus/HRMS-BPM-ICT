@@ -19,7 +19,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\Fingerprint
- *
+ * 
  * Represents a daily attendance record for an employee, typically captured via a fingerprint or time clock system.
  * Includes check-in/out times, logs, and related information.
  *
@@ -64,6 +64,8 @@ use App\Models\User; // For audit columns (handled by trait)
  * @method static \Illuminate\Database\Eloquent\Builder|Fingerprint withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Fingerprint withoutTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Fingerprint filteredFingerprints(Builder $query, $selectedEmployeeId, $fromDate, $toDate, $isAbsence, $isOneFingerprint)
+ * @property int|null $device_id
+ * @method static Builder<static>|Fingerprint whereDeviceId($value)
  * @mixin \Eloquent
  */
 class Fingerprint extends Model

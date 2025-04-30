@@ -21,7 +21,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\Timeline
- *
+ * 
  * Represents a historical entry for an employee's assignment, tracking their position,
  * department, and center over a specific time period.
  *

@@ -29,7 +29,7 @@ use App\Models\Approval;            // LoanApplication has many Approvals (polym
 
 /**
  * App\Models\LoanApplication
- *
+ * 
  * Represents a loan application for ICT equipment.
  * Tracks the applicant, responsible officer, requested items, transactions, and workflow status.
  *
@@ -49,7 +49,6 @@ use App\Models\Approval;            // LoanApplication has many Approvals (polym
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals Approvals for the loan application.
  * @property-read int|null $approvals_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\LoanApplicationItem> $items Equipment items requested for the loan application.
@@ -61,7 +60,6 @@ use App\Models\Approval;            // LoanApplication has many Approvals (polym
  * @property-read \App\Models\User|null $createdBy Relation to the user who created the record.
  * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record.
  * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record.
- *
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication onlyTrashed()
@@ -84,6 +82,8 @@ use App\Models\Approval;            // LoanApplication has many Approvals (polym
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication whereUserId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplication withoutTrashed()
+ * @property-read string $status_translated
+ * @method static \Database\Factories\LoanApplicationFactory factory($count = null, $state = [])
  * @mixin \Eloquent
  */
 class LoanApplication extends Model

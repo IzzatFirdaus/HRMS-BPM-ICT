@@ -23,7 +23,7 @@ use App\Models\Employee; // Employee model has position_id FK
 
 /**
  * App\Models\Position
- *
+ * 
  * Represents an employee position or job title.
  * Linked to Grade, Timelines, Users, and Employees.
  *
@@ -65,6 +65,7 @@ use App\Models\Employee; // Employee model has position_id FK
  * @method static \Illuminate\Database\Eloquent\Builder|Position whereVacanciesCount($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Position withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Position withoutTrashed()
+ * @method static \Database\Factories\PositionFactory factory($count = null, $state = [])
  * @mixin \Eloquent
  */
 class Position extends Model // This model maps to the 'positions' table

@@ -27,7 +27,7 @@ use App\Models\User;         // For audit columns (handled by trait)
 
 /**
  * App\Models\Leave
- *
+ * 
  * Represents a type of leave (e.g., Annual Leave, Sick Leave).
  * Linked to individual employee leave applications through the `EmployeeLeave` model,
  * and indirectly to employees via `EmployeeLeave` which links to the `Employee` model.
@@ -46,7 +46,6 @@ use App\Models\User;         // For audit columns (handled by trait)
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- *
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Employee> $employees The employees who have taken this leave type (via pivot).
  * @property-read int|null $employees_count
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\EmployeeLeave> $employeeLeaveApplications Individual employee leave applications for this leave type (one-to-many).
@@ -54,9 +53,7 @@ use App\Models\User;         // For audit columns (handled by trait)
  * @property-read \App\Models\User|null $createdBy Relation to the user who created the record.
  * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record.
  * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record.
- *
  * @property-read string $name_with_discount_rate The name formatted with the discount rate (accessor).
- *
  * @method static \Illuminate\Database\Eloquent\Builder|Leave newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Leave newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Leave onlyTrashed()

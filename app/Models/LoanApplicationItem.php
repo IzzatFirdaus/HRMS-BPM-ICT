@@ -20,7 +20,7 @@ use App\Models\LoanTransaction; // For deriving issued quantity
 
 /**
  * App\Models\LoanApplicationItem
- *
+ * 
  * Represents a single item requested within a loan application.
  * Linked to a specific LoanApplication and a specific Equipment asset.
  *
@@ -60,6 +60,10 @@ use App\Models\LoanTransaction; // For deriving issued quantity
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplicationItem whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplicationItem withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanApplicationItem withoutTrashed()
+ * @property string $equipment_type
+ * @property-read int $issued_quantity
+ * @method static \Database\Factories\LoanApplicationItemFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|LoanApplicationItem whereEquipmentType($value)
  * @mixin \Eloquent
  */
 class LoanApplicationItem extends Model

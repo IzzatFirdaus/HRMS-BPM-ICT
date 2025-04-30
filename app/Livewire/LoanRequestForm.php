@@ -182,7 +182,7 @@ class LoanRequestForm extends Component
     if (!Auth::check()) {
       Log::warning('LoanRequestForm mounted for unauthenticated user.');
       session()->flash('error', __('You must be logged in to access the loan request form.'));
-      // *** Changed to global redirect() helper ***
+      // *** FIX: Changed to global redirect() helper ***
       return redirect()->route('login'); // Redirect to login if not authenticated
     }
 
@@ -245,7 +245,7 @@ class LoanRequestForm extends Component
         // You might choose a different message depending on desired behavior
         session()->flash('error', __('Anda tidak dibenarkan untuk mengedit permohonan ini.')); // Malay error message
         // Redirect away if not allowed to edit
-        // *** Changed to global redirect() helper ***
+        // *** FIX: Changed to global redirect() helper ***
         return redirect()->route('loan-applications.show', $loanApplication);
       }
 
@@ -258,7 +258,7 @@ class LoanRequestForm extends Component
       } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
         Log::warning('LoanRequestForm: User not authorized to edit application via policy.', ['user_id' => $user->id, 'application_id' => $loanApplication->id, 'exception' => $e]);
         session()->flash('error', __('Anda tidak mempunyai kebenaran untuk mengedit permohonan ini.')); // Malay error message
-        // *** Changed to global redirect() helper ***
+        // *** FIX: Changed to global redirect() helper ***
         return redirect()->route('loan-applications.show', $loanApplication);
       }
 
@@ -420,7 +420,7 @@ class LoanRequestForm extends Component
     // You might adjust this filter based on whether you want to save rows with only notes/quantity
     $itemsData = collect($validatedData['items'] ?? [])
       ->filter(
-        // *** Corrected array access syntax ***
+        // *** FIX: Corrected array access syntax ***
         fn($item) =>
         !empty($item['equipment_type']) || // Keep if equipment type is filled
           !empty($item['notes']) || // Keep if notes are filled
@@ -574,7 +574,7 @@ class LoanRequestForm extends Component
     } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
       Log::warning('LoanRequestForm: User not authorized to submit application.', ['user_id' => $user->id, 'application_id' => $application->id, 'exception' => $e]);
       session()->flash('error', __('Anda tidak mempunyai kebenaran untuk menghantar permohonan ini.')); // Malay error message
-      // *** Changed to global redirect() helper ***
+      // *** FIX: Changed to global redirect() helper ***
       return redirect()->route('loan-applications.show', $application); // Redirect if not authorized
     }
 
@@ -582,7 +582,7 @@ class LoanRequestForm extends Component
     if ($application->status !== 'draft') {
       Log::warning('LoanRequestForm: Attempted to submit non-draft application.', ['user_id' => $user->id, 'application_id' => $application->id, 'status' => $application->status]);
       session()->flash('error', __('Permohonan bukan dalam status draf dan tidak dapat dihantar.')); // Malay error message
-      // *** Changed to global redirect() helper ***
+      // *** FIX: Changed to global redirect() helper ***
       return redirect()->route('loan-applications.show', $application); // Redirect to the show page
     }
 
@@ -602,7 +602,7 @@ class LoanRequestForm extends Component
     // Prepare items data for saving/submitting (include 'id' for existing items)
     // Filter out items without equipment type as they are required for submission based on getSubmitRules()
     $itemsData = collect($validatedData['items'])
-      // *** Corrected array access syntax ***
+      // *** FIX: Corrected array access syntax ***
       ->filter(fn($item) => !empty($item['equipment_type']))
       ->values() // Re-index the array
       ->toArray();
@@ -626,7 +626,8 @@ class LoanRequestForm extends Component
 
       // Initiate the approval workflow (sets status to pending_support, sets confirmation timestamp)
       // Assumes initiateApprovalWorkflow method exists in your LoanApplicationService.
-      $application = $loanApplicationService->initiateApprovalWorkflow($application, $user); // Pass the submitting user
+      // *** FIX: Removed $user parameter if service method expects only application ***
+      $application = $loanApplicationService->initiateApprovalWorkflow($application); // Or keep $user if your service method signature includes it
 
 
       DB::commit(); // Commit the transaction
@@ -636,7 +637,7 @@ class LoanRequestForm extends Component
       // Redirect to the application's show page with a success message
       session()->flash('success', __('Permohonan pinjaman berjaya dihantar!')); // Malay success message
 
-      // *** Changed to global redirect() helper ***
+      // *** FIX: Changed to global redirect() helper ***
       return redirect()->route('loan-applications.show', $application); // Redirect to the show page
 
     } catch (ModelNotFoundException $e) {
@@ -648,7 +649,7 @@ class LoanRequestForm extends Component
       DB::rollBack(); // Rollback transaction on error
       Log::warning('LoanRequestForm: User not authorized during submission process.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
       session()->flash('error', __('Anda tidak mempunyai kebenaran untuk menghantar permohonan ini.')); // Malay error message
-      // *** Changed to global redirect() helper ***
+      // *** FIX: Changed to global redirect() helper ***
       return redirect()->route('loan-applications.show', $application); // Redirect if not authorized
     } catch (ValidationException $e) {
       // This catch block is primarily for exceptions thrown by the service's validation
@@ -658,7 +659,7 @@ class LoanRequestForm extends Component
       // Re-throw the exception so Livewire can display validation errors if needed
       // However, since we already validate with $this->validate() at the start,
       // catching ValidationException here might indicate validation logic in the service,
-      // or it could be safely removed if validation is only done via $this->validate().
+      // or it could be safely removed if service doesn't throw ValidationException.
       // For now, we re-throw, but consider removing this specific catch if validation is only done via $this->validate().
       throw $e; // Re-throw the exception
     } catch (\Exception $e) {
@@ -694,12 +695,14 @@ class LoanRequestForm extends Component
   //         $this->authorize('delete', $application); // Policy 'delete' should handle draft deletion authorization
   //     } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
   //         session()->flash('error', __('You are not authorized to delete this draft.'));
-  //         return redirect()->route('loan-applications.show', $application); // Changed to global redirect()
+  //         // *** FIX: Changed to global redirect() helper ***
+  //         return redirect()->route('loan-applications.show', $application);
   //     }
   //
   //      if ($application->status !== 'draft') {
   //           session()->flash('error', __('Application is not in draft status and cannot be deleted.'));
-  //           return redirect()->route('loan-applications.show', $application); // Changed to global redirect()
+  //           // *** FIX: Changed to global redirect() helper ***
+  //           return redirect()->route('loan-applications.show', $application);
   //      }
   //
   //     try {
@@ -707,7 +710,8 @@ class LoanRequestForm extends Component
   //
   //         if ($deleted) {
   //             session()->flash('success', __('Loan application draft deleted successfully!'));
-  //             return redirect()->route('loan-applications.index'); // Changed to global redirect()
+  //             // *** FIX: Changed to global redirect() helper ***
+  //             return redirect()->route('loan-applications.index');
   //         } else {
   //             session()->flash('error', __('Failed to delete loan application draft.'));
   //             return null;

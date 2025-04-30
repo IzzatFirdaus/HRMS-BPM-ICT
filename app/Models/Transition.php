@@ -18,7 +18,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\Transition
- *
+ * 
  * Represents a record of equipment being handed out to or returned by an employee.
  * Tracks the equipment, the employee, dates, document numbers, and notes.
  * This model replaces the functionality related to asset transitions.
@@ -62,6 +62,7 @@ use App\Models\User; // For audit columns (handled by trait)
  * @method static \Illuminate\Eloquent\Builder|Transition whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Transition withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Transition withoutTrashed()
+ * @method static \Database\Factories\TransitionFactory factory($count = null, $state = [])
  * @mixin \Eloquent
  */
 class Transition extends Model

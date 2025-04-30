@@ -18,6 +18,45 @@ use App\Models\Holiday; // Center belongs to many Holidays (via pivot)
 use App\Models\Employee; // Used in activeEmployees function
 
 
+/**
+ * 
+ *
+ * @property int $id
+ * @property string $name
+ * @property string|null $start_work_hour
+ * @property string|null $end_work_hour
+ * @property array<array-key, mixed> $weekends
+ * @property bool $is_active
+ * @property int|null $created_by
+ * @property int|null $updated_by
+ * @property int|null $deleted_by
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Holiday> $holidays
+ * @property-read int|null $holidays_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Timeline> $timelines
+ * @property-read int|null $timelines_count
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereDeletedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereEndWorkHour($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereIsActive($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereStartWorkHour($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereUpdatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center whereWeekends($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center withTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Center withoutTrashed()
+ * @mixin \Eloquent
+ */
 class Center extends Model
 {
   // Use the traits for factory, soft deletes, and audit columns

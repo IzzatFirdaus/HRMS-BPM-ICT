@@ -22,11 +22,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo for tr
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- *
  * @property-read \App\Models\User|null $createdBy Relation to the user who created the record (if trait adds this).
  * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record (if trait adds this).
  * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record (if trait adds this).
- *
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog onlyTrashed()

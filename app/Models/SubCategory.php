@@ -19,7 +19,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\SubCategory
- *
+ * 
  * Represents a subcategory within a hierarchical category structure.
  * Linked to a parent Category.
  *
