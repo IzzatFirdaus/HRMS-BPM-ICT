@@ -3,104 +3,156 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Models\User; // To get current user details or select responsible officer
-use App\Models\LoanApplication; // To create application records
-use App\Models\LoanApplicationItem; // To create related items
-use App\Services\LoanApplicationService; // Use the service for logic
-use Illuminate\Support\Facades\Auth; // Import Auth facade
-use Illuminate\Validation\Rule; // Import Rule for validation
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Trait for policy checks
-use Illuminate\Database\Eloquent\ModelNotFoundException; // Import ModelNotFoundException
-use Illuminate\Support\Str; // Import Str facade - FIX: Added this import
-
-// Import models for applicant details display
-use App\Models\Position; // Assuming Position model exists for user relationship
-use App\Models\Department; // Assuming Department model exists for user relationship
-use App\Models\Grade; // Assuming Grade model exists for user relationship
-
+use App\Models\User;
+use App\Models\LoanApplication;
+use App\Models\LoanApplicationItem;
+use App\Services\LoanApplicationService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use App\Models\Position;
+use App\Models\Department;
+use App\Models\Grade;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class LoanRequestForm extends Component
 {
-  use AuthorizesRequests; // Use the AuthorizesRequests trait
+  use AuthorizesRequests;
 
   // Properties for Loan Details (Bahagian 1 & 2)
-  public $purpose = ''; // Tujuan Permohonan
-  public $location = ''; // Lokasi
-  public $loan_start_date; // Tarikh Pinjaman
-  public $loan_end_date; // Tarikh Dijangka Pulang
+  public string $purpose = ''; // Tujuan Permohonan
+  public string $location = ''; // Lokasi
+  public ?string $loan_start_date = null; // Tarikh Pinjaman
+  public ?string $loan_end_date = null; // Tarikh Dijangka Pulang
 
   // Properties for Responsible Officer (Bahagian 2)
-  public $is_applicant_responsible = true; // Sila tandakan jika Pemohon adalah Pegawai Bertanggungjawab
-  public $responsible_officer_id; // Pegawai Bertanggungjawab (if different from applicant)
-  public $responsibleOfficers = []; // For dropdown (list of potential responsible officers)
+  public bool $is_applicant_responsible = true; // Sila tandakan jika Pemohon adalah Pegawai Bertanggungjawab
+  public ?int $responsible_officer_id = null; // Pegawai Bertanggungjawab (if different from applicant)
+  public Collection $responsibleOfficers; // For dropdown (list of potential responsible officers)
 
   // Properties for Equipment Items (Bahagian 3)
-  public $items = [
+  public array $items = [
     ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''],
   ]; // Array to hold multiple item requests (Jenis Peralatan, Kuantiti, Catatan)
 
   // Properties for Confirmation (Bahagian 4)
-  public $applicant_confirmation = false; // Pengesahan Pemohon checkbox
+  public bool $applicant_confirmation = false; // Pengesahan Pemohon checkbox
 
   // Optional: If updating an existing draft application
-  public $applicationId;
+  public ?int $applicationId = null; // Property for application ID
   protected ?LoanApplication $loanApplication = null; // Type hint and initialize as nullable
 
   // Applicant's details displayed from User model (Bahagian 1 - Not form fields)
-  public $applicantName; // Nama Penuh
-  public $applicantJobTitleGrade; // Jawatan & Gred (Combined for display)
-  public $applicantDivisionUnit; // Bahagian/Unit
-  public $applicantPhone; // No. Telefon
+  public ?string $applicantName = null; // Nama Penuh
+  public ?string $applicantJobTitleGrade = null; // Jawatan & Gred (Combined for display)
+  public ?string $applicantDivisionUnit = null; // Bahagian/Unit
+  public ?string $applicantPhone = null; // No. Telefon
 
+  /**
+   * Real-time validation rules.
+   * Only validates properties touched by the user or necessary for basic UI state.
+   * Full validation happens on save/submit.
+   *
+   * @return array
+   */
+  protected function realtimeRules(): array
+  {
+    return [
+      'purpose' => 'nullable|string|max:500',
+      'location' => 'nullable|string|max:255',
+      'loan_start_date' => 'nullable|date|after_or_equal:today',
+      'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
+      'is_applicant_responsible' => 'boolean',
+      // Conditional required based on checkbox for real-time validation
+      'responsible_officer_id' => [Rule::requiredIf(!$this->is_applicant_responsible && $this->responsible_officer_id !== null), 'nullable', 'exists:users,id'], // Added check for not null responsible_officer_id when applicant is not responsible
+      'items' => 'nullable|array', // Validate the array structure itself
+      'items.*.equipment_type' => 'nullable|string|max:255',
+      // Quantity only needs basic real-time validation; min:1 check is more critical on submit
+      'items.*.quantity_requested' => 'nullable|integer|min:1', // Still check minimum if value is entered
+      'items.*.notes' => 'nullable|string|max:500',
+      // Confirmation is typically validated on submit, not real-time
+    ];
+  }
 
-  // No static $rules property or getRules() method, we will use validate() calls in methods
+  /**
+   * Get validation rules for saving a draft.
+   * Fields are generally nullable, allowing partial completion.
+   *
+   * @return array
+   */
+  protected function getDraftRules(): array
+  {
+    return [
+      'purpose' => 'nullable|string|max:500',
+      'location' => 'nullable|string|max:255',
+      'loan_start_date' => 'nullable|date|after_or_equal:today',
+      'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
+      'is_applicant_responsible' => 'boolean',
+      // Conditional required based on checkbox for draft save
+      'responsible_officer_id' => [Rule::requiredIf(!$this->is_applicant_responsible && $this->responsible_officer_id !== null), 'nullable', 'exists:users,id'], // Conditional required if checkbox is false AND a value has been selected
+      'items' => 'nullable|array',
+      'items.*.equipment_type' => 'nullable|string|max:255',
+      // For draft, quantity can be nullable if type is empty, but if a number is entered, it must be >= 1
+      'items.*.quantity_requested' => 'nullable|integer|min:1',
+      'items.*.notes' => 'nullable|string|max:500',
+      'applicant_confirmation' => 'boolean', // Optional for draft
+    ];
+  }
 
+  /**
+   * Get validation rules for final submission.
+   * Fields required for processing are mandatory.
+   *
+   * @return array
+   */
+  protected function getSubmitRules(): array
+  {
+    // Define base rules for submitted items
+    $itemRules = [
+      'equipment_type' => 'required|string|max:255', // Equipment type required on submit
+      'quantity_requested' => 'required|integer|min:1', // Quantity required and min 1 on submit
+      'notes' => 'nullable|string|max:500',
+    ];
+
+    return [
+      'purpose' => 'required|string|max:500', // Purpose required for submission
+      'location' => 'required|string|max:255', // Location required for submission
+      'loan_start_date' => 'required|date|after_or_equal:today',
+      'loan_end_date' => 'required|date|after_or_equal:loan_start_date',
+      'is_applicant_responsible' => 'boolean',
+      // Conditional required based on checkbox for submission
+      'responsible_officer_id' => [Rule::requiredIf(!$this->is_applicant_responsible), 'nullable', 'exists:users,id'], // Required if checkbox is false
+      'items' => 'required|array|min:1', // At least one item row required
+      // Apply the base item rules to each item in the array
+      'items.*.equipment_type' => $itemRules['equipment_type'],
+      'items.*.quantity_requested' => $itemRules['quantity_requested'],
+      'items.*.notes' => $itemRules['notes'],
+      'applicant_confirmation' => 'accepted', // Confirmation checkbox must be ticked
+    ];
+  }
 
   /**
    * Real-time validation.
    *
    * @param string $propertyName
+   * @return void
    */
-  public function updated($propertyName)
+  public function updated(string $propertyName): void
   {
-    // Define validation rules for real-time checks.
-    // These can be a subset of the full submission rules.
-    // Ensure fields required for draft are validated in real-time.
-    $realtimeRules = [
-      'purpose' => 'nullable|string|max:500', // Can be null for draft
-      'location' => 'nullable|string|max:255', // Can be null for draft
-      'loan_start_date' => 'nullable|date|after_or_equal:today',
-      'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
-      'is_applicant_responsible' => 'boolean',
-      'responsible_officer_id' => Rule::requiredIf(!$this->is_applicant_responsible) . '|nullable|exists:users,id', // Conditional required based on checkbox
-      'items' => 'nullable|array', // Items array can be empty for draft
-      'items.*.equipment_type' => 'nullable|string|max:255', // Can be null for draft item
-      'items.*.quantity_requested' => 'nullable|integer|min:1', // Can be null/0 for draft item
-      'items.*.notes' => 'nullable|string|max:500', // Can be null for draft item
-      // applicant_confirmation is typically validated on submit, not real-time
-    ];
-
-    // Adjust rules for nested items if the item row is empty or partially filled
-    if (Str::startsWith($propertyName, 'items.')) { // Uses Str facade
-      $index = (int) explode('.', $propertyName)[1];
-      // If equipment_type is null, quantity and notes are not strictly required for draft
-      if (empty($this->items[$index]['equipment_type'])) {
-        $realtimeRules[$propertyName] = 'nullable|string|max:255'; // Equipment type can be null in draft
-        $realtimeRules['items.' . $index . '.quantity_requested'] = 'nullable|integer|min:1';
-        $realtimeRules['items.' . $index . '.notes'] = 'nullable|string|max:500';
-      } else {
-        // If equipment_type is filled, quantity becomes required
-        $realtimeRules['items.' . $index . '.quantity_requested'] = 'required|integer|min:1';
-      }
-    }
-
-
+    // Use the defined realtime rules
     try {
-      $this->validateOnly($propertyName, $realtimeRules);
-    } catch (\Illuminate\Validation\ValidationException $e) {
+      $this->validateOnly($propertyName, $this->realtimeRules());
+    } catch (ValidationException $e) {
       // Keep existing errors for other properties
       $this->setErrorBag($this->getErrorBag()->merge($e->errors()));
       // Do not re-throw to prevent halting real-time updates
+      Log::debug('LoanRequestForm: Real-time validation failed', ['property' => $propertyName, 'errors' => $e->errors()]);
     }
   }
 
@@ -108,85 +160,101 @@ class LoanRequestForm extends Component
    * Mount the component.
    *
    * @param LoanApplication|null $loanApplication Optional existing application for editing.
+   * @return \Illuminate\Http\RedirectResponse|null
    */
-  public function mount(?LoanApplication $loanApplication = null)
+  public function mount(?LoanApplication $loanApplication = null): RedirectResponse|null
   {
-    // Ensure user is authenticated to access the form
     if (!Auth::check()) {
-      return $this->redirect(route('login')); // Redirect to login if not authenticated
+      Log::warning('LoanRequestForm mounted for unauthenticated user.');
+      session()->flash('error', __('You must be logged in to access the loan request form.'));
+      return $this->redirect(route('login'));
     }
 
-    $user = Auth::user(); // The authenticated user is the applicant
+    $user = Auth::user();
 
-    $this->loanApplication = $loanApplication;
+    // Initialize properties
+    $this->responsibleOfficers = collect();
+    $this->items = [['equipment_type' => '', 'quantity_requested' => 1, 'notes' => '']];
+    $this->applicant_confirmation = false;
+    $this->applicationId = null;
+    $this->loanApplication = null; // Explicitly nullify for new form
+    $this->purpose = '';
+    $this->location = '';
+    $this->loan_start_date = now()->format('Y-m-d'); // Default start date to today
+    $this->loan_end_date = now()->addWeek()->format('Y-m-d'); // Default end date to one week from today
+    $this->is_applicant_responsible = true; // Default responsible officer to applicant
+    $this->responsible_officer_id = null; // Applicant is responsible, so ID is null
 
-    // Load users eligible to be responsible officers (e.g., all users or users with specific roles/grades)
-    // Keep as User::all() for simplicity, though filtering might be needed based on requirements.
-    $this->responsibleOfficers = User::orderBy('name')->get(); // Order by name for display
+    // Load users eligible to be responsible officers
+    try {
+      // Consider scoping this query if not all users should be selectable
+      $this->responsibleOfficers = User::orderBy('name')->get();
+    } catch (\Exception $e) {
+      Log::error('LoanRequestForm: Error fetching responsible officers.', ['user_id' => $user->id, 'exception' => $e]);
+      session()->flash('error', __('Could not load responsible officers. Please try again later.'));
+      $this->responsibleOfficers = collect(); // Set to empty collection on error
+    }
 
-
-    // Populate applicant's details from the authenticated user model for display
-    $this->applicantName = $user->full_name ?? $user->name; // Adjust based on your User model attributes
-    $this->applicantJobTitleGrade = ($user->position->name ?? 'N/A') . ' & ' . ($user->grade->name ?? 'N/A'); // Assuming position and grade relationships
-    $this->applicantDivisionUnit = $user->department->name ?? 'N/A'; // Assuming department relationship
-    $this->applicantPhone = $user->mobile_number; // Assuming mobile_number attribute
-
+    // Populate applicant's details for display
+    $this->applicantName = $user->full_name ?? $user->name ?? __('N/A');
+    // Use null-safe operator '?->' and nullish coalescing '??' for robustness
+    $this->applicantJobTitleGrade = ($user->position?->name ?? __('N/A')) . ' & ' . ($user->grade?->name ?? __('N/A'));
+    $this->applicantDivisionUnit = $user->department?->name ?? __('N/A');
+    $this->applicantPhone = $user->mobile_number ?? __('N/A');
 
     // If editing an existing application, populate form fields
     if ($loanApplication) {
-      // Authorize if the user can view/update this specific application (should be a draft owned by the user)
-      $this->authorize('view', $loanApplication); // Check policy for viewing
-      $this->authorize('update', $loanApplication); // Check policy for updating (should only be allowed for 'draft')
+      // Ensure the application exists and is a draft owned by the user
+      if ($loanApplication->user_id !== $user->id || $loanApplication->status !== 'draft') {
+        Log::warning('LoanRequestForm: Attempted to mount non-owned or non-draft application for editing.', ['user_id' => $user->id, 'application_id' => $loanApplication->id, 'status' => $loanApplication->status]);
+        // You might choose a different message depending on desired behavior
+        session()->flash('error', __('Cannot edit this application.'));
+        // Redirect away if not allowed to edit
+        return $this->redirect(route('loan-applications.show', $loanApplication));
+      }
 
-
-      // Prevent editing if the application is not in 'draft' status
-      if ($loanApplication->status !== 'draft') {
-        // If it's not a draft, redirect to the show page or an error page
-        // You cannot edit an application that is already submitted or processed.
-        session()->flash('error', 'Cannot edit application as it is not in draft status.');
+      // Authorize viewing/updating (policy check is still good practice)
+      try {
+        $this->authorize('view', $loanApplication);
+        $this->authorize('update', $loanApplication); // Policy should enforce draft status and ownership
+      } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+        Log::warning('LoanRequestForm: User not authorized to edit application via policy.', ['user_id' => $user->id, 'application_id' => $loanApplication->id]);
+        session()->flash('error', __('You are not authorized to edit this application.'));
         return $this->redirect(route('loan-applications.show', $loanApplication));
       }
 
       // Populate properties from the existing application
       $this->applicationId = $loanApplication->id;
-      $this->purpose = $loanApplication->purpose;
-      $this->location = $loanApplication->location;
-      // Ensure dates are formatted correctly (YYYY-MM-DD) for HTML date input
+      $this->loanApplication = $loanApplication; // Store the model instance
+      $this->purpose = $loanApplication->purpose ?? '';
+      $this->location = $loanApplication->location ?? '';
       $this->loan_start_date = $loanApplication->loan_start_date ? $loanApplication->loan_start_date->format('Y-m-d') : null;
       $this->loan_end_date = $loanApplication->loan_end_date ? $loanApplication->loan_end_date->format('Y-m-d') : null;
 
       $this->responsible_officer_id = $loanApplication->responsible_officer_id;
-      // Determine is_applicant_responsible checkbox state based on responsible_officer_id
+      // Determine is_applicant_responsible checkbox state
       $this->is_applicant_responsible = is_null($loanApplication->responsible_officer_id);
 
-      // Load existing items and convert collection to array for Livewire binding
-      // Ensure item data structure matches the initial $items array structure
+      // Load existing items
       $this->items = $loanApplication->items->map(function ($item) {
         return [
-          'id' => $item->id ?? null, // Include item ID if exists (for potential update/delete)
-          'equipment_type' => $item->equipment_type,
-          'quantity_requested' => $item->quantity_requested,
-          'notes' => $item->notes,
+          'id' => $item->id, // Include item ID for updates
+          'equipment_type' => $item->equipment_type ?? '',
+          'quantity_requested' => $item->quantity_requested ?? 1,
+          'notes' => $item->notes ?? '',
         ];
       })->toArray();
 
-      // If no items are loaded (e.g., new draft), add a default empty row
+      // If no items were loaded (e.g., empty draft), add a default empty row
       if (empty($this->items)) {
         $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
       }
 
-
-      // Determine applicant_confirmation checkbox state based on timestamp
-      $this->applicant_confirmation = $loanApplication->applicant_confirmation_timestamp !== null;
-    } else {
-      // For new applications, set default values if any
-      $this->loan_start_date = now()->format('Y-m-d'); // Default start date to today
-      $this->loan_end_date = now()->addWeek()->format('Y-m-d'); // Default end date to one week from today
-
-      // Default responsible officer to applicant
-      $this->is_applicant_responsible = true;
-      $this->responsible_officer_id = null; // Applicant is responsible, so ID is null
+      // Confirmation state is not loaded from timestamp for drafting, user needs to confirm again on submit
+      // $this->applicant_confirmation = $loanApplication->applicant_confirmation_timestamp !== null; // Removed this line as confirmation is for submission
     }
+
+    return null; // Explicitly return null if no redirect happens
   }
 
   /**
@@ -194,13 +262,11 @@ class LoanRequestForm extends Component
    *
    * @return \Illuminate\View\View
    */
-  public function render()
+  public function render(): View
   {
-    // Pass data to the view
     return view('livewire.loan-request-form', [
-      'responsibleOfficers' => $this->responsibleOfficers, // List for responsible officer dropdown
-      'loanApplication' => $this->loanApplication, // Pass the application instance if editing
-      // Pass applicant display details to the view
+      'responsibleOfficers' => $this->responsibleOfficers,
+      'loanApplication' => $this->loanApplication,
       'applicantName' => $this->applicantName,
       'applicantJobTitleGrade' => $this->applicantJobTitleGrade,
       'applicantDivisionUnit' => $this->applicantDivisionUnit,
@@ -213,17 +279,10 @@ class LoanRequestForm extends Component
    *
    * @return void
    */
-  public function addItem()
+  public function addItem(): void
   {
-    // Ensure there's at least one item before adding a new empty one if deleting empties is allowed
-    // if (count($this->items) > 0 && empty(array_filter($this->items[count($this->items) - 1], fn($value) => $value !== '' && $value !== null))) {
-    //     // Do not add if the last row is completely empty
-    //     return;
-    // }
+    // Add a new default item row
     $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
-
-    // Optional: Re-validate the items list in real-time after adding
-    // $this->validate(['items' => $this->getValidationRules()['items']]);
   }
 
   /**
@@ -232,18 +291,17 @@ class LoanRequestForm extends Component
    * @param int $index The index of the item to remove.
    * @return void
    */
-  public function removeItem($index)
+  public function removeItem(int $index): void
   {
-    unset($this->items[$index]);
-    $this->items = array_values($this->items); // Re-index the array
+    if (isset($this->items[$index])) {
+      unset($this->items[$index]);
+      $this->items = array_values($this->items); // Re-index the array
 
-    // Ensure there's always at least one item row, even if empty, for UI
-    if (empty($this->items)) {
-      $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
+      // Ensure there's always at least one item row for UI
+      if (empty($this->items)) {
+        $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
+      }
     }
-
-    // Optional: Re-validate the items list in real-time after removing
-    // $this->validate(['items' => $this->getValidationRules()['items']]);
   }
 
   /**
@@ -252,232 +310,208 @@ class LoanRequestForm extends Component
    * @param LoanApplicationService $loanApplicationService
    * @return void
    */
-  public function saveAsDraft(LoanApplicationService $loanApplicationService)
+  public function saveAsDraft(LoanApplicationService $loanApplicationService): void
   {
-    // Ensure user is authenticated
     if (!Auth::check()) {
-      session()->flash('error', 'You must be logged in to save a draft.');
+      Log::warning('LoanRequestForm: Attempted to save draft for unauthenticated user.');
+      session()->flash('error', __('You must be logged in to save a draft.'));
       return;
     }
     $user = Auth::user();
 
-    // 1. Define validation rules for saving a draft.
-    // These are typically less strict than submission rules.
-    $draftRules = [
-      'purpose' => 'nullable|string|max:500', // Purpose optional for draft
-      'location' => 'nullable|string|max:255', // Location optional for draft
-      'loan_start_date' => 'nullable|date|after_or_equal:today',
-      'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
-      'is_applicant_responsible' => 'boolean',
-      'responsible_officer_id' => Rule::requiredIf(!$this->is_applicant_responsible) . '|nullable|exists:users,id',
-      'items' => 'nullable|array', // Items array optional for draft
-      'items.*.equipment_type' => 'nullable|string|max:255',
-      'items.*.quantity_requested' => 'nullable|integer|min:1', // Min 1 if type is present
-      'items.*.notes' => 'nullable|string|max:500',
-      'applicant_confirmation' => 'boolean', // Confirmation optional for draft
-    ];
-
-    // 2. Validate the form data against draft rules
+    // 1. Validate the form data against draft rules
     try {
-      // Conditional validation check for item quantities if type is filled
-      $validatedData = $this->validate($draftRules);
-      foreach ($this->items as $index => $item) {
-        if (!empty($item['equipment_type'])) {
-          $this->validateOnly('items.' . $index . '.quantity_requested', ['items.' . $index . '.quantity_requested' => 'required|integer|min:1']);
-        }
-      }
-      // Re-validate all after specific checks
-      $validatedData = $this->validate($draftRules);
-    } catch (\Illuminate\Validation\ValidationException $e) {
+      // Use the dedicated draft rules method
+      $validatedData = $this->validate($this->getDraftRules());
+    } catch (ValidationException $e) {
       $this->setErrorBag($e->errors());
-      session()->flash('error', 'Please fix the errors in the form.');
+      Log::info('LoanRequestForm: Draft validation failed.', ['user_id' => $user->id, 'errors' => $e->errors()]);
+      session()->flash('error', __('Please fix the errors in the form.'));
       return;
     }
 
-
-    // Determine responsible officer ID
-    $responsibleOfficerId = $this->is_applicant_responsible ? null : ($validatedData['responsible_officer_id'] ?? null); // Use validated data
-
+    // Determine responsible officer ID based on checkbox state
+    $responsibleOfficerId = $validatedData['is_applicant_responsible'] ? null : ($validatedData['responsible_officer_id'] ?? null);
 
     $applicationData = [
       'user_id' => $user->id,
-      'responsible_officer_id' => $responsibleOfficerId, // Use determined ID
+      'responsible_officer_id' => $responsibleOfficerId,
       'purpose' => $validatedData['purpose'] ?? null,
       'location' => $validatedData['location'] ?? null,
       'loan_start_date' => $validatedData['loan_start_date'] ?? null,
       'loan_end_date' => $validatedData['loan_end_date'] ?? null,
-      'status' => 'draft', // Set initial status to draft
-      'applicant_confirmation_timestamp' => $this->applicant_confirmation ? now() : null, // Save confirmation state if checked
+      'status' => 'draft', // Ensure status is always draft for saveAsDraft
+      // applicant_confirmation_timestamp is NOT set when saving draft
     ];
 
-    // Filter out empty item rows if needed for saving draft
+    // Filter out item rows that are completely empty for draft
+    // You might adjust this filter based on whether you want to save rows with only notes/quantity
     $itemsData = collect($validatedData['items'] ?? [])
-      ->filter(fn($item) => !empty($item['equipment_type']) || !empty($item['notes']) || ($item['quantity_requested'] ?? 0) > 0)
-      ->values()
+      ->filter(
+        fn($item) =>
+        !empty($item['equipment_type']) ||
+          !empty($item['notes']) ||
+          ($item['quantity_requested'] ?? 0) > 0
+      )
+      ->values() // Re-index the array
       ->toArray();
 
+    try {
+      if ($this->applicationId) {
+        // If applicationId exists, update the existing draft application
+        // Find the application instance (already checked in mount, but good to be safe)
+        $application = $this->loanApplication ?? LoanApplication::where('id', $this->applicationId)->firstOrFail();
 
-    if ($this->applicationId) {
-      // If applicationId exists, update the existing application (which must be a draft)
-      try {
-        $application = LoanApplication::where('id', $this->applicationId)->firstOrFail();
-      } catch (ModelNotFoundException $e) {
-        session()->flash('error', 'Draft application not found.');
-        return;
+        // Policy check should ensure it's the user's draft
+        $this->authorize('update', $application);
+
+        // Double-check draft status
+        if ($application->status !== 'draft') {
+          Log::warning('LoanRequestForm: Attempted to update non-draft application via saveAsDraft.', ['user_id' => $user->id, 'application_id' => $application->id, 'status' => $application->status]);
+          session()->flash('error', __('Cannot save draft as the application status is no longer draft.'));
+          return; // Or redirect
+        }
+
+        // Use service method to update the draft application and its items
+        $application = $loanApplicationService->updateApplication($application, $applicationData, $itemsData);
+        session()->flash('success', __('Loan request draft updated successfully!'));
+      } else {
+        // If no applicationId, create a new draft application
+        $this->authorize('create', LoanApplication::class); // Authorize creation
+
+        // Use service method to create the application and its items
+        $application = $loanApplicationService->createApplication($user, $applicationData, $itemsData);
+
+        // Store the new application ID and instance
+        $this->applicationId = $application->id;
+        $this->loanApplication = $application;
+        session()->flash('success', __('Loan request draft saved successfully!'));
       }
 
+      // Optional: Emit an event if needed (e.g., to notify other parts of the UI)
+      // $this->dispatch('draftSaved', $application->id);
 
-      // Authorize if the user can update this application (must be a draft owned by the user)
-      $this->authorize('update', $application);
-
-      // Check if the application is indeed in 'draft' status before updating
-      if ($application->status !== 'draft') {
-        session()->flash('error', 'Cannot update application as it is not in draft status.');
-        // Redirect to the show page as it's already processed
-        return $this->redirect(route('loan-applications.show', $application));
-      }
-
-      // Use service method to update the draft application and its items
-      // Ensure updateApplication method exists in LoanApplicationService
-      $application = $loanApplicationService->updateApplication($application, $applicationData, $itemsData);
-
-      session()->flash('message', 'Loan request draft updated successfully!');
-    } else {
-      // If no applicationId, create a new application record with status 'draft'
-      // Authorize if the user can create an application
-      $this->authorize('create', LoanApplication::class);
-
-      // Use service method to create the application and its items
-      // Ensure createApplication method exists in LoanApplicationService and accepts these arguments
-      $application = $loanApplicationService->createApplication($user, $applicationData, $itemsData);
-
-      // Store the new application ID to allow future updates/submission
-      $this->applicationId = $application->id;
-      $this->loanApplication = $application; // Update the internal property as well
-
-      session()->flash('message', 'Loan request draft saved successfully!');
+      // Explicit return for void function
+      return;
+    } catch (ModelNotFoundException $e) {
+      Log::error('LoanRequestForm: Draft application not found during save.', ['user_id' => $user->id, 'application_id' => $this->applicationId, 'exception' => $e]);
+      session()->flash('error', __('Draft application not found.'));
+    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+      Log::warning('LoanRequestForm: User not authorized during saveAsDraft.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
+      session()->flash('error', __('You are not authorized to perform this action.'));
+    } catch (\Exception $e) {
+      Log::error('LoanRequestForm: Failed to save draft application.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
+      session()->flash('error', __('An error occurred while saving the draft.'));
     }
 
-    // Keep the user on the form and display the flash message
+    // Keep the user on the form
+    return; // Explicit return for void function even in catch blocks
   }
-
 
   /**
    * Submit the application form for approval.
    * This transitions a draft application to 'pending_support' status.
    *
    * @param LoanApplicationService $loanApplicationService
-   * @return \Illuminate\Routing\Redirector|\Illuminate\Http\RedirectResponse|void
+   * @return \Illuminate\Http\RedirectResponse|null
    */
-  public function submitApplication(LoanApplicationService $loanApplicationService)
+  public function submitApplication(LoanApplicationService $loanApplicationService): RedirectResponse|null
   {
-    // Ensure user is authenticated
     if (!Auth::check()) {
-      session()->flash('error', 'You must be logged in to submit an application.');
-      return;
+      Log::warning('LoanRequestForm: Attempted to submit application for unauthenticated user.');
+      session()->flash('error', __('You must be logged in to submit an application.'));
+      return null;
     }
     $user = Auth::user();
 
-    // 1. Define validation rules for final submission.
-    // These rules are typically more strict and include required fields like purpose, responsible officer, and confirmation.
-    $submitRules = [
-      'purpose' => 'required|string|max:500', // Purpose is required for submission
-      'location' => 'required|string|max:255', // Location is required for submission
-      'loan_start_date' => 'required|date|after_or_equal:today',
-      'loan_end_date' => 'required|date|after_or_equal:loan_start_date',
-      'is_applicant_responsible' => 'boolean',
-      'responsible_officer_id' => Rule::requiredIf(!$this->is_applicant_responsible) . '|nullable|exists:users,id', // Conditional required
-      'items' => 'required|array|min:1', // At least one item is required
-      'items.*.equipment_type' => 'required|string|max:255', // Equipment type required for submitted items
-      'items.*.quantity_requested' => 'required|integer|min:1', // Quantity required and min 1 for submitted items
-      'items.*.notes' => 'nullable|string|max:500',
-      'applicant_confirmation' => 'accepted', // Confirmation checkbox must be ticked
-    ];
-
-    // 2. Validate the form data against submission rules
+    // 1. Validate the form data against submission rules
     try {
-      $validatedData = $this->validate($submitRules);
-    } catch (\Illuminate\Validation\ValidationException $e) {
+      // Use the dedicated submit rules method
+      $validatedData = $this->validate($this->getSubmitRules());
+    } catch (ValidationException $e) {
       $this->setErrorBag($e->errors());
-      session()->flash('error', 'Please fix the errors in the form before submitting.');
-      return;
+      Log::info('LoanRequestForm: Submission validation failed.', ['user_id' => $user->id, 'errors' => $e->errors()]);
+      session()->flash('error', __('Please fix the errors in the form before submitting.'));
+      return null;
     }
-
 
     // Ensure we have an application ID (submission requires a saved draft)
     if (!$this->applicationId) {
-      // This should not happen if the form logic/UI is correct (submit button only visible if draft exists)
-      session()->flash('error', 'Cannot submit. Please save as draft first.');
-      return; // Stop submission
+      Log::error('LoanRequestForm: Attempted to submit application without existing draft ID.', ['user_id' => $user->id]);
+      session()->flash('error', __('Cannot submit. Please save as draft first.'));
+      return null;
     }
 
     // Find the existing draft application
     try {
-      $application = LoanApplication::where('id', $this->applicationId)->firstOrFail();
+      $application = $this->loanApplication ?? LoanApplication::where('id', $this->applicationId)->firstOrFail();
     } catch (ModelNotFoundException $e) {
-      session()->flash('error', 'Draft application not found.');
-      return;
+      Log::error('LoanRequestForm: Draft application not found for submission.', ['user_id' => $user->id, 'application_id' => $this->applicationId, 'exception' => $e]);
+      session()->flash('error', __('Draft application not found.'));
+      return null;
     }
 
-
-    // Authorize if the user can update/submit this application (must be a draft owned by the user)
-    $this->authorize('update', $application); // Check policy for updating/submitting
+    // Authorize submission (should check policy for updating/submitting)
+    try {
+      // Policy should enforce draft status and ownership for submission
+      $this->authorize('update', $application);
+    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+      Log::warning('LoanRequestForm: User not authorized to submit application.', ['user_id' => $user->id, 'application_id' => $application->id]);
+      session()->flash('error', __('You are not authorized to submit this application.'));
+      return $this->redirect(route('loan-applications.show', $application)); // Redirect if not authorized
+    }
 
     // Double-check that the application is indeed in 'draft' status before submitting
     if ($application->status !== 'draft') {
-      session()->flash('error', 'Application is not in draft status and cannot be submitted.');
-      // Redirect to the show page as it's already processed
-      return $this->redirect(route('loan-applications.show', $application));
+      Log::warning('LoanRequestForm: Attempted to submit non-draft application.', ['user_id' => $user->id, 'application_id' => $application->id, 'status' => $application->status]);
+      session()->flash('error', __('Application is not in draft status and cannot be submitted.'));
+      return $this->redirect(route('loan-applications.show', $application)); // Redirect to the show page
     }
 
-    // Determine responsible officer ID for saving
-    $responsibleOfficerId = $this->is_applicant_responsible ? null : $validatedData['responsible_officer_id'];
+    // Determine responsible officer ID
+    $responsibleOfficerId = $validatedData['is_applicant_responsible'] ? null : $validatedData['responsible_officer_id'];
 
-
-    // Prepare application data for saving/submitting
+    // Prepare application data for updating and submitting
     $applicationData = [
-      'responsible_officer_id' => $responsibleOfficerId, // Use determined ID
+      'responsible_officer_id' => $responsibleOfficerId,
       'purpose' => $validatedData['purpose'],
       'location' => $validatedData['location'],
       'loan_start_date' => $validatedData['loan_start_date'],
       'loan_end_date' => $validatedData['loan_end_date'],
-      'applicant_confirmation_timestamp' => now(), // Set submission timestamp
+      // applicant_confirmation_timestamp is set by the service method initiateApprovalWorkflow
+      // 'status' is also set by initiateApprovalWorkflow
     ];
 
     // Prepare items data for saving/submitting
-    // Filter out any completely empty rows if add/remove logic allows them
+    // Filter out items without equipment type as they are required for submission
     $itemsData = collect($validatedData['items'])
-      ->filter(fn($item) => !empty($item['equipment_type'])) // Require equipment type for submission
+      ->filter(fn($item) => !empty($item['equipment_type']))
       ->values()
       ->toArray();
 
     // Ensure items data is not empty after filtering
     if (empty($itemsData)) {
-      session()->flash('error', 'Please add at least one equipment item to the application.');
-      $this->addError('items', 'At least one equipment item is required.');
-      return;
+      Log::warning('LoanRequestForm: Attempted to submit application with no items after filtering.', ['user_id' => $user->id, 'application_id' => $application->id]);
+      session()->flash('error', __('Please add at least one equipment item to the application.'));
+      $this->addError('items', __('At least one equipment item is required.'));
+      return null;
     }
 
+    // Use service methods to update the application data and initiate the workflow
+    try {
+      // Update the application with the submitted data
+      $application = $loanApplicationService->updateApplication($application, $applicationData, $itemsData);
 
-    // 3. Use service methods to update the application data and initiate the workflow
-    // Ensure updateApplication exists in LoanApplicationService and updates application data and items
-    $application = $loanApplicationService->updateApplication($application, $applicationData, $itemsData);
+      // Initiate the approval workflow (sets status to pending_support, sets timestamp)
+      $application = $loanApplicationService->initiateApprovalWorkflow($application);
+    } catch (\Exception $e) {
+      Log::error('LoanRequestForm: Failed to submit application or initiate workflow.', ['user_id' => $user->id, 'application_id' => $application->id, 'exception' => $e]);
+      session()->flash('error', __('An error occurred while submitting the application.'));
+      return null; // Do not redirect on error
+    }
 
-
-    // Initiate the approval workflow (changes status from 'draft' to 'pending_support', creates first approval)
-    // Ensure initiateApprovalWorkflow method exists in LoanApplicationService
-    // The service should find the correct approver(s) (e.g., Gred 41+ based on department/location)
-    $application = $loanApplicationService->initiateApprovalWorkflow($application); // This method needs to be implemented in LoanApplicationService.php
-
-
-    // 4. Redirect to the application's show page or a confirmation page with a success message
-    session()->flash('message', 'Loan request submitted successfully!');
-    return $this->redirect(route('loan-applications.show', $application)); // Redirect to the show page
-
-    // Alternative redirect: Redirect to the dashboard
-    // return $this->redirect(route('dashboard'));
+    // Redirect to the application's show page with a success message
+    session()->flash('success', __('Loan request submitted successfully!'));
+    return $this->redirect(route('loan-applications.show', $application));
   }
-
-
-  // Add other methods as needed (e.g., saveAsDraft)
 }

@@ -356,16 +356,8 @@
                             </tr>
                         </thead>
                         <tbody class="table-border-bottom-0">
-                            {{-- Debug line was here --}}
-                            {{-- Explicitly get the computed property value into a local variable --}}
-                            @php
-                                // This was already added for userNotifications
-                                $recentNotifications = $this->userNotifications; // Access the computed property and assign it
-                            @endphp
-
-
-                            {{-- Loop through user's recent notifications using the local variable --}}
-                            @forelse($recentNotifications as $notification)
+                            {{-- Loop through user's recent notifications (assuming Livewire component provides $userNotifications) --}}
+                            @forelse($userNotifications as $notification)
                                 <tr>
                                     <td><span
                                             class="badge bg-label-info">{{ $notification->data['type'] ?? 'Update' }}</span>
@@ -411,9 +403,8 @@
                             </tr>
                         </thead>
                         <tbody class="table-border-bottom-0">
-                            {{-- Loop through leave records (using the new local variable) --}}
-                            @forelse($dashboardLeaveRecords as $leave)
-                                {{-- Assuming $leaveRecords is available and employee/leaveType relationships are eager loaded --}}
+                            @forelse($leaveRecords as $leave)
+                                {{-- Assuming $leaveRecords is available --}}
                                 <tr>
                                     <td><strong>{{ $leave->id }}</strong></td>
                                     {{-- Accessing employee name via relationship --}}
