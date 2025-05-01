@@ -19,7 +19,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\EmployeeLeave
- *
+ * 
  * Represents a specific instance of an employee taking a type of leave.
  * This model typically maps to a pivot table ('employee_leave') with additional columns.
  *
@@ -66,6 +66,7 @@ use App\Models\User; // For audit columns (handled by trait)
  * @method static \Illuminate\Database\Eloquent\Builder|EmployeeLeave whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|EmployeeLeave withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|EmployeeLeave withoutTrashed()
+ * @method static \Database\Factories\EmployeeLeaveFactory factory($count = null, $state = [])
  * @mixin \Eloquent
  */
 class EmployeeLeave extends Model // Maps to the 'employee_leave' pivot table

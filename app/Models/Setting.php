@@ -14,11 +14,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo relati
 
 /**
  * App\Models\Setting
+<<<<<<< HEAD
  *
  * Represents application-wide configuration settings stored in a single database row.
  * Includes various system settings, such as SMS API credentials.
  * This model follows a singleton pattern for easy access to the global settings.
  * Includes audit trails and soft deletion (though soft deleting a singleton might be less common).
+=======
+ * 
+ * Represents application-wide configuration settings, typically stored in a single database row.
+ * Includes settings like SMS API credentials.
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property string|null $sms_api_sender The sender ID or name for the SMS API (nullable).

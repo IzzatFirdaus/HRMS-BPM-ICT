@@ -9,6 +9,80 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+<<<<<<< HEAD
+=======
+// Import models for relationships if they are in a different namespace (User and Approval are typically in App\Models)
+use App\Models\User;     // EmailApplication belongs to users (applicant, supporting officer, final assigned)
+use App\Models\Approval; // EmailApplication has many Approvals (polymorphic)
+
+
+/**
+ * App\Models\EmailApplication
+ *
+ * @property int $id
+ * @property int $user_id The applicant who submitted the application (Foreign key).
+ * @property string $service_status Taraf Perkhidmatan (e.g., Permanent, Contract, MySTEP).
+ * @property string|null $purpose Tujuan/Catatan (Text).
+ * @property string|null $proposed_email Cadangan E-mel/ID (String).
+ * @property string|null $group_email Nama Group Email (String).
+ * @property string|null $group_admin_name Nama Admin/EO/CC (String).
+ * @property string|null $group_admin_email E-mel Admin/EO/CC (String).
+ * @property int|null $supporting_officer_id Supporting Officer ID (Foreign key).
+ * @property string $status Workflow status (e.g., draft, pending_support, approved).
+ * @property bool $certification_accepted Pengesahan Pemohon checkbox state (Boolean).
+ * @property \Illuminate\Support\Carbon|null $certification_timestamp Timestamp when applicant confirmed (Timestamp).
+ * @property string|null $rejection_reason Reason for rejection (Text).
+ * @property string|null $final_assigned_email The actual email address assigned after provisioning (String).
+ * @property int|null $final_assigned_user_id The actual User ID assigned after approval/provisioning (Foreign key).
+ * @property \Illuminate\Support\Carbon|null $provisioned_at Timestamp when provisioning was completed (Timestamp).
+ * @property int|null $created_by Foreign key to the user who created the record (handled by trait).
+ * @property int|null $updated_by Foreign key to the user who last updated the record (handled by trait).
+ * @property int|null $deleted_by Foreign key to the user who soft deleted the record (handled by trait).
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Approval> $approvals
+ * @property-read int|null $approvals_count
+ * @property-read \App\Models\User|null $finalAssignedUser The user who was finally assigned the email address.
+ * @property-read \App\Models\User|null $supportingOfficer The supporting officer for the application.
+ * @property-read \App\Models\User $user The applicant who submitted the application.
+ * @property-read \App\Models\User|null $createdBy Relation to the user who created the record.
+ * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record.
+ * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record.
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication query()
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereCertificationAccepted($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereCertificationTimestamp($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereDeletedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereFinalAssignedEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereFinalAssignedUserId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereGroupAdminEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereGroupAdminName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereGroupEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereProposedEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereProvisionedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication wherePurpose($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereRejectionReason($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereServiceStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereSupportingOfficerId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication whereUpdatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication withTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|EmailApplication withoutTrashed()
+ * @property-read string $service_status_translated
+ * @property-read string $status_translated
+ * @method static \Database\Factories\EmailApplicationFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|EmailApplication whereUserId($value)
+ * @mixin \Eloquent
+ */
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
 class EmailApplication extends Model
 {
   use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;

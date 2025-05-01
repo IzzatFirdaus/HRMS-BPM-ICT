@@ -23,11 +23,17 @@ use App\Models\User as UserModel; // Alias for User model in BelongsTo relations
 
 /**
  * App\Models\Position
+<<<<<<< HEAD
  *
  * Represents an employee position or job title within the organizational structure.
  * Stores the position name, vacancy count, description, and links to an associated grade.
  * Also tracks which Timelines, Users, and Employees are linked to this position.
  * Includes audit trails and soft deletion.
+=======
+ * 
+ * Represents an employee position or job title.
+ * Linked to Grade, Timelines, Users, and Employees.
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property string $name The name of the position (e.g., 'Manager', 'Assistant Director', 'Clerk').
@@ -69,6 +75,7 @@ use App\Models\User as UserModel; // Alias for User model in BelongsTo relations
  * @method static \Illuminate\Database\Eloquent\Builder|Position whereVacanciesCount($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Position withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Position withoutTrashed()
+ * @method static \Database\Factories\PositionFactory factory($count = null, $state = [])
  * @mixin \Eloquent
  */
 class Position extends Model // This model maps to the 'positions' table

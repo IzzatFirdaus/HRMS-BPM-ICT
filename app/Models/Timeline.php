@@ -20,11 +20,17 @@ use App\Models\User; // For audit columns (handled by trait CreatedUpdatedDelete
 
 /**
  * App\Models\Timeline
+<<<<<<< HEAD
  *
  * Represents a historical entry for an employee's assignment and location details over a specific time period.
  * Tracks the employee's associated center, department, and position, along with the start and end dates of the assignment.
  * Can indicate if the period is a sequential/continuous part of their employment history.
  * Includes audit trails and soft deletion.
+=======
+ * 
+ * Represents a historical entry for an employee's assignment, tracking their position,
+ * department, and center over a specific time period.
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property int $employee_id Foreign key to the employee associated with this timeline entry ('employees' table).

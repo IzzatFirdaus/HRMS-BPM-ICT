@@ -24,14 +24,19 @@ use Illuminate\Database\Eloquent\SoftDeletes; // Import SoftDeletes trait
  * @property int|null $created_by Foreign key to the user who created the record (handled by trait if applied here).
  * @property int|null $updated_by Foreign key to the user who last updated the record (handled by trait if applied here).
  * @property int|null $deleted_by Foreign key to the user who soft deleted the record (handled by trait if applied here).
+<<<<<<< HEAD
  * @property \Illuminate\Support\Carbon|null $created_at Automatically managed timestamp for creation.
  * @property \Illuminate\Support\Carbon|null $updated_at Automatically managed timestamp for last update.
  * @property \Illuminate\Support\Carbon|null $deleted_at Timestamp for soft deletion.
  *
+=======
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  * @property-read \App\Models\User|null $createdBy Relation to the user who created the record (if trait adds this).
  * @property-read \App\Models\User|null $deletedBy Relation to the user who soft deleted the record (if trait adds this).
  * @property-read \App\Models\User|null $updatedBy Relation to the user who last updated the record (if trait adds this).
- *
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|Changelog onlyTrashed()

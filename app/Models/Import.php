@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo for Cr
 
 /**
  * App\Models\Import
- *
+ * 
  * Represents a record of a file import process.
  * Tracks file details, import status, progress, and details (e.g., errors).
  *
@@ -55,6 +55,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo for Cr
  * @method static \Illuminate\Database\Eloquent\Builder|Import whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Import withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Import withoutTrashed()
+ * @property-read float $completion_percentage
+ * @property-read string $status_translated
  * @mixin \Eloquent
  */
 class Import extends Model

@@ -140,6 +140,21 @@ use App\Models\Equipment; // Employee hasMany AssignedEquipment (assuming FK ass
  * @method static \Illuminate\Database\Eloquent\Builder|Employee whereProfilePhotoPath($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Employee withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Employee withoutTrashed()
+<<<<<<< HEAD
+=======
+ * @method static \Illuminate\Database\Eloquent\Builder|Employee checkLeave($leave_id, $from_date, $to_date, $start_at, $end_at)
+ * @property-read string $current_center
+ * @property-read string $current_department
+ * @property-read string $current_position
+ * @property-read string $full_name
+ * @property-read string $join_at
+ * @property-read string $join_at_short_form
+ * @property-read string $short_name
+ * @property-read int $worked_years
+ * @method static \Database\Factories\EmployeeFactory factory($count = null, $state = [])
+ * @method static Builder<static>|Employee whereUpdatedAt($value)
+ * @method static Builder<static>|Employee whereUpdatedBy($value)
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  * @mixin \Eloquent
  */
 class Employee extends Model

@@ -21,12 +21,18 @@ use App\Models\Employee; // Grade hasMany Employees
 
 /**
  * App\Models\Grade
+<<<<<<< HEAD
  *
  * Represents an employee grade level (e.g., '41', '44', 'N19').
  * Stores grade name, numerical level, and indicates if the grade is designated as an approver grade.
  * Linked to User and Employee models via one-to-many relationships.
  * Includes a self-referencing relationship to track minimum approval grades.
  * Includes audit trails and soft deletion.
+=======
+ * 
+ * Represents an employee grade (e.g., Grade 41, Grade 44) and tracks if it's an approver grade.
+ * Linked to User and Employee models.
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property string $name The name of the grade (e.g., 'Grade 41', 'PTD 48').
@@ -65,6 +71,8 @@ use App\Models\Employee; // Grade hasMany Employees
  * @method static \Illuminate\Database\Eloquent\Builder|Grade whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Grade withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Grade withoutTrashed()
+ * @method static \Database\Factories\GradeFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Grade whereId($value)
  * @mixin \Eloquent
  */
 class Grade extends Model

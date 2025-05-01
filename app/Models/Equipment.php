@@ -26,6 +26,7 @@ use App\Models\Transition; // Equipment hasMany Transitions
 
 /**
  * App\Models\Equipment
+<<<<<<< HEAD
  *
  * Represents an equipment item within the ICT equipment management system.
  * Stores details about the equipment, its status (availability and condition),
@@ -33,6 +34,11 @@ use App\Models\Transition; // Equipment hasMany Transitions
  * centers, and various loan/transition records. Includes audit trails and soft deletion.
  * Note: This model is designed to hold all relevant data, potentially merging
  * information that might have originated from separate 'equipment' and 'assets' tables.
+=======
+ * 
+ * Represents an equipment item, merging data that might have come from separate 'equipment' and 'assets' tables.
+ * Includes details about the equipment itself, its status, location, and relationships to loan/transition records.
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property string|null $class Equipment classification (e.g., IT, Furniture, Vehicle).
@@ -113,6 +119,26 @@ use App\Models\Transition; // Equipment hasMany Transitions
  * @method static \Illuminate\Database\Eloquent\Builder|Equipment whereWarrantyExpiryDate($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Equipment withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Equipment withoutTrashed()
+ * @property string|null $old_id
+ * @property string|null $brand
+ * @property string|null $description
+ * @property int $in_service
+ * @property int $is_gpr
+ * @property int|null $real_price
+ * @property int|null $expected_price
+ * @property string|null $current_location
+ * @property-read string $availability_status_translated
+ * @property-read string $condition_status_translated
+ * @property-read string $name_and_tag
+ * @method static \Database\Factories\EquipmentFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereBrand($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereCurrentLocation($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereDescription($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereExpectedPrice($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereInService($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereIsGpr($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereOldId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Equipment whereRealPrice($value)
  * @mixin \Eloquent
  */
 class Equipment extends Model // This model now represents the merged 'equipment' table

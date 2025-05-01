@@ -18,7 +18,7 @@ use App\Models\User; // For audit columns (handled by trait CreatedUpdatedDelete
 
 /**
  * App\Models\Transition
- *
+ * 
  * Represents a record of equipment being handed out to or returned by an employee.
  * Tracks the equipment item involved, the employee associated with the transition,
  * the dates of handing out and return, document numbers, reason, and notes.
@@ -67,6 +67,7 @@ use App\Models\User; // For audit columns (handled by trait CreatedUpdatedDelete
  * @method static \Illuminate\Database\Eloquent\Builder|Transition whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Transition withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Transition withoutTrashed()
+ * @method static \Database\Factories\TransitionFactory factory($count = null, $state = [])
  * @mixin \Eloquent
  */
 class Transition extends Model

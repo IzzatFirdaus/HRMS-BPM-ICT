@@ -19,7 +19,7 @@ use App\Models\User; // For audit columns (handled by trait CreatedUpdatedDelete
 
 /**
  * App\Models\SubCategory
- *
+ * 
  * Represents a subcategory within a hierarchical category structure.
  * Stores the subcategory name and links to a parent Category.
  * May include a description if that column exists in the database table.

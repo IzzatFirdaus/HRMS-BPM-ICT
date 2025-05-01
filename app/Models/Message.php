@@ -17,7 +17,7 @@ use App\Models\User; // For linking sender photo via updated_by and for audit co
 
 /**
  * App\Models\Message
- *
+ * 
  * Represents a message record, potentially for notifications sent to employees (e.g., via SMS).
  * Linked to an Employee and tracks message details, recipient, status, and sender photo based on the updater.
  *
@@ -55,6 +55,7 @@ use App\Models\User; // For linking sender photo via updated_by and for audit co
  * @method static \Illuminate\Database\Eloquent\Builder|Message whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Message withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|Message withoutTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Message whereId($value)
  * @mixin \Eloquent
  */
 class Message extends Model

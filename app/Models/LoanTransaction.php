@@ -20,12 +20,18 @@ use App\Models\User; // LoanTransaction belongsTo Issuing/Receiving/Returning/Re
 
 /**
  * App\Models\LoanTransaction
+<<<<<<< HEAD
  *
  * Represents a single transaction record within a loan application.
  * Tracks the issue or return of a specific equipment item, including
  * involved officers, checklists, timestamps, notes, and the transaction status.
  * Linked to a parent LoanApplication and a specific Equipment asset.
  * Includes audit trails and soft deletion.
+=======
+ * 
+ * Represents a single transaction record within a loan application,
+ * tracking the issue or return of a specific equipment item.
+>>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property int $loan_application_id Foreign key to the parent loan application ('loan_applications' table).
@@ -83,6 +89,9 @@ use App\Models\User; // LoanTransaction belongsTo Issuing/Receiving/Returning/Re
  * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereUpdatedBy($value)
  * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction withoutTrashed()
+ * @property-read string $status_translated
+ * @method static \Database\Factories\LoanTransactionFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|LoanTransaction whereId($value)
  * @mixin \Eloquent
  */
 class LoanTransaction extends Model
