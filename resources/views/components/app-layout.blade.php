@@ -1,11 +1,10 @@
 {{--
-    resources/views/livewire/layouts/app.blade.php
+    resources/views/components/app-layout.blade.php
 
-    This layout file is specifically designed to be used by Livewire full-page components
-    via the #[Layout('livewire.layouts.app')] attribute.
+    This Blade component defines the main application layout structure when used via <x-app-layout>.
     It extends a common master layout ('layouts/commonMaster') for base HTML and assets.
     It includes Livewire components for structural elements (menu, navbar, footer) and places
-    the Livewire component's render output ($slot) within the main content area.
+    the component's inner content ($slot) within the main content area.
     It utilizes the App\Helpers\Helpers class for layout configurations.
 --}}
 
@@ -14,8 +13,7 @@
     use App\Helpers\Helpers;
 @endphp
 
-{{-- Apply page-specific configurations if provided (e.g., via the Livewire component's mount method setting public properties) --}}
-{{-- $pageConfigs might be a public property on the Livewire component --}}
+{{-- Apply page-specific configurations if provided to the component --}}
 @isset($pageConfigs)
     {!! Helpers::updatePageConfig($pageConfigs) !!}
 @endisset
@@ -27,7 +25,7 @@
 
     /* Layout Structure Visibility and Classes - Provide default values safely */
     // These variables control which layout elements are displayed and their base classes.
-    // They can be set as public properties on the Livewire component using this layout.
+    // They can be set when using the component (e.g., <x-app-layout :isMenu="false">) to customize the page.
     $contentNavbar = $contentNavbar ?? true; // Controls if the content navbar area is shown
     $containerNav = $containerNav ?? 'container-xxl'; // Default class for the main navbar container width (Bootstrap)
     $isNavbar = $isNavbar ?? true; // Controls if the entire navbar component is shown
@@ -40,19 +38,18 @@
 
     // Determine if the navbar hide toggle should be active based on the navbarDetached class
     // Provides a default value, useful for responsive behavior
-    // $navbarDetached is often hardcoded or from config, but ensuring it's defined before checking !==
-$navbarHideToggle = $navbarHideToggle ?? ($navbarDetached ?? 'navbar-detached') !== 'navbar-detached';
+    $navbarHideToggle = $navbarHideToggle ?? ($navbarDetached ?? 'navbar-detached') !== 'navbar-detached';
 
-/* HTML Classes from Configuration - Get safely from $configData or provide defaults */
-// These classes likely control fixed/sticky positions and collapsed states, often theme-specific (Bootstrap)
-$navbarDetached = 'navbar-detached'; // This appears to be a hardcoded class for a specific layout style
-$menuFixed = data_get($configData, 'menuFixed', ''); // Get class for fixed menu
-$navbarFixed = data_get($configData, 'navbarFixed', ''); // Get class for fixed navbar
-$footerFixed = data_get($configData, 'footerFixed', ''); // Get class for fixed footer
-$menuCollapsed = data_get($configData, 'menuCollapsed', ''); // Get class for collapsed menu
+    /* HTML Classes from Configuration - Get safely from $configData or provide defaults */
+    // These classes likely control fixed/sticky positions and collapsed states, often theme-specific (Bootstrap)
+    $navbarDetached = 'navbar-detached'; // This appears to be a hardcoded class for a specific layout style
+    $menuFixed = data_get($configData, 'menuFixed', ''); // Get class for fixed menu
+    $navbarFixed = data_get($configData, 'navbarFixed', ''); // Get class for fixed navbar
+    $footerFixed = data_get($configData, 'footerFixed', ''); // Get class for fixed footer
+    $menuCollapsed = data_get($configData, 'menuCollapsed', ''); // Get class for collapsed menu
 
-/* Main Content Container Class - Provide default safely */
-$container = $container ?? 'container-xxl'; // Default class for the main content area container width (Bootstrap)
+    /* Main Content Container Class - Provide default safely */
+    $container = $container ?? 'container-xxl'; // Default class for the main content area container width (Bootstrap)
 
 @endphp
 
@@ -60,7 +57,7 @@ $container = $container ?? 'container-xxl'; // Default class for the main conten
 {{-- This master layout ('layouts/commonMaster') should define the base HTML structure and have @yield('layoutContent') --}}
 @extends('layouts/commonMaster')
 
-{{-- Define the section where the content of this layout will be placed in the commonMaster --}}
+{{-- Define the section where the content of this component will be placed in the commonMaster --}}
 @section('layoutContent')
     {{-- Main layout wrapper div. Classes control overall layout behavior (Bootstrap) --}}
     <div class="layout-wrapper layout-content-navbar {{ $isMenu ? '' : 'layout-without-menu' }}">
@@ -82,7 +79,6 @@ $container = $container ?? 'container-xxl'; // Default class for the main conten
 
                 {{-- Main Navbar - Rendered as a Livewire component if $isNavbar is true --}}
                 {{-- Pass necessary layout variables to the navbar component --}}
-                {{-- These variables should correspond to public properties or computed properties on the Navbar Livewire component --}}
                 @if ($isNavbar)
                     @livewire('sections.navbar.navbar', [
                         'containerNav' => $containerNav,
@@ -104,7 +100,7 @@ $container = $container ?? 'container-xxl'; // Default class for the main conten
                             <div class="{{ $container }} flex-grow-1 container-p-y">
                     @endif
 
-                    {{-- The content rendered by the Livewire full-page component is placed here --}}
+                    {{-- The main content passed to the <x-app-layout> component is rendered here --}}
                     {{ $slot }}
 
                     {{-- Include pricing modal partial if $pricingModal is true --}}
@@ -143,5 +139,5 @@ $container = $container ?? 'container-xxl'; // Default class for the main conten
     are typically included in the commonMaster layout or pushed to stacks within commonMaster.
     Ensure commonMaster has @stack directives (e.g., @stack('scripts'), @stack('page-scripts'))
     in the appropriate location (usually before the closing </body> tag) to include scripts
-    pushed by views using this layout via @push('scripts').
+    pushed by views using this component via @push('scripts').
 --}}

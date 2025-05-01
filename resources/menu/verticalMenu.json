@@ -5,29 +5,131 @@
       "name": "Dashboard",
       "icon": "menu-icon tf-icons ti ti-dashboard",
       "slug": "dashboard",
-      "role": ["AM", "CC", "CR", "HR"]
+      "role": ["Admin", "User", "AM", "CC", "CR", "HR", "BPM", "Approver"]
     },
     {
+      "menuHeader": "Resource Management",
+      "role": ["Admin", "User", "AM", "CC", "CR", "HR", "BPM", "Approver"]
+    },
+    {
+      "name": "Applications",
+      "icon": "menu-icon tf-icons ti ti-file-description",
+      "slug": "resource-management",
+      "role": ["Admin", "User"],
+      "submenu": [
+        {
+          "url": "/resource-management/email-application/create",
+          "name": "New Email/User ID",
+          "slug": "resource-management.email-applications.create",
+          "role": ["Admin", "User"]
+        },
+        {
+          "url": "/resource-management/loan-application/create",
+          "name": "New ICT Loan",
+          "slug": "resource-management.loan-applications.create",
+          "role": ["Admin", "User"]
+        },
+        {
+          "url": "/my-applications/email",
+          "name": "My Email Applications",
+          "slug": "my-applications.email.index",
+          "role": ["Admin", "User"]
+        },
+        {
+          "url": "/my-applications/loan",
+          "name": "My Loan Applications",
+          "slug": "my-applications.loan.index",
+          "role": ["Admin", "User"]
+        }
+      ]
+    },
+    {
+      "url": "/resource-management/approvals",
+      "name": "Approvals",
+      "icon": "menu-icon tf-icons ti ti-checks",
+      "slug": "approvals.index",
+      "role": ["Admin", "Approver", "AM", "CC", "CR", "HR"]
+    },
+    {
+      "name": "BPM Operations",
+      "icon": "menu-icon tf-icons ti ti-tool",
+      "slug": "resource-management.admin.bpm",
+      "role": ["Admin", "BPM"],
+      "submenu": [
+        {
+          "url": "/resource-management/admin/bpm/outstanding-loans",
+          "name": "Pending Issuance",
+          "slug": "resource-management.admin.bpm.outstanding-loans",
+          "role": ["Admin", "BPM"]
+        },
+        {
+          "url": "/resource-management/admin/bpm/issued-loans",
+          "name": "Issued Equipment",
+          "slug": "resource-management.admin.bpm.issued-loans",
+          "role": ["Admin", "BPM"]
+        }
+      ]
+    },
+    {
+      "name": "IRM Admin",
+      "icon": "menu-icon tf-icons ti ti-settings-cog",
+      "slug": "resource-management.admin",
+      "role": ["Admin"],
+      "submenu": [
+        {
+          "url": "/resource-management/admin/equipment",
+          "name": "Equipment Management",
+          "slug": "resource-management.admin.equipment.index",
+          "role": ["Admin"]
+        },
+        {
+          "url": "/resource-management/admin/grades",
+          "name": "Grade Management",
+          "slug": "resource-management.admin.grades.index",
+          "role": ["Admin"]
+        },
+        {
+          "url": "/resource-management/admin/reports/equipment",
+          "name": "Equipment Reports",
+          "slug": "resource-management.admin.reports.equipment",
+          "role": ["Admin"]
+        },
+        {
+          "url": "/resource-management/admin/reports/email-accounts",
+          "name": "Email Account Reports",
+          "slug": "resource-management.admin.reports.email-accounts",
+          "role": ["Admin"]
+        },
+        {
+          "url": "/resource-management/admin/reports/loan-applications",
+          "name": "Loan Application Reports",
+          "slug": "resource-management.admin.reports.loan-applications",
+          "role": ["Admin"]
+        }
+      ]
+    },
+
+    {
       "menuHeader": "Human resource",
-      "role": ["HR", "CC"]
+      "role": ["Admin", "HR", "CC"]
     },
     {
       "name": "Attendance",
       "icon": "menu-icon tf-icons ti ti-door-exit",
       "slug": "attendance",
-      "role": ["HR", "CC"],
+      "role": ["Admin", "HR", "CC"],
       "submenu": [
         {
-          "url": "attendance/fingerprints",
+          "url": "/hr/attendance/fingerprints",
           "name": "Fingerprints",
           "slug": "attendance-fingerprints",
-          "role": ["HR"]
+          "role": ["Admin", "HR"]
         },
         {
-          "url": "attendance/leaves",
+          "url": "/hr/attendance/leaves",
           "name": "Leaves",
           "slug": "attendance-leaves",
-          "role": ["HR", "CC"]
+          "role": ["Admin", "HR", "CC"]
         }
       ]
     },
@@ -35,61 +137,92 @@
       "name": "Structure",
       "icon": "menu-icon tf-icons ti ti-hierarchy",
       "slug": "structure",
-      "role": ["HR"],
+      "role": ["Admin", "HR"],
       "submenu": [
         {
-          "url": "structure/centers",
+          "url": "/hr/structure/centers",
           "name": "Centers",
           "slug": "structure-centers",
-          "role": ["HR"]
+          "role": ["Admin", "HR"]
         },
         {
-          "url": "structure/departments",
+          "url": "/hr/structure/departments",
           "name": "Departments",
           "slug": "structure-departments",
-          "role": ["HR"]
+          "role": ["Admin", "HR"]
         },
         {
-          "url": "structure/positions",
+          "url": "/hr/structure/positions",
           "name": "Positions",
           "slug": "structure-positions",
-          "role": ["HR"]
+          "role": ["Admin", "HR"]
         },
         {
-          "url": "structure/employees",
+          "url": "/hr/structure/employees",
           "name": "Employees",
           "slug": "structure-employees",
-          "role": ["HR"]
+          "role": ["Admin", "HR"]
         }
       ]
     },
     {
-      "url": "/messages",
+      "url": "/hr/messages",
       "name": "Messages",
       "icon": "menu-icon tf-icons ti ti-message-dots",
       "slug": "messages",
-      "role": ["HR"]
+      "role": ["Admin", "HR"]
     },
     {
-      "url": "/discounts",
+      "url": "/hr/discounts",
       "name": "Discounts",
       "icon": "menu-icon tf-icons ti ti-coin",
       "slug": "discounts",
-      "role": ["HR"]
+      "role": ["Admin", "HR"]
     },
     {
-      "url": "/holidays",
+      "url": "/hr/holidays",
       "name": "Holidays",
       "icon": "menu-icon tf-icons ti ti-christmas-tree",
       "slug": "holidays",
-      "role": ["HR"]
+      "role": ["Admin", "HR"]
     },
     {
-      "url": "/statistics",
+      "url": "/hr/statistics",
       "name": "Statistics",
       "icon": "menu-icon tf-icons ti ti-device-desktop-analytics",
       "slug": "statistics",
-      "role": ["HR"]
+      "role": ["Admin", "HR"]
+    },
+
+    {
+      "menuHeader": "Assets",
+      "role": ["Admin", "AM", "HR"]
+    },
+    {
+      "url": "/assets/inventory",
+      "name": "Inventory",
+      "icon": "menu-icon tf-icons ti ti-barcode",
+      "slug": "inventory",
+      "role": ["Admin", "AM"]
+    },
+    {
+      "url": "/assets/categories",
+      "name": "Categories",
+      "icon": "menu-icon tf-icons ti ti-category",
+      "slug": "categories",
+      "role": ["Admin", "AM"]
+    },
+    {
+      "url": "/assets/report",
+      "name": "Reports",
+      "icon": "menu-icon tf-icons ti ti-file-analytics",
+      "slug": "reports.index",
+      "role": ["Admin", "AM", "HR"]
+    },
+
+    {
+      "menuHeader": "System Settings",
+      "role": ["Admin"]
     },
     {
       "name": "Settings",
@@ -98,52 +231,38 @@
       "role": ["Admin"],
       "submenu": [
         {
-          "url": "settings/users",
-          "name": "Users",
-          "slug": "settings-users"
+          "url": "/settings/users",
+          "name": "User Accounts",
+          "slug": "settings-users",
+          "role": ["Admin"]
         },
         {
-          "url": "settings/roles",
+          "url": "/settings/roles",
           "name": "Roles",
-          "slug": "settings-roles"
+          "slug": "settings-roles",
+          "role": ["Admin"]
         },
         {
-          "url": "settings/permissions",
+          "url": "/settings/permissions",
           "name": "Permissions",
-          "slug": "settings-permissions"
+          "slug": "settings-permissions",
+          "role": ["Admin"]
         },
         {
           "url": "log-viewer",
           "name": "Logs",
           "slug": "settings-logs",
-          "target": "_blank"
+          "target": "_blank",
+          "role": ["Admin"]
         }
       ]
     },
     {
-      "menuHeader": "Assets",
-      "role": ["AM", "HR"]
-    },
-    {
-      "url": "/assets/inventory",
-      "name": "Inventory",
-      "icon": "menu-icon tf-icons ti ti-barcode",
-      "slug": "products",
-      "role": ["AM"]
-    },
-    {
-      "url": "/assets/categories",
-      "name": "Categories",
-      "icon": "menu-icon tf-icons ti ti-category",
-      "slug": "categories",
-      "role": ["AM"]
-    },
-    {
-      "url": "/assets/reports",
-      "name": "Reports",
-      "icon": "menu-icon tf-icons ti ti-file-analytics",
-      "slug": "reports",
-      "role": ["AM", "HR"]
+      "url": "/resource-management/admin/users",
+      "name": "Manage Users (IRM)",
+      "icon": "menu-icon tf-icons ti ti-user-circle",
+      "slug": "resource-management.admin.users.index",
+      "role": ["Admin"]
     }
   ]
 }

@@ -1,105 +1,143 @@
+{{--
+    resources/views/layouts/app.blade.php
+
+    This layout file is designed to be extended by views or used as a Blade component (<x-app-layout>).
+    It integrates with a common master layout ('layouts/commonMaster') and includes Livewire components
+    for the main structural elements like the menu, navbar, and footer.
+    It uses the App\Helpers\Helpers class for layout configuration and dynamic class application.
+--}}
+
+@php
+    // Ensure the Helpers class is imported and available
+    use App\Helpers\Helpers;
+@endphp
+
+{{-- Apply page-specific configurations if provided --}}
 @isset($pageConfigs)
-    {{-- Assuming Helper::updatePageConfig exists and is used to apply page-specific configurations --}}
-    {!! Helper::updatePageConfig($pageConfigs) !!}
+    {!! Helpers::updatePageConfig($pageConfigs) !!}
 @endisset
 
 @php
-    // Helper function assumed to retrieve application class configurations
-    $configData = Helper::appClasses();
+    // Retrieve application layout classes and configurations
+    // Provide a fallback to the Helpers class if configData is not already set
+    $configData = $configData ?? Helpers::appClasses();
 
-    // Define variables for layout structure visibility and classes
-    // These variables are typically passed down or set in the component/controller rendering this layout
-    $contentNavbar = $contentNavbar ?? true; // Controls if the content navbar is shown
-    $containerNav = $containerNav ?? 'container-xxl'; // Class for the main content container
-    $isNavbar = $isNavbar ?? true; // Controls if the main navbar is shown
-    $isMenu = $isMenu ?? true; // Controls if the vertical menu is shown
-    $isFlex = $isFlex ?? false; // Controls layout flex properties
-    $isFooter = $isFooter ?? true; // Controls if the footer is shown
-    $customizerHidden = $customizerHidden ?? ''; // Class for hiding customizer
-    $pricingModal = $pricingModal ?? false; // Controls if a pricing modal is included
+    /* Layout Structure Visibility and Classes - Provide default values safely */
+    // These variables control which layout elements are displayed and their base classes.
+    // They can be set in the view or component using this layout to customize the page.
+    $contentNavbar = $contentNavbar ?? true; // Controls if the content navbar area is shown
+    $containerNav = $containerNav ?? 'container-xxl'; // Default class for the main navbar container width (Bootstrap)
+    $isNavbar = $isNavbar ?? true; // Controls if the entire navbar component is shown
+    $isMenu = $isMenu ?? true; // Controls if the vertical menu component is shown
+    $isFlex = $isFlex ?? false; // Controls if the main content area uses flex properties
+    $isFooter = $isFooter ?? true; // Controls if the footer component is shown
+    $customizerHidden = $customizerHidden ?? ''; // Class to potentially hide a layout customizer element
+    $pricingModal = $pricingModal ?? false; // Include a pricing modal partial if true
+    $navbarFull = $navbarFull ?? false; // Specific flag for the navbar component
 
-    /* HTML Classes based on config */
-    $navbarDetached = 'navbar-detached'; // Example class, might depend on config
-    $menuFixed = isset($configData['menuFixed']) ? $configData['menuFixed'] : ''; // Class for fixed menu
-    $navbarFixed = isset($configData['navbarFixed']) ? $configData['navbarFixed'] : ''; // Class for fixed navbar
-    $footerFixed = isset($configData['footerFixed']) ? $configData['footerFixed'] : ''; // Class for fixed footer
-    $menuCollapsed = isset($configData['menuCollapsed']) ? $configData['menuCollapsed'] : ''; // Class for collapsed menu
+    // Determine if the navbar hide toggle should be active based on the navbarDetached class
+    // Provides a default value, useful for responsive behavior
+    $navbarHideToggle = $navbarHideToggle ?? ($navbarDetached ?? 'navbar-detached') !== 'navbar-detached';
 
-    /* Content classes */
-    $container = $container ?? 'container-xxl'; // Class for the main content wrapper
+    /* HTML Classes from Configuration - Get safely from $configData or provide defaults */
+    // These classes likely control fixed/sticky positions and collapsed states, often theme-specific (Bootstrap)
+    $navbarDetached = 'navbar-detached'; // This appears to be a hardcoded class for a specific layout style
+    $menuFixed = data_get($configData, 'menuFixed', ''); // Get class for fixed menu
+    $navbarFixed = data_get($configData, 'navbarFixed', ''); // Get class for fixed navbar
+    $footerFixed = data_get($configData, 'footerFixed', ''); // Get class for fixed footer
+    $menuCollapsed = data_get($configData, 'menuCollapsed', ''); // Get class for collapsed menu
+
+    /* Main Content Container Class - Provide default safely */
+    $container = $container ?? 'container-xxl'; // Default class for the main content area container width (Bootstrap)
 
 @endphp
 
-{{-- Extends the base common master layout --}}
+{{-- Extend the common master layout --}}
+{{-- This master layout ('layouts/commonMaster') should define the base HTML structure and have @yield('layoutContent') --}}
 @extends('layouts/commonMaster')
 
-{{-- Start of the layout content section defined in commonMaster --}}
+{{-- Define the section where the content of this layout will be placed in the commonMaster --}}
 @section('layoutContent')
-    {{-- Layout Wrapper with classes based on $isMenu --}}
+    {{-- Main layout wrapper div. Classes control overall layout behavior (Bootstrap) --}}
     <div class="layout-wrapper layout-content-navbar {{ $isMenu ? '' : 'layout-without-menu' }}">
-        {{-- Layout Container --}}
+        {{-- Inner container for the main layout sections --}}
         <div class="layout-container">
 
-            {{-- Vertical Menu (conditional based on $isMenu) --}}
+            {{-- Vertical Menu - Rendered as a Livewire component if $isMenu is true --}}
+            {{-- The Livewire component ('sections.menu.verticalMenu') handles its own data and rendering --}}
             @if ($isMenu)
-                {{-- Render the vertical menu Livewire component --}}
-                {{-- The component view (vertical-menu.blade.php) handles its own data fetching ($menuData) and role checks --}}
                 @livewire('sections.menu.verticalMenu')
             @endif
 
+            {{-- Container for the page content area (navbar, content, footer) --}}
             <div class="layout-page">
 
-                {{-- Jetstream Banner Component (commented out note) --}}
-                {{-- Below commented code read by artisan command while installing jetstream. !! Do not remove if you want to use jetstream. --}}
+                {{-- Jetstream Banner Component (typically displays success/error messages) --}}
+                {{-- This component is often required by Jetstream for its built-in features --}}
                 <x-banner />
 
-                {{-- Main Navbar (conditional based on $isNavbar) --}}
+                {{-- Main Navbar - Rendered as a Livewire component if $isNavbar is true --}}
+                {{-- Pass necessary layout variables to the navbar component --}}
                 @if ($isNavbar)
-                    {{-- Render the navbar Livewire component --}}
-                    {{-- The component view handles its own data fetching --}}
-                    @livewire('sections.navbar.navbar')
+                    @livewire('sections.navbar.navbar', [
+                        'containerNav' => $containerNav,
+                        'navbarDetached' => $navbarDetached,
+                        'navbarFull' => $navbarFull,
+                        'navbarHideToggle' => $navbarHideToggle,
+                    ])
                 @endif
+
+                {{-- Wrapper for the main content area and footer --}}
                 <div class="content-wrapper">
 
                     {{-- Main Content Area --}}
-                    {{-- Container div with classes based on $container and $isFlex --}}
+                    {{-- Container div with classes controlling width and padding (Bootstrap) --}}
+                    {{-- The classes change based on the $isFlex variable --}}
                     @if ($isFlex)
                         <div class="{{ $container }} d-flex align-items-stretch flex-grow-1 p-0">
                         @else
                             <div class="{{ $container }} flex-grow-1 container-p-y">
                     @endif
 
-                    {{-- Render the content of the specific page view using the $slot variable --}}
+                    {{-- The main content of the specific page view is rendered here --}}
+                    {{-- This assumes the layout is used via <x-app-layout> or Livewire full-page components --}}
                     {{ $slot }}
 
-                    {{-- Optional Pricing Modal Include --}}
+                    {{-- Include pricing modal partial if $pricingModal is true --}}
                     @if ($pricingModal)
-                        @include('_partials/_modals/modal-pricing') {{-- Ensure this path is correct --}}
+                        @include('_partials/_modals/modal-pricing')
                     @endif
-                </div>
-                {{-- Main Footer (conditional based on $isFooter) --}}
+
+                </div> {{-- Close main content container --}}
+
+                {{-- Main Footer - Rendered as a Livewire component if $isFooter is true --}}
+                {{-- The Livewire component ('sections.footer.footer') handles its own content --}}
                 @if ($isFooter)
-                    {{-- Render the footer Livewire component --}}
-                    {{-- The component view handles its own content --}}
                     @livewire('sections.footer.footer')
                 @endif
-                {{-- Content Backdrop (often used for mobile menu overlay) --}}
-                <div class="content-backdrop fade"></div>
-            </div>
-        </div>
-    </div>
 
-    {{-- Layout Overlay (often used with offcanvas menus) --}}
+                {{-- Content backdrop (used for overlays, often with collapsed menus on mobile) (Bootstrap) --}}
+                <div class="content-backdrop fade"></div>
+
+            </div> {{-- End content-wrapper --}}
+        </div> {{-- End layout-page --}}
+    </div> {{-- End layout-container --}}
+
+    {{-- Layout Overlay (used for screen dimming when menu is open on mobile) (Bootstrap) --}}
     @if ($isMenu)
         <div class="layout-overlay layout-menu-toggle"></div>
     @endif
 
-    {{-- Drag Target Area (often for swiping menus on touch devices) --}}
+    {{-- Drag target element (often used for swiping to open menus on touch devices) (Bootstrap) --}}
     <div class="drag-target"></div>
-    </div>
+
+    </div> {{-- End layout-wrapper --}}
 @endsection {{-- End of layoutContent section --}}
 
-{{-- Any scripts pushed to stacks (like 'custom-scripts') will be rendered here if the commonMaster layout has @stack directives --}}
-
-{{-- Note: Scripts for initializing template-specific features (like menu toggles, perfect scrollbar, etc.)
-     are typically included in the commonMaster layout or via @push directives. --}}
+{{--
+    Note: Scripts specific to this template (like menu initialization, scrollbars, etc.)
+    are typically included in the commonMaster layout or pushed to stacks within commonMaster.
+    Ensure commonMaster has @stack directives (e.g., @stack('scripts'), @stack('page-scripts'))
+    in the appropriate location (usually before the closing </body> tag) to include scripts
+    pushed by views using this layout via @push('scripts').
+--}}

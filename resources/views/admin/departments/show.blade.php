@@ -8,6 +8,7 @@
     and potentially 'created_at', 'updated_at' attributes.
     Assumes the layout (layouts.app) handles asset inclusion (like compiled CSS including Tailwind).
     Assumes standard Laravel routing and controller methods for CRUD actions.
+    Assumes the CreatedUpdatedDeletedBy trait might add audit columns/relationships.
 --}}
 
 {{-- Extend your main application layout --}}
@@ -30,7 +31,7 @@
 
     {{-- Main container with max width and centering --}}
     {{-- Using max-w-3xl for a narrower content container --}}
-    <div class="max-w-3xl mx-auto sm:px-6 lg:px-8 py-8"> {{-- Increased vertical padding slightly --}}
+    <div class="max-w-3xl mx-auto sm:px-6 lg:px-8 py-8"> {{-- Increased vertical padding slightly for better spacing --}}
         {{-- Outer card-like container (already using some Tailwind) --}}
         <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
 
@@ -57,52 +58,64 @@
 
             {{-- Department Details Block --}}
             {{-- Inner details container with styling --}}
-            <div class="border border-gray-200 rounded-md p-4 mb-6 bg-gray-50"> {{-- Added simple border, padding, background, and bottom margin --}}
+            <div class="border border-gray-200 rounded-md p-4 mb-6 bg-gray-50"> {{-- Added simple border, padding, light gray background, and bottom margin --}}
                 {{-- Details section title --}}
                 <h3 class="text-xl font-bold mb-4 text-gray-800">{{ __('Department/Unit Details') }}</h3>
                 {{-- Translate title --}}
 
                 {{-- Display individual department attributes --}}
-                <p class="mb-2"><span class="font-semibold">{{ __('Name Department/Unit:') }}</span>
-                    {{-- Translate label --}}
-                    {{ $department->name ?? 'N/A' }}
+                {{-- Use flex for label and value alignment if needed for complex layouts --}}
+                <p class="mb-2">
+                    <span class="font-semibold">{{ __('Name Department/Unit:') }}</span> {{-- Translate label --}}
+                    {{ $department->name ?? 'N/A' }} {{-- Display name, provide fallback --}}
                 </p>
-                {{-- Added display for Branch Type --}}
-                <p class="mb-2"><span class="font-semibold">{{ __('Branch Type:') }}</span> {{-- Translate label --}}
+                {{-- Added display for Branch Type, consistent with create/edit views --}}
+                <p class="mb-2">
+                    <span class="font-semibold">{{ __('Branch Type:') }}</span> {{-- Translate label --}}
                     {{ __(ucfirst($department->branch_type ?? '-')) }} {{-- Translate and capitalize value, default to '-' --}}
                 </p>
-                <p class="mb-2"><span class="font-semibold">{{ __('Department/Unit Code:') }}</span>
-                    {{-- Translate label --}}
-                    {{ $department->code ?? 'N/A' }}
+                <p class="mb-2">
+                    <span class="font-semibold">{{ __('Department/Unit Code:') }}</span> {{-- Translate label --}}
+                    {{ $department->code ?? 'N/A' }} {{-- Display code, provide fallback --}}
                 </p>
-                <p class="mb-2"><span class="font-semibold">{{ __('Description:') }}</span> {{-- Translate label --}}
-                    {{ $department->description ?? '-' }}
+                <p class="mb-2">
+                    <span class="font-semibold">{{ __('Description:') }}</span> {{-- Translate label --}}
+                    {{ $department->description ?? '-' }} {{-- Display description, provide fallback --}}
                 </p>
 
-                {{-- Optional: Add Created At and Updated At if available --}}
+                {{-- Optional: Add Created At and Updated At timestamps --}}
                 {{-- Uncomment the lines below if you want to display timestamps --}}
                 @if ($department->created_at)
-                    <p class="mb-2"><span class="font-semibold">{{ __('Created At:') }}</span>
-                        {{ $department->created_at?->format('Y-m-d H:i') ?? '-' }}</p> {{-- Translate label --}}
+                    <p class="mb-2">
+                        <span class="font-semibold">{{ __('Created At:') }}</span> {{-- Translate label --}}
+                        {{ $department->created_at?->format('Y-m-d H:i') ?? '-' }} {{-- Use null-safe operator and format date, provide fallback --}}
+                    </p>
                 @endif
                 @if ($department->updated_at)
-                    <p class="mb-2"><span class="font-semibold">{{ __('Last Updated At:') }}</span>
-                        {{ $department->updated_at?->format('Y-m-d H:i') ?? '-' }}</p> {{-- Translate label --}}
+                    <p class="mb-2">
+                        <span class="font-semibold">{{ __('Last Updated At:') }}</span> {{-- Translate label --}}
+                        {{ $department->updated_at?->format('Y-m-d H:i') ?? '-' }} {{-- Use null-safe operator and format date, provide fallback --}}
+                    </p>
                 @endif
-                {{-- Add display for 'created_by', 'updated_by', 'deleted_by' relationships if needed,
-                      assuming the CreatedUpdatedDeletedBy trait provides methods like createdBy() --}}
+                {{-- Add display for 'created_by', 'updated_by', 'deleted_by' audit relationships if needed. --}}
+                {{-- Assumes the CreatedUpdatedDeletedBy trait adds methods like createdBy() that return a User model. --}}
+                {{-- Remember to eager load these relationships in your controller's show method for performance (e.g., ->with('createdBy')). --}}
                 {{-- Example: @if ($department->createdBy) <p class="mb-2"><span class="font-semibold">{{ __('Created By:') }}</span> {{ $department->createdBy->name ?? '-' }}</p> @endif --}}
+                {{-- Example: @if ($department->updatedBy) <p class="mb-2"><span class="font-semibold">{{ __('Updated By:') }}</span> {{ $department->updatedBy->name ?? '-' }}</p> @endif --}}
+                {{-- Example: @if ($department->deletedBy) <p class="mb-2"><span class="font-semibold">{{ __('Deleted By:') }}</span> {{ $department->deletedBy->name ?? '-' }}</p> @endif --}}
 
 
             </div> {{-- End details block --}}
 
             {{-- Optional: Link to edit department --}}
-            {{-- You might wrap this in an @can('update', $department) --}}
+            {{-- Recommended: Wrap this button in an authorization check using Laravel Gates or Policies --}}
+            {{-- Example: @can('update', $department) --}}
             <div class="mt-6 text-center">
                 {{-- Edit button with Tailwind classes and icon --}}
+                {{-- Assuming a route named 'admin.departments.edit' exists and takes the department model --}}
                 <a href="{{ route('admin.departments.edit', $department) }}"
                     class="inline-flex items-center justify-center px-5 py-2.5 bg-blue-500 text-white font-semibold rounded-md border border-blue-500 hover:bg-blue-600 hover:border-blue-600 focus:outline-none focus:ring focus:ring-blue-500 focus:ring-opacity-50 transition">
-                    {{-- SVG icon --}}
+                    {{-- SVG icon (ensure SVG icons are included or handled by a library/Blade component) --}}
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                         stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round"
@@ -117,9 +130,10 @@
             {{-- Back Button --}}
             <div class="mt-6 text-center">
                 {{-- Back button with Tailwind classes and icon --}}
+                {{-- Assuming a route named 'admin.departments.index' exists --}}
                 <a href="{{ route('admin.departments.index') }}"
                     class="inline-flex items-center justify-center px-5 py-2.5 bg-gray-200 text-gray-800 font-semibold rounded-md border border-gray-200 hover:bg-gray-300 hover:border-gray-300 focus:outline-none focus:ring focus:ring-gray-500 focus:ring-opacity-50 transition">
-                    {{-- SVG icon --}}
+                    {{-- SVG icon (ensure SVG icons are included or handled by a library/Blade component) --}}
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                         stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -134,6 +148,6 @@
 @endsection
 
 {{-- Note: This view is intended to be rendered by a standard controller, not directly by a Livewire component,
-     as it extends a layout and uses standard form submissions. If it were a Livewire view, it would typically
-     use wire:submit and wire:model.
+    as it extends a layout and uses standard form submissions. If it were a Livewire view, it would typically
+    use wire: attributes for state and actions.
 --}}
