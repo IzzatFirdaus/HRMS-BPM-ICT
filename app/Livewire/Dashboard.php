@@ -4,121 +4,90 @@ namespace App\Livewire;
 
 // --- Standard Namespace/Class Use Statements (must be before the class) ---
 use Livewire\Component;
-use App\Models\Approval;
-use App\Models\Center;
-use App\Models\Changelog;
-use App\Models\Employee;
-use App\Models\EmployeeLeave;
-use App\Models\Leave;
-use App\Models\Message;
-use App\Models\EmailApplication;
-use App\Models\LoanApplication;
 use App\Models\User;
-use App\Jobs\sendPendingMessages;
+use App\Models\Employee;
+use App\Models\Message; // For SMS stats
+use App\Models\EmailApplication; // For Email/User ID stats/lists
+use App\Models\LoanApplication; // For Loan stats/lists
+use App\Models\LoanTransaction; // For Loan transaction lists
+use App\Models\Equipment; // For Available Equipment count (using availability_status)
+use App\Models\Changelog; // If still needed on the dashboard (using string audit columns)
+use App\Models\Approval; // For pending approvals count/lists
+use App\Jobs\sendPendingMessages; // If SMS sending is still triggered from dashboard
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\DB; // For raw queries if needed for counts
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Number;
+use Illuminate\Support\Number; // For formatting numbers
 use Throwable;
 use Illuminate\Support\Collection;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\View\View;
-use Livewire\Attributes\Computed;
+use Illuminate\Database\Eloquent\Builder; // For type hinting query builders
+use Illuminate\View\View; // For type hinting render return type
+use Livewire\Attributes\Computed; // For computed properties
+
+// Import necessary models for eager loading relations if needed (e.g., for lists)
+// use App\Models\Leave; // Keep if fetching leave types for "Add New" dropdown (though moved to blade now)
+// use App\Models\EmployeeLeave; // Removed, assuming dedicated Leaves component handles this
+// use App\Models\Position; // To interact with the positions table
+// use App\Models\Center; // To interact with the centers table
+// use App\Models\Department; // To interact with the departments table
+// use App\Models\Grade; // To interact with the grades table
+// use App\Models\Contract; // To interact with the contracts table
+// use App\Models\Timeline; // To interact with the timelines table
 
 
 class Dashboard extends Component
 {
   // --- Trait Use Statements (must be inside the class body) ---
-  use \Livewire\WithPagination, \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-
-  // Set pagination theme (e.g., 'bootstrap', 'tailwind')
-  protected string $paginationTheme = 'bootstrap';
+  // Removed WithPagination as it's unlikely the dashboard table needs pagination
+  use \Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Keep for authorization
 
   // 👉 State Variables (Public properties that sync with the view)
+  // Minimize state variables for the dashboard - mostly display derived data
 
   // Initialized in mount
   public array $accountBalance = ['status' => 400, 'balance' => '---', 'is_active' => '---'];
 
-  // Fetched in mount
-  public Collection $activeEmployees; // Active employees in the user's center
+  // Properties to hold data for the view - Initialize with default/empty values
+  public ?string $employeeFirstName = null;
+  public ?string $employeePhoto = 'profile-photos/.default-photo.jpg'; // Default employee photo URL
 
-  // State for leave form
-  public ?int $selectedEmployeeId = null; // The employee selected in the leave form dropdown
+  // New properties for integrated system statistics - Initialize with 0 or empty
+  public int $userEmailApplicationsPendingCount = 0;
+  public int $pendingEmailApprovalsCount = 0;
+  public int $pendingEmailProvisioningCount = 0;
+  public int $userLoanApplicationsPendingCount = 0;
+  public int $pendingLoanApprovalsCount = 0;
+  public int $pendingLoanIssuanceCount = 0;
+  public int $equipmentAvailableCount = 0;
+  public int $activeEmployeesCount = 0; // Updated from Collection to count if only count is needed
 
-  // Fetched in mount
-  public Collection $leaveTypes; // Available leave types for the form
+  // Properties for integrated system lists - Initialize with empty collections
+  public Collection $userPendingApplications; // Mixed collection of Email and Loan Applications
+  public Collection $pendingLoanIssuanceList; // List of LoanApplications pending issuance for BPM
+  public Collection $itemsDueForReturnList; // List of LoanTransactions due for return for BPM
 
-  // State for leave edit
-  public ?int $employeeLeaveId = null; // ID of the leave record being edited
-  public ?EmployeeLeave $employeeLeaveRecord = null; // Model instance of the leave record being edited
-  public bool $isEdit = false; // Flag for edit mode
+  // Existing property for SMS status
+  public array $messagesStatus = ['sent' => 0, 'unsent' => 0];
 
-  // State for delete confirmation
-  public ?int $confirmedId = null; // ID of the record pending deletion
-
-  // Form data for new/edit leave record
-  public array $newLeaveInfo = [
-    'LeaveId' => '',
-    'fromDate' => null,
-    'toDate' => null,
-    'startAt' => null,
-    'endAt' => null,
-    'note' => null,
-  ];
-
-  public ?string $fromDateLimit = null; // Date limit for leave form (derived from Carbon)
-
-  public string $employeePhoto = 'profile-photos/.default-photo.jpg'; // Default employee photo URL
+  // Existing property for changelogs (if still needed)
+  public Collection $changelogs;
 
 
-  protected ?User $loggedInUser = null; // To hold the authenticated user (protected)
-  protected ?Employee $loggedInEmployee = null; // To hold the authenticated user's employee (protected)
+  // Protected properties to hold authenticated user/employee
+  protected ?User $loggedInUser = null;
+  protected ?Employee $loggedInEmployee = null;
 
 
-  // 👉 Computed Properties (Livewire v3+)
+  // 👉 Computed Properties (Livewire v3+) - Define computed properties for data that is expensive to compute on every render
+  // or that is derived from other properties.
 
-  #[Computed]
-  public function userNotifications(): Collection
-  {
-    return $this->loggedInUser?->notifications()->latest()->limit(10)->get() ?? collect();
-  }
-
-  #[Computed]
-  public function userEmailApplications(): Collection
-  {
-    return $this->loggedInUser?->emailApplications()->latest()->get() ?? collect();
-  }
-
-  #[Computed]
-  public function userLoanApplications(): Collection
-  {
-    return $this->loggedInUser?->loanApplications()->latest()->get() ?? collect();
-  }
-
-  #[Computed]
-  public function emailApplicationStatusCounts(): Collection
-  {
-    return $this->loggedInUser?->emailApplications()
-      ->select('status', DB::raw('count(*) as total'))
-      ->groupBy('status')
-      ->pluck('total', 'status') ?? collect();
-  }
-
-  #[Computed]
-  public function loanApplicationStatusCounts(): Collection
-  {
-    return $this->loggedInUser?->loanApplications()
-      ->select('status', DB::raw('count(*) as total'))
-      ->groupBy('status')
-      ->pluck('total', 'status') ?? collect();
-  }
-
+  // Computed property for SMS status (kept as is, relies on 'messages' table)
   #[Computed]
   public function messagesStatus(): array
   {
     try {
+      // Using the 'messages' table defined in 2023_11_10_162228_create_messages_table.php
       $messages = Message::selectRaw(
         'SUM(CASE WHEN is_sent = 1 THEN 1 ELSE 0 END) AS sent, SUM(CASE WHEN is_sent = 0 THEN 1 ELSE 0 END) AS unsent'
       )->first();
@@ -133,104 +102,117 @@ class Dashboard extends Component
     }
   }
 
+  // Computed property for changelogs (kept as is, relies on 'changelogs' table)
   #[Computed]
   public function changelogs(): Collection
   {
     try {
-      return Changelog::latest()->get();
+      // Using the 'changelogs' table defined in 2024_04_16_105426_create_changelogs_table.php
+      // Note: This table uses string audit columns, but that doesn't affect fetching here.
+      return Changelog::latest()->limit(5)->get(); // Limit for dashboard display
     } catch (\Exception $e) {
       Log::error('Dashboard: Error fetching changelogs.', ['exception' => $e]);
       return collect();
     }
   }
 
-  /**
-   * Get the leave records for the logged-in user's employee created today.
-   * Filter by created_by name (as per original logic) - consider filtering by employee_id or created_by_id instead.
-   *
-   * @return \Illuminate\Database\Eloquent\Collection
-   */
-  #[Computed]
-  public function leaveRecords(): Collection
-  {
-    $loggedInEmployeeId = $this->loggedInEmployee?->id ?? null;
 
-    if (!$loggedInEmployeeId) {
-      $loggedInUserName = $this->loggedInUser?->name ?? null;
-      if (!$loggedInUserName) {
-        Log::warning('Dashboard: Cannot fetch leave records, neither linked employee nor user name available.');
-        return collect();
-      }
-      Log::warning('Dashboard: Filtering leave records by user name instead of employee ID.', ['user_name' => $loggedInUserName]);
-      try {
-        return EmployeeLeave::with(['employee', 'leaveType'])
-          ->whereHas('employee', function (Builder $query) use ($loggedInUserName) {
-            $query->where('name', $loggedInUserName);
-          })
-          ->orWhere('created_by', $loggedInUserName)
-          ->whereDate('created_at', Carbon::today()->toDateString())
-          ->orderBy('created_at')
-          ->get();
-      } catch (\Exception $e) {
-        Log::error('Dashboard: Error fetching leave records by user name.', ['user_name' => $loggedInUserName, 'exception' => $e]);
-        return collect();
-      }
-    }
-
-    try {
-      return EmployeeLeave::with(['employee', 'leaveType'])
-        ->where('employee_id', $loggedInEmployeeId)
-        ->whereDate('created_at', Carbon::today()->toDateString())
-        ->orderBy('created_at')
-        ->get();
-    } catch (\Exception $e) {
-      Log::error('Dashboard: Error fetching leave records for linked employee.', ['employee_id' => $loggedInEmployeeId, 'user_id' => $this->loggedInUser?->id, 'exception' => $e]);
-      return collect();
-    }
-  }
-
-
-  // 👉 Lifecycle Hook
+  // 👉 Lifecycle Hook - mount is called once when the component is initialized
 
   public function mount(): void
   {
     $this->loggedInUser = Auth::user();
 
     if (!$this->loggedInUser) {
-      Log::warning('Dashboard mount called for unauthenticated user. Redirecting via middleware.');
+      // Middleware should handle this, but a safeguard is fine.
+      Log::warning('Dashboard mount called for unauthenticated user.');
       return;
     }
 
-    $this->loggedInUser->load(['employee.timeline.center']);
+    // Eager load necessary relationships for the logged-in user and their employee
+    // Loading 'employee.timeline.center' uses 'timelines', 'centers', and 'positions' tables
+    // Loading 'roles', 'permissions' uses Spatie package tables
+    $this->loggedInUser->load(['employee.timeline.center', 'roles', 'permissions']);
+
 
     $this->loggedInEmployee = $this->loggedInUser->employee;
 
-
     if ($this->loggedInEmployee) {
-      $center = $this->loggedInEmployee->timeline?->center;
-      $this->activeEmployees = $center ? $center->activeEmployees() : collect();
-      $this->selectedEmployeeId = $this->loggedInEmployee->id;
+      $this->employeeFirstName = $this->loggedInEmployee->full_name ?? $this->loggedInEmployee->name ?? null;
       $this->employeePhoto = $this->loggedInEmployee->profile_photo_path ?? 'profile-photos/.default-photo.jpg';
+      // Fetch active employees count (or list if needed, though count is probably sufficient for stats)
+      // This relies on the 'employees' table and its 'status' column (from add_motac_columns_to_users_table?)
+      // Assuming Employee model has a scope or method for active employees
+      $center = $this->loggedInEmployee->timeline?->center;
+      // Assuming activeEmployees() is a method or scope on Center/Employee model that queries the 'employees' table
+      $this->activeEmployeesCount = $center ? $center->activeEmployees()->count() : 0;
     } else {
       Log::warning('Dashboard: Authenticated user has no linked employee record.', ['user_id' => $this->loggedInUser->id]);
-      $this->activeEmployees = collect();
-      $this->selectedEmployeeId = null;
+      $this->employeeFirstName = $this->loggedInUser->name ?? __('User'); // Fallback to user name
       $this->employeePhoto = 'profile-photos/.default-photo.jpg';
+      $this->activeEmployeesCount = 0;
     }
 
+    // --- Fetch Data for Integrated System Dashboard ---
 
-    try {
-      $this->leaveTypes = Leave::all();
-    } catch (\Exception $e) {
-      Log::error('Dashboard: Error fetching leave types.', ['exception' => $e]);
-      $this->leaveTypes = collect();
+    // Fetch user's pending applications (for isRegularUser section)
+    // This requires querying EmailApplication and LoanApplication tables for the logged-in user
+    // with 'draft' or 'pending_support' statuses, and merging the results.
+    // Eager load relationships needed for the Blade view (e.g., 'user', 'items' for LoanApplication)
+    $this->userPendingApplications = $this->fetchUserPendingApplications($this->loggedInUser);
+
+
+    // Fetch statistics and lists based on user roles
+    // Using hasAnyRole check from Spatie for cleaner logic based on web.php roles
+    $isAdmin = $this->loggedInUser->hasRole('Admin');
+    $isApprover = $this->loggedInUser->hasAnyRole(['Approver', 'AM', 'CC', 'CR', 'HR']);
+    $isBpmStaff = $this->loggedInUser->hasRole('BPM');
+
+    if ($isAdmin || $isApprover) {
+      // Fetch pending email approvals for approvers/admins
+      // This queries the 'approvals' table
+      $this->pendingEmailApprovalsCount = $this->fetchPendingApprovalsCount($this->loggedInUser, EmailApplication::class);
+      // Fetch pending loan approvals for approvers/admins
+      $this->pendingLoanApprovalsCount = $this->fetchPendingApprovalsCount($this->loggedInUser, LoanApplication::class);
     }
 
+    if ($isAdmin || $isBpmStaff) {
+      // Fetch pending email provisioning count for BPM/admins
+      // This queries the 'email_applications' table status
+      $this->pendingEmailProvisioningCount = EmailApplication::whereIn('status', ['pending_admin', 'processing'])->count();
+
+      // Fetch available equipment count for BPM/admins
+      // This queries the 'equipment' table using the 'availability_status' column name
+      $this->equipmentAvailableCount = Equipment::where('availability_status', 'available')->count();
+
+      // Fetch list of loan applications pending issuance for BPM/admins
+      // This queries the 'loan_applications' table status
+      // Eager load 'user' and 'items' relationships
+      $this->pendingLoanIssuanceList = $this->fetchPendingLoanIssuanceList();
+
+      // Fetch list of items due for return for BPM/admins
+      // This queries the 'loan_transactions' table status and related loan applications end date
+      // Eager load necessary relationships (e.g., 'loanApplication.user')
+      $this->itemsDueForReturnList = $this->fetchItemsDueForReturnList();
+    }
+
+    // Fetch SMS status using the computed property
+    $this->messagesStatus = $this->messagesStatus(); // Assign to public property for view
+
+    // Fetch Changelogs using the computed property
+    $this->changelogs = $this->changelogs(); // Assign to public property for view
+
+
+    // --- Handle Account Balance Check (from original HRMS) ---
     try {
+      // Check if the method exists before calling it
       if (method_exists($this, 'CheckAccountBalance') && is_callable([$this, 'CheckAccountBalance'])) {
-        $this->accountBalance = $this->CheckAccountBalance($this->loggedInUser);
+        // Determine whether to pass user or employee based on what CheckAccountBalance expects
+        // Assuming it might need the User model or related data from Employee
+        $this->accountBalance = $this->CheckAccountBalance($this->loggedInUser); // Assuming it takes the User model
       } else {
-        Log::warning('Dashboard: CheckAccountBalance method not found or not callable.');
+        // Log a warning if the method is missing, but don't block component rendering
+        Log::warning('Dashboard: CheckAccountBalance method not found or not callable. Using default values.');
         $this->accountBalance = ['status' => 500, 'balance' => __('Error'), 'is_active' => __('Error')];
       }
     } catch (Throwable $th) {
@@ -238,91 +220,71 @@ class Dashboard extends Component
       $this->accountBalance = ['status' => 500, 'balance' => __('Error'), 'is_active' => __('Error')];
     }
 
-
-    $this->fromDateLimit = Carbon::now()
-      ->subDays(30)
-      ->format('Y-m-d');
-
-    $this->newLeaveInfo['LeaveId'] = $this->leaveTypes->first()?->id;
-
-    if ($this->activeEmployees->isNotEmpty()) {
-      if (is_null($this->selectedEmployeeId) || !$this->activeEmployees->contains('id', $this->selectedEmployeeId)) {
-        $this->selectedEmployeeId = $this->activeEmployees->first()->id;
-      }
-    } else {
-      $this->selectedEmployeeId = null;
-    }
+    // --- Removed Leave Management Specific Initialization ---
   }
 
   /**
    * Render the component view.
-   * Explicitly pass all variables used in the view, including the user's role.
+   * Explicitly pass all variables used in the view, including the user's role flags.
    *
    * @return \Illuminate\View\View
    */
   public function render(): View
   {
-    // Access computed properties to ensure they are evaluated
-    $userNotifications = $this->userNotifications;
-    $userEmailApplications = $this->userEmailApplications;
-    $userLoanApplications = $this->userLoanApplications;
-    $messagesStatus = $this->messagesStatus;
-    $changelogs = $this->changelogs;
-    $leaveRecords = $this->leaveRecords;
+    // Access computed properties here if needed, or rely on them being accessed directly in blade
+    $messagesStatus = $this->messagesStatus; // Use public property assigned in mount
+    $changelogs = $this->changelogs; // Use public property assigned in mount
 
-    // Fetch the logged-in user's role(s)
-    // Assuming Spatie/laravel-permission package is used and User model uses HasRoles trait
-    $userRole = $this->loggedInUser?->getRoleNames()->first(); // Get the name of the first role, or null
+    // Determine user roles for view logic (done in mount, but can be passed explicitly for clarity)
+    $user = $this->loggedInUser;
+    $isAdmin = optional($user)->hasRole('Admin') ?? false;
+    $isApprover = optional($user)->hasAnyRole(['Approver', 'AM', 'CC', 'CR', 'HR']) ?? false; // Check for any of the approver roles
+    $isBpmStaff = optional($user)->hasRole('BPM') ?? false;
+    $isRegularUser = !$isAdmin && !$isApprover && !$isBpmStaff; // Simplified check
 
 
     return view('livewire.dashboard', [
       'accountBalance' => $this->accountBalance,
       'messagesStatus' => $messagesStatus,
-      'activeEmployees' => $this->activeEmployees,
-      'leaveRecords' => $leaveRecords,
-      'userEmailApplications' => $userEmailApplications,
-      'userLoanApplications' => $userLoanApplications,
+      'activeEmployeesCount' => $this->activeEmployeesCount, // Pass the count
+      // 'leaveRecords' => $this->leaveRecords, // Removed, assuming dedicated Leaves component
+      'userEmailApplicationsPendingCount' => $this->userEmailApplicationsPendingCount,
+      'pendingEmailApprovalsCount' => $this->pendingEmailApprovalsCount,
+      'pendingEmailProvisioningCount' => $this->pendingEmailProvisioningCount,
+      'userLoanApplicationsPendingCount' => $this->userLoanApplicationsPendingCount,
+      'pendingLoanApprovalsCount' => $this->pendingLoanApprovalsCount,
+      'pendingLoanIssuanceCount' => $this->pendingLoanIssuanceCount,
+      'equipmentAvailableCount' => $this->equipmentAvailableCount,
+      'userPendingApplications' => $this->userPendingApplications,
+      'pendingLoanIssuanceList' => $this->pendingLoanIssuanceList,
+      'itemsDueForReturnList' => $this->itemsDueForReturnList,
       'changelogs' => $changelogs,
-      'confirmedId' => $this->confirmedId,
-      'leaveTypes' => $this->leaveTypes,
-      'selectedEmployeeId' => $this->selectedEmployeeId,
-      'newLeaveInfo' => $this->newLeaveInfo,
-      'isEdit' => $this->isEdit,
-      'employeeLeaveId' => $this->employeeLeaveId,
-      'employeeLeaveRecord' => $this->employeeLeaveRecord,
-      'fromDateLimit' => $this->fromDateLimit,
+      'employeeFirstName' => $this->employeeFirstName,
       'employeePhoto' => $this->employeePhoto,
-      'userRole' => $userRole, // <-- Pass the user's role here as $userRole
+      // Pass the boolean role flags for view logic
+      'isAdmin' => $isAdmin,
+      'isApprover' => $isApprover,
+      'isBpmStaff' => $isBpmStaff,
+      'isRegularUser' => $isRegularUser,
+      // Removed leave-specific state variables
     ]);
   }
 
   // 👉 Hook for selected employee change
+  // Removed as selectedEmployeeId state and related logic are moved out
 
-  public function updatedSelectedEmployeeId(): void
-  {
-    $employee = Employee::find($this->selectedEmployeeId);
-
-    if ($employee) {
-      $this->employeePhoto = $employee->profile_photo_path ?? 'profile-photos/.default-photo.jpg';
-      $employee->load('timeline.center');
-      $center = $employee->timeline?->center;
-      $this->activeEmployees = $center ? $center->activeEmployees() : collect();
-    } else {
-      $this->employeePhoto = 'profile-photos/.default-photo.jpg';
-      $this->activeEmployees = collect();
-    }
-    $this->dispatch('setSelect2Value', elementId: '#selectedEmployeeId', value: $this->selectedEmployeeId);
-  }
-
-  // 👉 Action to send pending messages
+  // 👉 Action to send pending messages (kept as is)
 
   public function sendPendingMessages(): void
   {
-    if (isset($this->messagesStatus()['unsent']) && (int) $this->messagesStatus()['unsent'] > 0) {
+    // Using the computed property's result stored in the public property
+    if (($this->messagesStatus['unsent'] ?? 0) > 0) { // Added null check and default
       try {
         sendPendingMessages::dispatch();
         session()->flash('info', __('Let\'s go! Messages on their way!'));
         $this->dispatch('toastr', type: 'info', message: __('Sending messages...'));
+        // Re-fetch messages status after dispatching job (optional, job might update status async)
+        $this->messagesStatus = $this->messagesStatus(); // Update the public property
       } catch (\Exception $e) {
         Log::error('Dashboard: Error dispatching sendPendingMessages job.', ['user_id' => Auth::id(), 'exception' => $e]);
         session()->flash('error', __('An error occurred while trying to send messages.'));
@@ -334,328 +296,162 @@ class Dashboard extends Component
   }
 
   // 👉 Leave Management Actions
+  // Removed all leave-specific methods as they belong to the dedicated Leaves component.
 
-  public function showCreateLeaveModal(): void
+
+  // 👉 Methods to Fetch Data for Integrated System (Implemented based on your migration schemas)
+
+  /**
+   * Fetches the pending applications for the given user (Email and Loan).
+   * Queries email_applications and loan_applications tables.
+   *
+   * @param User $user
+   * @return Collection A collection of mixed EmailApplication and LoanApplication models.
+   */
+  protected function fetchUserPendingApplications(User $user): Collection
   {
-    $this->resetValidation();
-    $this->reset('newLeaveInfo', 'isEdit', 'employeeLeaveId', 'employeeLeaveRecord');
-    $this->confirmedId = null;
-
-    if ($this->loggedInUser && $this->loggedInUser->employee_id) {
-      $this->selectedEmployeeId = $this->loggedInUser->employee_id;
-      $this->dispatch('setSelect2Value', elementId: '#selectedEmployeeId', value: $this->selectedEmployeeId);
-      if (empty($this->newLeaveInfo['LeaveId'])) {
-        $this->newLeaveInfo['LeaveId'] = $this->leaveTypes->first()?->id;
-      }
-      $this->dispatch('setSelect2Value', elementId: '#leaveTypeId', value: $this->newLeaveInfo['LeaveId']);
-    } else {
-      Log::warning('Dashboard: Attempted to show create leave modal for user without linked employee.', ['user_id' => Auth::id()]);
-      session()->flash('error', __('Cannot create leave record: User account is not linked to an employee profile.'));
-      $this->dispatch('toastr', type: 'error', message: __('Error!'));
-      return;
+    if (!$user) {
+      return collect();
     }
 
-    $this->isEdit = false;
+    // Querying 'email_applications' table with statuses from migration
+    $pendingEmailApps = $user->emailApplications()
+      ->whereIn('status', ['draft', 'pending_support'])
+      ->get();
+
+    // Querying 'loan_applications' table with statuses from migration
+    // Eager load relationships 'user' (the applicant) and 'items' (loan_application_items)
+    $pendingLoanApps = $user->loanApplications()
+      ->whereIn('status', ['draft', 'pending_support'])
+      ->with(['user', 'items']) // 'user' relation likely defined on LoanApplication model
+      ->get();
+
+    // Combine the collections
+    $allPendingApps = $pendingEmailApps->merge($pendingLoanApps);
+
+    // Sort the combined collection
+    $allPendingApps = $allPendingApps->sortByDesc('created_at');
+
+    // Update the public pending counts
+    $this->userEmailApplicationsPendingCount = $pendingEmailApps->count();
+    $this->userLoanApplicationsPendingCount = $pendingLoanApps->count();
+
+    return $allPendingApps;
   }
 
-  public function submitLeave(): void
+  /**
+   * Fetches the count of pending approvals for the given user and approvable type.
+   * Queries the 'approvals' table.
+   *
+   * @param User $user
+   * @param string $approvableType The class name of the approvable model (e.g., EmailApplication::class).
+   * @return int
+   */
+  protected function fetchPendingApprovalsCount(User $user, string $approvableType): int
   {
-    $rules = $this->getLeaveValidationRules();
-    $messages = $this->getLeaveValidationMessages();
+    // Fetch approvals where the user is the assigned officer and the status is 'pending'
+    // and the linked approvable item has a status indicating it's still in the approval flow.
+    // This logic is dependent on your specific approval workflow implementation
+    // and how statuses transition. The example below is a basic count.
 
-    if (is_null($this->selectedEmployeeId) && isset($rules['selectedEmployeeId'])) {
-      $this->addError('selectedEmployeeId', $messages['selectedEmployeeId.required']);
-      session()->flash('error', __('Please select an employee.'));
-      $this->dispatch('toastr', type: 'error', message: __('Validation Failed!'));
-      return;
-    }
-
-    $this->validate($rules, $messages);
-
-    if ($this->isHourlyLeave($this->newLeaveInfo['LeaveId'])) {
-      if (empty($this->newLeaveInfo['startAt']) || empty($this->newLeaveInfo['endAt'])) {
-        session()->flash('error', __('Start and End times are required for hourly leave.'));
-        $this->dispatch('toastr', type: 'error', message: __('Validation Failed!'));
-        return;
-      }
-    } else {
-      if (!empty($this->newLeaveInfo['startAt']) || !empty($this->newLeaveInfo['endAt'])) {
-        session()->flash('error', __('Daily leave cannot include specific times.'));
-        $this->dispatch('toastr', type: 'error', message: __('Validation Failed!'));
-        return;
-      }
-    }
-
+    // Using the 'approvals' table defined in 2025_04_22_083504_create_approvals_table.php
     try {
-      DB::transaction(function () {
-        if ($this->isEdit) {
-          $this->updateLeave();
-        } else {
-          $this->createLeave();
-        }
-      });
-
-      session()->flash('success', $this->isEdit ? __('Leave record updated successfully!') : __('Leave record created successfully!'));
-      $this->dispatch('scrollToTop');
-      $this->dispatch('closeModal', elementId: '#leaveModal');
-      $this->dispatch('toastr', type: 'success', message: __('Going Well!'));
-
-      $this->leaveRecords();
+      $count = Approval::where('officer_id', $user->id)
+        ->where('status', 'pending')
+        ->where('approvable_type', $approvableType)
+        // Add conditions to check the status of the linked approvable item
+        // This requires a polymorphic relationship setup on the Approval model
+        ->whereHasMorph('approvable', [$approvableType], function (Builder $query) {
+          // Example: Only count if the application status is 'pending_support' or 'pending_admin'
+          // Adjust statuses based on where in the workflow this approval step occurs
+          $query->whereIn('status', ['pending_support', 'pending_admin']);
+        })
+        ->count();
+      return $count;
     } catch (\Exception $e) {
-      Log::error('Dashboard: Leave submit failed.', [
-        'user_id' => Auth::id(),
-        'employee_id' => $this->selectedEmployeeId,
-        'leave_data' => $this->newLeaveInfo,
-        'is_edit' => $this->isEdit,
-        'leave_record_id' => $this->employeeLeaveId,
-        'exception' => $e,
-      ]);
-
-      session()->flash('error', __('An error occurred while saving the leave record: ') . $e->getMessage());
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
-      $this->dispatch('closeModal', elementId: '#leaveModal');
-    } finally {
-      $this->reset('isEdit', 'newLeaveInfo', 'employeeLeaveId', 'employeeLeaveRecord');
-      $this->confirmedId = null;
+      Log::error("Dashboard: Error fetching pending approvals count for {$approvableType}.", ['user_id' => $user->id, 'exception' => $e]);
+      return 0; // Return 0 on error
     }
   }
 
-  protected function createLeave(): void
+  /**
+   * Fetches the list of Loan Applications that are approved and pending issuance by BPM staff.
+   * Queries the 'loan_applications' table.
+   *
+   * @return Collection A collection of LoanApplication models.
+   */
+  protected function fetchPendingLoanIssuanceList(): Collection
   {
-    if (is_null($this->selectedEmployeeId)) {
-      Log::error('Dashboard: Attempted to create leave without selected employee.', ['user_id' => Auth::id(), 'leave_data' => $this->newLeaveInfo]);
-      throw new \Exception(__('Employee not selected for leave record.'));
+    // Ensure the logged-in user has the correct role before fetching
+    if (!$this->loggedInUser || !($this->loggedInUser->hasRole('Admin') || $this->loggedInUser->hasRole('BPM'))) {
+      return collect();
     }
 
-    $existingQuery = EmployeeLeave::where([
-      'employee_id' => $this->selectedEmployeeId,
-      'leave_id' => $this->newLeaveInfo['LeaveId'],
-      'from_date' => $this->newLeaveInfo['fromDate'],
-      'to_date' => $this->newLeaveInfo['toDate'],
-    ]);
-
-    if ($this->isHourlyLeave($this->newLeaveInfo['LeaveId'])) {
-      $existingQuery->where('start_at', $this->newLeaveInfo['startAt'])
-        ->where('end_at', $this->newLeaveInfo['endAt']);
-    } else {
-      $existingQuery->whereNull('start_at')->whereNull('end_at');
-    }
-
-    if ($existingQuery->exists()) {
-      Log::warning('Dashboard: Attempted to create duplicate leave record.', [
-        'user_id' => Auth::id(),
-        'employee_id' => $this->selectedEmployeeId,
-        'leave_data' => $this->newLeaveInfo
-      ]);
-      throw new \Exception(__('This exact leave record already exists.'));
-    }
-
-    EmployeeLeave::create([
-      'employee_id' => $this->selectedEmployeeId,
-      'leave_id' => $this->newLeaveInfo['LeaveId'],
-      'from_date' => $this->newLeaveInfo['fromDate'],
-      'to_date' => $this->newLeaveInfo['toDate'],
-      'start_at' => $this->newLeaveInfo['startAt'] ?: null,
-      'end_at' => $this->newLeaveInfo['endAt'] ?: null,
-      'note' => $this->newLeaveInfo['note'] ?: null,
-      'created_by' => $this->loggedInUser->name ?? 'System',
-    ]);
-  }
-
-  public function showEditLeaveModal(int $id): void
-  {
-    $this->resetValidation();
-    $this->reset('newLeaveInfo', 'isEdit', 'employeeLeaveId', 'employeeLeaveRecord');
-    $this->confirmedId = null;
-
+    // Using the 'loan_applications' table defined in 2025_04_22_083504_create_loan_applications_table.php
+    // Fetch applications with status 'approved' or 'partially_issued'
+    // Eager load 'user' (the applicant) and 'items' (loan_application_items) relationships
     try {
-      $record = EmployeeLeave::findOrFail($id);
-    } catch (ModelNotFoundException $e) {
-      Log::warning('Dashboard: Attempted to show edit modal for non-existent leave record.', ['record_id' => $id, 'user_id' => Auth::id()]);
-      session()->flash('error', __('Leave record not found!'));
-      $this->dispatch('toastr', type: 'error', message: __('Error!'));
-      return;
-    }
-
-
-    $this->isEdit = true;
-    $this->employeeLeaveId = $record->id;
-    $this->employeeLeaveRecord = $record;
-
-    $this->selectedEmployeeId = $record->employee_id;
-    $this->newLeaveInfo = [
-      'LeaveId' => (int) $record->leave_id,
-      'fromDate' => $record->from_date,
-      'toDate' => $record->to_date,
-      'startAt' => $record->start_at,
-      'endAt' => $record->end_at,
-      'note' => $record->note ?? '',
-    ];
-
-    $this->dispatch('setSelect2Value', elementId: '#selectedEmployeeId', value: $this->selectedEmployeeId);
-    $this->dispatch('setSelect2Value', elementId: '#leaveTypeId', value: $this->newLeaveInfo['LeaveId']);
-  }
-
-  protected function updateLeave(): void
-  {
-    if (!$this->employeeLeaveRecord || $this->employeeLeaveRecord->id !== $this->employeeLeaveId) {
-      Log::error('Dashboard: Leave record instance mismatch or not loaded for update.', ['record_id' => $this->employeeLeaveId, 'user_id' => Auth::id(), 'leave_data' => $this->newLeaveInfo]);
-      throw new \Exception(__('Leave record not loaded correctly for update!'));
-    }
-
-    try {
-      $this->employeeLeaveRecord->update([
-        'employee_id' => $this->selectedEmployeeId,
-        'leave_id' => $this->newLeaveInfo['LeaveId'],
-        'from_date' => $this->newLeaveInfo['fromDate'],
-        'to_date' => $this->newLeaveInfo['toDate'],
-        'start_at' => $this->newLeaveInfo['startAt'] ?: null,
-        'end_at' => $this->newLeaveInfo['endAt'] ?: null,
-        'note' => $this->newLeaveInfo['note'] ?: null,
-        'updated_by' => $this->loggedInUser->name ?? 'System',
-      ]);
+      $list = LoanApplication::whereIn('status', ['approved', 'partially_issued'])
+        ->with(['user', 'items']) // 'user' and 'items' relations expected on LoanApplication model
+        ->orderBy('updated_at', 'asc')
+        ->get();
+      return $list;
     } catch (\Exception $e) {
-      Log::error('Dashboard: Failed to update leave record.', ['record_id' => $this->employeeLeaveId, 'user_id' => Auth::id(), 'leave_data' => $this->newLeaveInfo, 'exception' => $e]);
-      throw new \Exception(__('An error occurred during leave record update: ') . $e->getMessage());
+      Log::error('Dashboard: Error fetching pending loan issuance list.', ['user_id' => $this->loggedInUser->id, 'exception' => $e]);
+      return collect(); // Return empty collection on error
     }
   }
 
-  public function confirmDestroyLeave(int $id): void
+  /**
+   * Fetches the list of ICT Equipment Loan Transactions that are currently issued
+   * and due for return soon or overdue, for BPM staff.
+   * Queries the 'loan_transactions' table and linked 'loan_applications'.
+   *
+   * @return Collection A collection of LoanTransaction models.
+   */
+  protected function fetchItemsDueForReturnList(): Collection
   {
-    $this->confirmedId = $id;
-  }
-
-  public function destroyLeave(): void
-  {
-    if ($this->confirmedId === null) {
-      return;
+    // Ensure the logged-in user has the correct role before fetching
+    if (!$this->loggedInUser || !($this->loggedInUser->hasRole('Admin') || $this->loggedInUser->hasRole('BPM'))) {
+      return collect();
     }
 
+    // Using the 'loan_transactions' table defined in 2025_04_22_105519_create_loan_transactions_table.php
+    // Using the 'loan_applications' table defined in 2025_04_22_083504_create_loan_applications_table.php
     try {
-      DB::transaction(function () {
-        $record = EmployeeLeave::find($this->confirmedId);
-
-        if ($record) {
-          $record->delete();
-          session()->flash('success', __('Leave record deleted successfully!'));
-          $this->dispatch('toastr', type: 'success', message: __('Going Well!'));
-          $this->leaveRecords();
-        } else {
-          Log::warning('Dashboard: Attempted to delete non-existent leave record.', ['record_id' => $this->confirmedId, 'user_id' => Auth::id()]);
-          session()->flash('error', __('Leave record not found for deletion!'));
-          $this->dispatch('toastr', type: 'error', message: __('Error!'));
-        }
-      });
+      // Fetch 'issued' loan transactions
+      $list = LoanTransaction::where('status', 'issued')
+        // Filter by the loan end date from the linked loan application
+        ->whereHas('loanApplication', function (Builder $query) {
+          // Get transactions where the linked loan application's end date is today or in the past (overdue)
+          // or within the next 7 days (approaching due).
+          $query->where('loan_end_date', '<=', Carbon::now()->addDays(7)->toDateString());
+        })
+        // Eager load the loan application and its user (the borrower)
+        ->with(['loanApplication.user']) // Relationships loanApplication on LoanTransaction, user on LoanApplication
+        ->orderBy('issue_timestamp', 'asc') // Order by issue date, or could order by loan_application.loan_end_date
+        ->get();
+      return $list;
     } catch (\Exception $e) {
-      Log::error('Dashboard: Failed to delete leave record.', ['record_id' => $this->confirmedId, 'user_id' => Auth::id(), 'exception' => $e]);
-      session()->flash('error', __('An error occurred while deleting the leave record: ') . $e->getMessage());
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
-    } finally {
-      $this->confirmedId = null;
-    }
-  }
-
-  // 👉 Helper methods for validation rules and messages
-
-  protected function getLeaveValidationRules(): array
-  {
-    $rules = [
-      'newLeaveInfo.LeaveId' => 'required|exists:leaves,id',
-      'newLeaveInfo.fromDate' => 'required|date',
-      'newLeaveInfo.toDate' => 'required|date|after_or_equal:newLeaveInfo.fromDate',
-      'newLeaveInfo.note' => 'nullable|string|max:500',
-    ];
-
-    $selectedLeaveType = $this->leaveTypes->firstWhere('id', $this->newLeaveInfo['LeaveId']);
-    $isHourly = $selectedLeaveType?->is_hourly ?? false;
-
-
-    if ($isHourly) {
-      $rules['newLeaveInfo.startAt'] = 'required|date_format:H:i';
-      $rules['newLeaveInfo.endAt'] = 'required|date_format:H:i|after:newLeaveInfo.startAt';
-      $rules['newLeaveInfo.toDate'] .= '|same:newLeaveInfo.fromDate';
-    } else {
-      $rules['newLeaveInfo.startAt'] = 'nullable';
-      $rules['newLeaveInfo.endAt'] = 'nullable';
-    }
-
-    return $rules;
-  }
-
-  protected function getLeaveValidationMessages(): array
-  {
-    return [
-      'newLeaveInfo.LeaveId.required' => __('Leave Type is required.'),
-      'newLeaveInfo.LeaveId.exists' => __('Invalid Leave Type selected.'),
-      'newLeaveInfo.fromDate.required' => __('From Date is required.'),
-      'newLeaveInfo.fromDate.date' => __('From Date must be a valid date.'),
-      'newLeaveInfo.toDate.required' => __('To Date is required.'),
-      'newLeaveInfo.toDate.date' => __('To Date must be a valid date.'),
-      'newLeaveInfo.toDate.after_or_equal' => __('To Date must be on or after From Date.'),
-      'newLeaveInfo.toDate.same' => __('Hourly leave must be on the same day.'),
-      'newLeaveInfo.startAt.required' => __('Start Time is required for hourly leave.'),
-      'newLeaveInfo.startAt.date_format' => __('Start Time must be in HH:MM format.'),
-      'newLeaveInfo.endAt.required' => __('End Time is required for hourly leave.'),
-      'newLeaveInfo.endAt.date_format' => __('End Time must be in HH:MM format.'),
-      'newLeaveInfo.endAt.after' => __('End Time must be after Start Time.'),
-      'newLeaveInfo.note.max' => __('Note cannot exceed :max characters.'),
-    ];
-  }
-
-  // 👉 Helper method for hourly leave check
-
-  protected function isHourlyLeave($leaveId): bool
-  {
-    $leaveType = $this->leaveTypes->firstWhere('id', $leaveId);
-
-    if (!$leaveType) {
-      Log::warning('Dashboard: isHourlyLeave could not find Leave Type model.', ['leave_id' => $leaveId]);
-      return $leaveId !== null
-        && (is_string($leaveId) || is_numeric($leaveId))
-        && strlen((string) $leaveId) >= 2
-        && substr((string) $leaveId, 1, 1) === '2';
-    }
-
-    return (bool) ($leaveType->is_hourly ?? false);
-  }
-
-
-  // 👉 Helper methods for getting names - These are used in the Blade view
-  // Since they are used in the view and perform queries, they should be #[Computed] methods
-  // or the data should be eager loaded and accessed directly from relationships.
-  // Let's make them #[Computed] as discussed, but direct relationship access is preferable if possible.
-
-  #[Computed]
-  public function getEmployeeName(int $id): string
-  {
-    try {
-      $employee = Employee::find($id);
-      return $employee ? $employee->full_name ?? $employee->name ?? __('N/A') : __('N/A');
-    } catch (\Exception $e) {
-      Log::error('Dashboard: Error getting employee name in computed property.', ['employee_id' => $id, 'exception' => $e]);
-      return __('Error');
-    }
-  }
-
-  #[Computed]
-  public function getLeaveType(int $id): string
-  {
-    try {
-      $leaveType = Leave::find($id);
-      return $leaveType ? $leaveType->name : __('N/A');
-    } catch (\Exception $e) {
-      Log::error('Dashboard: Error getting leave type name in computed property.', ['leave_id' => $id, 'exception' => $e]);
-      return __('Error');
+      Log::error('Dashboard: Error fetching items due for return list.', ['user_id' => $this->loggedInUser->id, 'exception' => $e]);
+      return collect(); // Return empty collection on error
     }
   }
 
 
-  // Add a placeholder for the CheckAccountBalance method if it's not defined elsewhere
+  // Add a placeholder for the CheckAccountBalance method if it's not defined elsewhere in your application.
+  // This method is called in mount() but its implementation was not provided in the migrations or other shared files.
+  // You need to implement the actual logic for this method if it's used.
   /*
-     protected function CheckAccountBalance($userOrEmployee): array
-     {
-         Log::info('CheckAccountBalance placeholder method called.');
-         return ['status' => 200, 'balance' => '1000.00', 'is_active' => 'Yes'];
-     }
+        protected function CheckAccountBalance($userOrEmployee): array
+        {
+             // Implement actual logic to check account balance
+             Log::info('CheckAccountBalance placeholder method called.');
+             // Example placeholder return:
+             // return ['status' => 200, 'balance' => '1234.50', 'is_active' => 'Yes'];
+             // Or an error state:
+             // return ['status' => 500, 'balance' => 'Error', 'is_active' => 'Error'];
+             return ['status' => 400, 'balance' => '---', 'is_active' => '---']; // Default as initialized state
+        }
      */
 }

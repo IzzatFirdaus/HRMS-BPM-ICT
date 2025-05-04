@@ -157,7 +157,8 @@
     {{-- @section('content') --}}
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 py-6"> {{-- Converted container to Tailwind --}}
         <h2 class="text-2xl font-bold mb-6 text-gray-800">Senarai Permohonan E-mel ICT</h2> {{-- Converted h2 --}}
-        <a href="{{ route('email-applications.create') }}" class="btn btn-primary mb-4"> {{-- Converted button --}}
+        {{-- CORRECTED ROUTE NAME: Use the full registered name 'resource-management.email-applications.create' --}}
+        <a href="{{ route('resource-management.email-applications.create') }}" class="btn btn-primary mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
@@ -234,13 +235,13 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-b">
                                     {{-- Link to view application details --}}
-                                    {{-- Assuming a route named 'email-applications.show' exists --}}
-                                    <a href="{{ route('email-applications.show', $app) }}"
+                                    {{-- CORRECTED ROUTE NAME: Use the full registered name 'my-applications.email.show' --}}
+                                    <a href="{{ route('my-applications.email.show', $app->id) }}"
                                         class="text-blue-600 hover:text-blue-900 font-semibold">Lihat</a>
                                     {{-- Optional: Edit button if status is 'draft' and user is authorized --}}
                                     @if ($app->status === 'draft')
-                                        {{-- Assuming a route named 'email-applications.edit' exists --}}
-                                        <a href="{{ route('email-applications.edit', $app) }}"
+                                        {{-- CORRECTED ROUTE NAME: Link to the create/edit form route, passing the application ID --}}
+                                        <a href="{{ route('resource-management.email-applications.create', $app->id) }}"
                                             class="text-indigo-600 hover:text-indigo-900 font-semibold ml-4">Edit</a>
                                     @endif
                                 </td>

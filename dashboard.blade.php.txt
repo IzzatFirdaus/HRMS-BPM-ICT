@@ -1,0 +1,721 @@
+{{--
+    resources/views/livewire/dashboard.blade.php
+
+    This Blade view file for the App\Livewire\Dashboard component is revised to
+    serve as an integrated dashboard reflecting the MOTAC Integrated Resource Management System design.
+    It provides a role-based overview of Email/User ID and ICT Equipment Loan applications,
+    while maintaining the visual style of the HRMS template.
+    Updated route names to match web.php definitions and added null safety checks using optional() and ??.
+--}}
+
+{{-- PHPDoc to inform static analyzers about the component type of $this --}}
+@php
+    /** @var \App\Livewire\Dashboard $this */
+@endphp
+
+<div>
+    @php
+        // Use the corrected Helpers class (assuming App\Helpers\Helpers exists in your project)
+        use App\Helpers\Helpers;
+        // Employee model might still be useful, keep if needed for helper methods or relations
+        use App\Models\Employee;
+        use Carbon\Carbon; // Keep if needed for date formatting in the view
+        use Illuminate\Support\Facades\Auth; // Import Auth facade
+
+        // Get application classes (used by the layout, but accessed here)
+        $configData = Helpers::appClasses();
+
+        // Assume roles are managed by a package like Spatie (e.g., Spatie\Permission)
+        // You'll need to ensure user roles are loaded and available via Auth::user()->hasRole() or similar
+$user = Auth::user();
+// Use the exact role names defined in your Spatie permissions setup
+$isAdmin = optional($user)->hasRole('Admin') ?? false; // Added null safety for user and default to false
+$isApprover =
+    optional($user)->hasRole('Approver') ||
+        optional($user)->hasRole('AM') ||
+        optional($user)->hasRole('CC') ||
+        optional($user)->hasRole('CR') ||
+        optional($user)->hasRole('HR') ?? false; // Assuming these HRMS roles also function as Approvers
+$isBpmStaff = optional($user)->hasRole('BPM') ?? false; // Assuming BPM role exists
+// Assume 'User' is the default role for regular staff, or check if none of the above roles are assigned
+        $isRegularUser = !$isAdmin && !$isApprover && !$isBpmStaff; // Simplified check
+
+    @endphp
+
+    {{-- Styles from the original template --}}
+    {{-- Consider moving these styles to a dedicated CSS file or your layout --}}
+    <style>
+        .match-height>[class*='col'] {
+            display: flex;
+            flex-flow: column;
+        }
+
+        .match-height>[class*='col']>.card {
+            flex: 1 1 auto;
+        }
+
+        /* Styles for table row hover effects */
+        .btn-tr {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        tr:hover .btn-tr {
+            opacity: 1;
+        }
+
+        tr:hover .td {
+            color: #7367f0 !important;
+            /* Assuming a Bootstrap theme color */
+        }
+    </style>
+
+    {{-- Alerts - Included directly in the component view --}}
+    @include('_partials/_alerts/alert-general')
+
+    {{-- Removed Breadcrumbs for a cleaner dashboard feel --}}
+
+    <div class="row match-height">
+        {{-- Welcome Card (Retained from original) --}}
+        <div class="col-xl-4 mb-4 col-lg-5 col-12">
+            <div class="card h-100">
+                <div class="card-header pb-0">
+                    <div class="d-flex justify-content-between">
+                        <div class="card-title mb-0">
+                            {{-- Display employee first name from the component property --}}
+                            {{-- Added optional() for $employeeFirstName --}}
+                            <h4 class="card-title mb-1">{{ __('Hi,') }} {{ $employeeFirstName ?? 'User' }} 👋!</h4>
+                            <small class="text-muted">{{ __('Start your day with a smile') }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-end row h-100">
+                    <div class="col-7">
+                        <div class="card-body text-nowrap">
+                            {{-- Live clock displayed via JS --}}
+                            <h5 id="date" class="text-primary mt-3 mb-1"></h5>
+                            <h5 id="time" class="text-primary mb-2"></h5>
+
+                            {{-- Integrated "Add New" Dropdown for both new modules --}}
+                            <div class="btn-group dropend">
+                                <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown"
+                                    aria-haspopup="true" aria-expanded="false"><i
+                                        class="ti ti-plus me-1"></i>{{ __('Add New Application') }}</button>
+                                <ul class="dropdown-menu">
+                                    {{-- Option for Email/User ID Application --}}
+                                    @can('create email applications')
+                                        {{-- Example permission from system design --}}
+                                        <li>
+                                            {{-- Link to the Email Application form - Corrected route name --}}
+                                            <a class="dropdown-item"
+                                                href="{{ route('resource-management.email-applications.create') }}">
+                                                <i class="ti ti-mail ti-xs me-1"></i> {{ __('Email/User ID Application') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+
+                                    {{-- Option for ICT Equipment Loan Application --}}
+                                    @can('create loan applications')
+                                        {{-- Example permission from system design --}}
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                        <li>
+                                            {{-- Link to the Loan Application form - Corrected route name --}}
+                                            <a class="dropdown-item"
+                                                href="{{ route('resource-management.loan-applications.create') }}">
+                                                <i class="ti ti-laptop ti-xs me-1"></i> {{ __('ICT Equipment Loan') }}
+                                            </a>
+                                        </li>
+                                    @endcan
+
+                                    {{-- Keep other "Add New" options if they are still part of the dashboard scope for relevant roles --}}
+                                    @can('create employees')
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                        <li><a class="dropdown-item" href="{{ route('structure-employees') }}"><i
+                                                    class="ti ti-users ti-xs me-1"></i> {{ __('Employee') }}</a></li>
+                                    @endcan
+                                    {{-- ... add other existing "Add New" items if needed ... --}}
+                                    @can('create fingerprints')
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                        <li><a class="dropdown-item" href="{{ route('attendance-fingerprints') }}"><i
+                                                    class="ti ti-fingerprint ti-xs me-1"></i>{{ __('Fingerprint') }}</a>
+                                        </li>
+                                    @endcan
+                                    @can('create leaves')
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                        {{-- wire:click to open Livewire modal for Leave (as per original) --}}
+                                        <li><a wire:click.prevent='showCreateLeaveModal' class="dropdown-item"
+                                                data-bs-toggle="modal" data-bs-target="#leaveModal" href="#"><i
+                                                    class="ti ti-calendar ti-xs me-1"></i>{{ __('Leave') }}</a>
+                                        </li>
+                                    @endcan
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-5 text-center text-sm-left h-100 d-flex align-items-end">
+                        <div class="card-body pb-0 px-0 px-md-4 w-100">
+                            {{-- Illustration Image --}}
+                            <img src="{{ asset('assets/img/illustrations/card-advance-sale.png') }}" class="img-fluid"
+                                alt="view sales" style="object-fit: contain; width: 100%; height: auto;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Integrated Statistics Card --}}
+        <div class="col-xl-8 mb-4 col-lg-7 col-12">
+            <div class="card h-100">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between mb-3">
+                        <h5 class="card-title mb-0">{{ __('Overview Statistics') }}</h5>
+                        {{-- You might display a general system status or last update time here --}}
+                        {{-- @can('view dashboard statistics') --}} {{-- Assuming a permission to view these stats --}}
+                        <small class="text-muted">{{ __('Data updated on latest render') }}</small>
+                        {{-- Clarify data freshness --}}
+                        {{-- @endcan --}}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row gy-3">
+                        {{-- --- Email/User ID Statistics --- --}}
+                        @if ($isRegularUser || $isAdmin)
+                            {{-- Show user's application stats to regular users and admins --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-info me-3 p-2"><i
+                                            class="ti ti-mail ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $userEmailApplicationsPendingCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $userEmailApplicationsPendingCount ?? 0 }}</h5>
+                                        <small>{{ __('Your Pending Email/User ID Apps') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if ($isApprover || $isAdmin)
+                            {{-- Show pending approval stats to approvers and admins --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-warning me-3 p-2"><i
+                                            class="ti ti-checks ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $pendingEmailApprovalsCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $pendingEmailApprovalsCount ?? 0 }}</h5>
+                                        <small>{{ __('Pending Email/User ID Approvals') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if ($isBpmStaff || $isAdmin)
+                            {{-- Show IT processing stats to BPM and admins --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-primary me-3 p-2"><i
+                                            class="ti ti-server ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $pendingEmailProvisioningCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $pendingEmailProvisioningCount ?? 0 }}</h5>
+                                        <small>{{ __('Pending Email Provisioning') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- --- ICT Equipment Loan Statistics --- --}}
+                        @if ($isRegularUser || $isAdmin)
+                            {{-- Show user's loan stats to regular users and admins --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-info me-3 p-2"><i
+                                            class="ti ti-laptop ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $userLoanApplicationsPendingCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $userLoanApplicationsPendingCount ?? 0 }}</h5>
+                                        <small>{{ __('Your Pending Loan Apps') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if ($isApprover || $isAdmin)
+                            {{-- Show pending loan approval stats to approvers and admins --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-warning me-3 p-2"><i
+                                            class="ti ti-clipboard-check ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $pendingLoanApprovalsCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $pendingLoanApprovalsCount ?? 0 }}</h5>
+                                        <small>{{ __('Pending Loan Approvals') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if ($isBpmStaff || $isAdmin)
+                            {{-- Show BPM processing stats to BPM and admins --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-success me-3 p-2"><i
+                                            class="ti ti-package ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $pendingLoanIssuanceCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $pendingLoanIssuanceCount ?? 0 }}</h5>
+                                        <small>{{ __('Pending Loan Issuance') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-secondary me-3 p-2"><i
+                                            class="ti ti-box ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- $equipmentAvailableCount needs to be fetched in component --}}
+                                        <h5 class="mb-0">{{ $equipmentAvailableCount ?? 0 }}</h5>
+                                        <small>{{ __('Available Equipment') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+
+                        {{-- Keep other relevant statistics if needed (e.g., Active Employees if still part of scope) --}}
+                        @if ($isAdmin || $isBpmStaff)
+                            {{-- Example: Active Employees shown to Admin/BPM --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-users me-3 p-2"><i
+                                            class="ti ti-users ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- Ensure $activeEmployees is initialized and fetched --}}
+                                        <h5 class="mb-0">{{ count($activeEmployees ?? []) }}</h5>
+                                        {{-- Added null coalescing for count --}}
+                                        <small>{{ __('Active Employees') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- SMS Statistics (conditional based on permission, kept from original) --}}
+                        @can('read sms')
+                            {{-- Check if user has permission to read SMS stats --}}
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="badge rounded-pill bg-label-success me-3 p-2"><i
+                                            class="ti ti-speakerphone ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- Ensure $messagesStatus is initialized and has 'sent' key --}}
+                                        <h5 class="mb-0">{{ $messagesStatus['sent'] ?? 0 }}</h5>
+                                        <small>{{ __('Successful SMS') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 col-6">
+                                <div class="d-flex align-items-center">
+                                    {{-- Wire click to send pending messages --}}
+                                    <div wire:click='sendPendingMessages'
+                                        class="badge rounded-pill bg-label-danger me-3 p-2" style="cursor: pointer"><i
+                                            class="ti ti-send ti-sm"></i></div>
+                                    <div class="card-info">
+                                        {{-- Ensure $messagesStatus is initialized and has 'unsent' key --}}
+                                        <h5 class="mb-0">{{ $messagesStatus['unsent'] ?? 0 }}</h5>
+                                        <small>{{ __('Pending SMS') }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        @endcan
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Commented out Chart Sections - Removed for clarity in integrated design --}}
+        {{-- ... commented chart divs ... --}}
+    </div>
+
+    {{-- Integrated Recent Activity / Pending Items Sections --}}
+    <div class="row mt-4">
+        {{-- Section for Regular Users: Your Pending Applications --}}
+        @if ($isRegularUser)
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <h5 class="card-header">{{ __('Your Pending Applications') }}</h5>
+                    <div class="table-responsive text-nowrap">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('Type') }}</th>
+                                    <th>{{ __('Details') }}</th>
+                                    <th>{{ __('Status') }}</th>
+                                    <th>{{ __('Submitted At') }}</th>
+                                    <th>{{ __('Actions') }}</th> {{-- e.g., View --}}
+                                </tr>
+                            </thead>
+                            <tbody class="table-border-bottom-0">
+                                {{-- Loop through user's pending Email Applications and Loan Applications --}}
+                                {{-- You'll need a property like $userPendingApplications in your component --}}
+                                {{-- Ensure $userPendingApplications is a collection/array containing mixed application objects --}}
+                                @forelse($userPendingApplications ?? [] as $application)
+                                    <tr>
+                                        <td>
+                                            {{-- Display type based on the model instance --}}
+                                            <strong>
+                                                @if ($application instanceof \App\Models\EmailApplication)
+                                                    <span class="badge bg-label-info">{{ __('Email/User ID') }}</span>
+                                                @elseif ($application instanceof \App\Models\LoanApplication)
+                                                    <span class="badge bg-label-primary">{{ __('ICT Loan') }}</span>
+                                                @else
+                                                    <span class="badge bg-label-secondary">{{ __('Unknown') }}</span>
+                                                @endif
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            {{-- Display relevant details based on type --}}
+                                            @if ($application instanceof \App\Models\EmailApplication)
+                                                {{ optional($application)->purpose ?? 'N/A' }}
+                                            @elseif ($application instanceof \App\Models\LoanApplication)
+                                                {{ optional($application)->purpose ?? 'N/A' }} -
+                                                ({{ optional($application)->loan_start_date ? Carbon::parse(optional($application)->loan_start_date)->format('Y-m-d') : 'N/A' }}
+                                                to
+                                                {{ optional($application)->loan_end_date ? Carbon::parse(optional($application)->loan_end_date)->format('Y-m-d') : 'N/A' }})
+                                            @endif
+                                        </td>
+                                        <td>
+                                            {{-- Display status (needs appropriate styling) --}}
+                                            {{-- Added optional() for status --}}
+                                            <span
+                                                class="badge bg-label-warning">{{ optional($application)->status ?? __('Unknown Status') }}</span>
+                                        </td>
+                                        {{-- Added optional() for created_at and Carbon parsing --}}
+                                        <td>{{ optional($application)->created_at ? Carbon::parse(optional($application)->created_at)->format('Y-m-d H:i') : 'N/A' }}
+                                        </td>
+                                        <td>
+                                            {{-- Link to view the specific application details - Corrected route names and pass model --}}
+                                            {{-- Added check if $application is not null before generating route --}}
+                                            @if ($application)
+                                                @if ($application instanceof \App\Models\EmailApplication)
+                                                    <a href="{{ route('my-applications.email.show', $application) }}"
+                                                        class="btn btn-sm btn-outline-secondary"><i
+                                                            class="ti ti-eye"></i>
+                                                        {{ __('View') }}</a>
+                                                @elseif ($application instanceof \App\Models\LoanApplication)
+                                                    <a href="{{ route('my-applications.loan.show', $application) }}"
+                                                        class="btn btn-sm btn-outline-secondary"><i
+                                                            class="ti ti-eye"></i>
+                                                        {{ __('View') }}</a>
+                                                @endif
+                                            @else
+                                                N/A
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center">{{ __('No pending applications.') }}
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- Section for Approvers: Pending Approvals --}}
+        @if ($isApprover)
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <h5 class="card-header">{{ __('Pending Approvals') }}</h5>
+                    {{-- Link to the full Approvals Dashboard --}}
+                    <div class="card-body">
+                        <a href="{{ route('approvals.index') }}" class="btn btn-primary mb-3">
+                            <i class="ti ti-dashboard me-1"></i> {{ __('View Full Approval Dashboard') }}
+                        </a>
+                        {{-- You could also show a limited list here if needed --}}
+                    </div>
+                    {{-- Removed the table here and added a link to the dedicated approvals dashboard --}}
+                </div>
+            </div>
+        @endif
+
+        {{-- Section for BPM Staff: Items Needing Processing / Due for Return --}}
+        {{-- This block seems to contain two tables for BPM staff --}}
+        @if ($isBpmStaff)
+            {{-- First Table: Pending Equipment Issuance --}}
+            <div class="col-lg-6 col-12 mb-4">
+                <div class="card">
+                    <h5 class="card-header">{{ __('Pending Equipment Issuance') }}</h5>
+                    <div class="table-responsive text-nowrap">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('Application ID') }}</th>
+                                    <th>{{ __('Applicant') }}</th>
+                                    <th>{{ __('Items') }}</th>
+                                    <th>{{ __('Actions') }}</th> {{-- e.g., Process Issuance --}}
+                                </tr>
+                            </thead>
+                            <tbody class="table-border-bottom-0">
+                                {{-- Loop through loan applications pending issuance --}}
+                                {{-- You'll need a property like $pendingLoanIssuanceList in your component --}}
+                                {{-- Ensure $pendingLoanIssuanceList is a collection of LoanApplication objects with 'user' and 'items' relations loaded --}}
+                                @forelse($pendingLoanIssuanceList ?? [] as $loanApplication)
+                                    <tr>
+                                        {{-- Added optional() for id --}}
+                                        <td>#{{ optional($loanApplication)->id ?? 'N/A' }}</td>
+                                        {{-- Added optional() for nested user relationship --}}
+                                        <td>{{ optional(optional($loanApplication)->user)->full_name ?? 'N/A' }}</td>
+                                        <td>
+                                            {{-- List requested/approved items --}}
+                                            {{-- Ensure 'items' relation is loaded and it contains relevant info like equipment_type and quantity --}}
+                                            {{-- Added optional() for items relationship --}}
+                                            @forelse(optional($loanApplication)->items ?? [] as $item)
+                                                {{-- Assuming an 'items' relationship --}}
+                                                {{-- Added optional() for item properties --}}
+                                                {{ optional($item)->quantity_approved ?? (optional($item)->quantity_requested ?? 0) }}
+                                                x
+                                                {{ optional($item)->equipment_type ?? 'N/A' }}@unless ($loop->last)
+                                                <br>
+                                            @endunless
+                                        @empty
+                                            N/A
+                                        @endforelse
+                                    </td>
+                                    <td>
+                                        {{-- Link to the issuance processing page - Corrected route name and pass model --}}
+                                        {{-- Added check if $loanApplication is not null before generating route --}}
+                                        @if ($loanApplication)
+                                            <a href="{{ route('resource-management.admin.bpm.issue.form', $loanApplication) }}"
+                                                class="btn btn-sm btn-outline-success"><i
+                                                    class="ti ti-package"></i>
+                                                {{ __('Process Issuance') }}</a>
+                                        @else
+                                            N/A
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">{{ __('No loans pending issuance.') }}
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {{-- Second Table: Equipment Due for Return Today/Soon --}}
+        <div class="col-lg-6 col-12 mb-4">
+            <div class="card">
+                <h5 class="card-header">{{ __('Equipment Due for Return Today/Soon') }}</h5>
+                <div class="table-responsive text-nowrap">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Equipment') }}</th>
+                                <th>{{ __('On Loan To') }}</th>
+                                <th>{{ __('Due Date') }}</th>
+                                <th>{{ __('Actions') }}</th> {{-- e.g., Process Return --}}
+                            </tr>
+                        </thead>
+                        <tbody class="table-border-bottom-0">
+                            {{-- Loop through equipment currently on loan and due back soon --}}
+                            {{-- You'll need a property like $equipmentDueForReturn in your component --}}
+                            {{-- Ensure $equipmentDueForReturn is a collection of LoanTransaction objects with 'equipment', 'loanApplication', and 'loanApplication.user' relations loaded --}}
+                            @forelse($equipmentDueForReturn ?? [] as $loanTransaction)
+                                <tr>
+                                    {{-- Added optional() for nested equipment relationship --}}
+                                    <td>{{ optional(optional($loanTransaction)->equipment)->brand ?? 'N/A' }}
+                                        {{ optional(optional($loanTransaction)->equipment)->model ?? 'N/A' }}</td>
+                                    {{-- Added optional() for double nested loanApplication and user relationships --}}
+                                    <td>{{ optional(optional(optional($loanTransaction)->loanApplication)->user)->full_name ?? 'N/A' }}
+                                    </td>
+                                    {{-- Added optional() for double nested loanApplication and loan_end_date, and format --}}
+                                    <td>{{ optional(optional($loanTransaction)->loanApplication)->loan_end_date ? Carbon::parse(optional(optional($loanTransaction)->loanApplication)->loan_end_date)->format('Y-m-d') : 'N/A' }}
+                                    </td>
+                                    <td>
+                                        {{-- Link to the return processing page - Corrected route name and pass model --}}
+                                        {{-- Added check if $loanTransaction is not null before generating route --}}
+                                        @if ($loanTransaction)
+                                            <a href="{{ route('resource-management.admin.bpm.return.form', $loanTransaction) }}"
+                                                class="btn btn-sm btn-outline-primary"><i class="ti ti-box"></i>
+                                                {{ __('Process Return') }}</a>
+                                        @else
+                                            N/A
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">
+                                        {{ __('No equipment due for return today/soon.') }}
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Keep the original "Today Leaves" table if it's still part of the dashboard scope --}}
+    {{-- Conditionally display based on roles that manage/view leaves --}}
+    @if ($isRegularUser || $isAdmin || optional($user)->hasRole('HR')) {{-- Added optional() for user role check --}}
+        <div class="col-12 mt-4"> {{-- Added mt-4 for spacing --}}
+            <div class="card">
+                <h5 class="card-header">{{ __('Today Leaves') }}</h5>
+                <div class="table-responsive text-nowrap">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th class="col-1">{{ __('ID') }}</th>
+                                <th>{{ __('Employee') }}</th>
+                                <th class="col-1">{{ __('Type') }}</th>
+                                <th style="text-align: center">{{ __('Details') }}</th>
+                                <th style="text-align: center">{{ __('Actions') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="table-border-bottom-0">
+                            {{-- Assuming $leaveRecords and $leave are always valid here,
+                                 but good practice to add optional() if they could be null --}}
+                            @forelse($leaveRecords ?? [] as $leave)
+                                {{-- Added null coalescing for leaveRecords --}}
+                                <tr>
+                                    <td><strong>{{ optional($leave)->id ?? 'N/A' }}</strong></td>
+                                    {{-- Added optional() --}}
+                                    {{-- Assuming getEmployeeName handles potential null employee_id --}}
+                                    <td class="td">
+                                        {{ $this->getEmployeeName(optional($leave)->employee_id) ?? 'N/A' }}</td>
+                                    {{-- Added optional() and ?? --}}
+                                    {{-- Assuming getLeaveType handles potential null leave_id --}}
+                                    <td>{{ $this->getLeaveType(optional($leave)->leave_id) ?? 'N/A' }}</td>
+                                    {{-- Added optional() and ?? --}}
+                                    <td style="text-align: center">
+                                        {{-- Added optional() for date properties and Carbon parsing --}}
+                                        <span class="badge bg-label-primary mb-2 me-1"
+                                            style="font-size: 14px">{{ optional($leave)->from_date ? Carbon::parse(optional($leave)->from_date)->format('Y-m-d') : 'N/A' }}
+                                            -->
+                                            {{ optional($leave)->to_date ? Carbon::parse(optional($leave)->to_date)->format('Y-m-d') : 'N/A' }}</span>
+                                        <br>
+                                        @if (optional($leave)->start_at !== null)
+                                            {{-- Added optional() --}}
+                                            {{-- Added optional() for time properties and Carbon parsing --}}
+                                            <span
+                                                class="badge bg-label-secondary me-1">{{ optional(optional($leave)->start_at)->format('H:i') ?? 'N/A' }}
+                                                -->
+                                                {{ optional(optional($leave)->end_at)->format('H:i') ?? 'N/A' }}</span>
+                                            {{-- Added optional() and ?? --}}
+                                        @endif
+                                    </td>
+                                    <td style="text-align: center">
+                                        {{-- Assuming leave status logic is handled correctly --}}
+                                        {{-- Added optional() for status --}}
+                                        <span
+                                            class="badge bg-label-info">{{ optional($leave)->status ?? __('Unknown Status') }}</span>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center">{{ __('No leaves today.') }}</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Keep the original "Change Logs" table if it's still part of the dashboard scope --}}
+    {{-- Conditionally display based on roles that manage/view changelogs --}}
+    @if ($isAdmin) {{-- Assuming only Admin can see changelogs --}}
+        <div class="col-12 mt-4"> {{-- Added mt-4 for spacing --}}
+            <div class="card">
+                <h5 class="card-header">{{ __('Change Logs') }}</h5>
+                <div class="table-responsive text-nowrap">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{{ __('Date') }}</th>
+                                <th>{{ __('User') }}</th>
+                                <th>{{ __('Action') }}</th>
+                                <th>{{ __('Subject') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="table-border-bottom-0">
+                            {{-- Assuming $changelogs is fetched in the component --}}
+                            @forelse($changelogs ?? [] as $changelog)
+                                {{-- Added null coalescing for changelogs --}}
+                                <tr>
+                                    {{-- Added optional() for created_at and Carbon parsing --}}
+                                    <td>{{ optional($changelog)->created_at ? Carbon::parse(optional($changelog)->created_at)->format('Y-m-d H:i:s') : 'N/A' }}
+                                    </td>
+                                    {{-- Added optional() for user relationship and name --}}
+                                    <td>{{ optional(optional($changelog)->user)->name ?? 'System' }}</td>
+                                    {{-- Added optional() for action --}}
+                                    <td><span
+                                            class="badge bg-label-info me-1">{{ optional($changelog)->action ?? 'N/A' }}</span>
+                                    </td>
+                                    {{-- Added optional() for subject and subject_type --}}
+                                    <td>{{ optional($changelog)->subject_type ?? 'N/A' }}:
+                                        {{ optional($changelog)->subject_id ?? 'N/A' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">{{ __('No recent change logs.') }}
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
+
+</div> {{-- End match-height row --}}
+
+{{-- Blade and JS for the clock --}}
+<script>
+    function updateClock() {
+        const now = new Date();
+        const dateOptions = {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        };
+        const timeOptions = {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        };
+
+        const dateString = now.toLocaleDateString(undefined, dateOptions);
+        const timeString = now.toLocaleTimeString(undefined, timeOptions);
+
+        document.getElementById('date').textContent = dateString;
+        document.getElementById('time').textContent = timeString;
+    }
+
+    // Update the clock every second
+    setInterval(updateClock, 1000);
+    // Initial call to display the clock immediately
+    updateClock();
+</script>
+</div>

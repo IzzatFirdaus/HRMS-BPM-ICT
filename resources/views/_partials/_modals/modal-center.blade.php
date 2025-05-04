@@ -1,3 +1,5 @@
+{{-- resources/views/livewire/human-resource/structure/centers.blade.php --}}
+
 {{-- This Blade partial represents a Livewire modal component for managing Centers. --}}
 
 {{--
@@ -5,9 +7,11 @@
     Controlled by a Livewire property (e.g., $showModal) and Alpine.js (x-show, @entangle).
 --}}
 {{-- The outer div handles the modal overlay and positioning. wire:ignore.self is not needed as Livewire/Alpine controls visibility. --}}
-<div x-data="{ show: @entangle('showModal').defer }" {{-- Entangle Alpine's 'show' with Livewire's 'showModal', defer updates for better performance --}} x-show="show" {{-- Alpine.js directive to show/hide the modal --}}
-    class="fixed inset-0 z-50 overflow-y-auto" {{-- Tailwind classes for fixed positioning, z-index, overflow --}} aria-labelledby="modal-title" {{-- Accessibility attributes --}}
-    role="dialog" aria-modal="true" {{-- You might still need the id if Bootstrap JS is used elsewhere to target this modal --}} id="centerModal" tabindex="-1" aria-hidden="true">
+{{-- Removed Bootstrap modal attributes to rely on Alpine/Livewire visibility control --}}
+<div x-data="{ show: @entangle('showModal').defer }" {{-- Entangle Alpine's 'show' with Livewire's 'showModal', defer updates --}} x-show="show" {{-- Alpine.js directive to show/hide the modal --}}
+    class="fixed inset-0 z-50 overflow-y-auto" {{-- Tailwind classes for fixed positioning, z-index, overflow --}} aria-labelledby="modal-title" role="dialog"
+    aria-modal="true"> {{-- Kept accessibility attributes --}}
+
     {{-- Inner div for centering the modal content --}}
     <div class="flex items-center justify-center min-h-screen px-4 py-12 text-center sm:block sm:p-0">
 
@@ -27,11 +31,10 @@
             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             class="inline-block w-full max-w-lg p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white rounded-lg shadow-xl">
 
-            {{-- Converted btn-close and data-bs-dismiss to Tailwind and Alpine click --}}
-            <button @click="show = false; $wire.call('resetForm')" type="button" {{-- Set Alpine show property to false, call Livewire resetForm --}}
+            {{-- Close Button --}}
+            <button @click="show = false; $wire.call('resetForm')" type="button"
                 class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                <span class="sr-only">{{ __('Close') }}</span> {{-- Accessibility text --}}
-                {{-- Simple SVG icon for close --}}
+                <span class="sr-only">{{ __('Close') }}</span>
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
@@ -39,41 +42,36 @@
                 </svg>
             </button>
 
-            <div class="text-center mb-6"> {{-- Increased bottom margin --}}
-                {{-- Dynamic Title: Displays "Update Center" or "New Center" based on the $isEdit Livewire property --}}
+            <div class="text-center mb-6">
+                {{-- Dynamic Title --}}
                 <h3 class="text-2xl font-bold text-gray-900 mb-2" id="modal-title">
-                    {{ $isEdit ? __('Update Center') : __('New Center') }}</h3> {{-- Translated string, added text size, font-bold, color, mb --}}
+                    {{ $isEdit ? __('Update Center') : __('New Center') }}</h3>
                 <p class="text-sm text-gray-500">{{ __('Please fill out the following information') }}</p>
-                {{-- Translated string, added text size and color --}}
             </div>
 
-            {{-- Replaced row g-3 with Tailwind flex and gap --}}
-            <form wire:submit.prevent="submitCenter" class="flex flex-col gap-4"> {{-- Use flex flex-col and gap for vertical spacing --}}
+            <form wire:submit.prevent="submitCenter" class="flex flex-col gap-4">
 
                 {{-- Center Name Input Field --}}
-                <div> {{-- Each form field block --}}
+                <div>
                     <label class="block text-gray-700 text-sm font-bold mb-2"
-                        for="centerName">{{ __('Name') }}:</label> {{-- Converted form-label, added colon --}}
-                    {{-- Converted form-control and is-invalid to Tailwind classes --}}
+                        for="centerName">{{ __('Name') }}:</label>
                     <input wire:model='name' id="centerName"
                         class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('name') border-red-500 @enderror"
-                        type="text" placeholder="{{ __('Enter center name') }}" /> {{-- Translated placeholder --}}
+                        type="text" placeholder="{{ __('Enter center name') }}" />
                     @error('name')
-                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p> {{-- Converted text-danger --}}
+                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                     @enderror
                 </div>
 
                 {{-- Weekends Select2 Field --}}
-                {{-- wire:ignore is essential for Select2 to prevent Livewire from interfering with its DOM --}}
-                <div wire:ignore> {{-- Each form field block --}}
+                <div wire:ignore>
                     <label class="block text-gray-700 text-sm font-bold mb-2"
-                        for="select2Weekends">{{ __('Weekends') }}:</label> {{-- Converted form-label, added colon --}}
-                    {{-- Added a custom class for targeted styling in the CSS below --}}
-                    {{-- Note: The appearance will depend heavily on Select2's own styling and the custom CSS overrides --}}
+                        for="select2Weekends">{{ __('Weekends') }}:</label>
+                    {{-- The appearance will depend heavily on Select2's own styling and the custom CSS overrides --}}
                     <select wire:model='weekends' id="select2Weekends"
                         class="select2-tailwind-styled w-full @error('weekends') border-red-500 @enderror"
                         data-allow-clear="true" multiple>
-                        {{-- Options with translated strings --}}
+                        {{-- Options with translated strings and NUMBER values (0-6) --}}
                         <option value="0">{{ __('Sunday') }}</option>
                         <option value="1">{{ __('Monday') }}</option>
                         <option value="2">{{ __('Tuesday') }}</option>
@@ -83,70 +81,59 @@
                         <option value="6">{{ __('Saturday') }}</option>
                     </select>
                     @error('weekends')
-                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p> {{-- Converted text-danger --}}
+                        <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                     @enderror
                 </div>
 
                 {{-- Work Start Time and End Time Flatpickr Fields --}}
-                {{-- Used Tailwind flexbox for side-by-side layout on medium screens --}}
-                <div class="flex flex-wrap -mx-2"> {{-- Container for the two time fields with negative horizontal margin --}}
-                    <div class="px-2 w-full md:w-1/2"> {{-- Use padding and width classes for layout --}}
+                <div class="flex flex-wrap -mx-2">
+                    <div class="px-2 w-full md:w-1/2">
                         <label class="block text-gray-700 text-sm font-bold mb-2"
-                            for="startWorkHour">{{ __('Work start at') }}:</label> {{-- Converted form-label, added colon --}}
-                        {{-- Added a custom class for targeted styling in the CSS below --}}
-                        {{-- Note: The appearance will depend heavily on Flatpickr's own styling and the custom CSS overrides --}}
+                            for="startWorkHour">{{ __('Work start at') }}:</label>
+                        {{-- The appearance will depend heavily on Flatpickr's own styling and the custom CSS overrides --}}
                         <input wire:model='startWorkHour' type="text" id="startWorkHour"
                             class="flatpickr-tailwind-styled shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('startWorkHour') border-red-500 @enderror"
                             placeholder="HH:MM" autocomplete="off" />
                         @error('startWorkHour')
-                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p> {{-- Converted text-danger --}}
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
 
-                    <div class="px-2 w-full md:w-1/2 mt-4 md:mt-0"> {{-- Use padding and width classes for layout, add top margin on small screens --}}
+                    <div class="px-2 w-full md:w-1/2 mt-4 md:mt-0">
                         <label class="block text-gray-700 text-sm font-bold mb-2"
-                            for="endWorkHour">{{ __('Work end at') }}:</label> {{-- Converted form-label, added colon --}}
-                        {{-- Added a custom class for targeted styling in the CSS below --}}
-                        {{-- Note: The appearance will depend heavily on Flatpickr's own styling and the custom CSS overrides --}}
+                            for="endWorkHour">{{ __('Work end at') }}:</label>
+                        {{-- The appearance will depend heavily on Flatpickr's own styling and the custom CSS overrides --}}
                         <input wire:model='endWorkHour' type="text" id="endWorkHour"
                             class="flatpickr-tailwind-styled shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 @error('endWorkHour') border-red-500 @enderror"
                             placeholder="HH:MM" autocomplete="off" />
                         @error('endWorkHour')
-                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p> {{-- Converted text-danger --}}
+                            <p class="text-red-500 text-xs italic mt-1">{{ $message }}</p>
                         @enderror
                     </div>
-                </div> {{-- End time fields container --}}
-
+                </div>
 
                 {{-- Submit and Cancel Buttons --}}
-                <div class="mt-6 flex justify-center space-x-4"> {{-- Used Tailwind flex, justify-center, mt, space-x --}}
+                <div class="mt-6 flex justify-center space-x-4">
                     {{-- Submit Button --}}
-                    {{-- Converted btn btn-primary me-sm-3 me-1 to Tailwind classes --}}
                     <button type="submit"
                         class="inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm">
-                        {{-- Display different text/spinner while submitting --}}
                         <span wire:loading.remove wire:target="submitCenter">{{ __('Submit') }}</span>
-                        {{-- Translated string --}}
-                        {{-- Optional spinner while submitting (converted from Bootstrap spinner to SVG) --}}
-                        <span wire:loading wire:target="submitCenter" class="flex items-center"> {{-- Use flex to align spinner and text --}}
-                            {{-- Simple SVG spinner example --}}
+                        <span wire:loading wire:target="submitCenter" class="flex items-center">
                             <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
                                 fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                    stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor"
                                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 004 12H0c0 3.042 1.135 5.824 3 7.938l2-2.647z">
                                 </path>
                             </svg>
-                            {{ __('Submitting...') }} {{-- Optional text while submitting --}}
+                            {{ __('Submitting...') }}
                         </span>
                     </button>
                     {{-- Cancel/Reset Button --}}
-                    {{-- Converted btn btn-label-secondary btn-reset data-bs-dismiss="modal" to Tailwind and Alpine click --}}
-                    <button type="button" @click="show = false; $wire.call('resetForm')" {{-- Set Alpine show property to false, call Livewire resetForm --}}
+                    <button type="button" @click="show = false; $wire.call('resetForm')"
                         class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        {{-- Adjusted size and spacing for responsiveness --}}
-                        {{ __('Cancel') }} {{-- Translated string --}}
+                        {{ __('Cancel') }}
                     </button>
                 </div>
             </form>
@@ -287,7 +274,10 @@
 
 {{-- Push custom JavaScript for Select2 and Flatpickr initialization and Livewire integration --}}
 @push('custom-scripts')
-    {{-- Link to Select2 JS (Ensure jQuery is loaded before this) --}}
+    {{-- Link to jQuery (Select2 requires jQuery) --}}
+    {{-- Ensure jQuery is loaded BEFORE Select2 --}}
+    <script src="{{ asset('assets/vendor/libs/jquery/jquery.js') }}"></script> {{-- Assuming jQuery is here --}}
+    {{-- Link to Select2 JS --}}
     <script src="{{ asset('assets/vendor/libs/select2/select2.js') }}"></script>
     {{-- Link to Flatpickr JS --}}
     <script src="{{ asset('assets/vendor/libs/flatpickr/flatpickr.js') }}"></script>
@@ -297,41 +287,31 @@
         'use strict';
 
         // Function to initialize Select2 and Flatpickr and handle Livewire integration
-        // This function needs to be called when the modal content is available in the DOM,
-        // and specifically when Livewire has finished rendering elements within the modal.
         function initializeCenterModalComponents() {
             console.log('Attempting to initialize Center modal components...');
 
             // Select2 Initialization and Livewire Integration
-            // Target the select element and check if it's already initialized
             const select2Weekends = $('#select2Weekends');
-            if (select2Weekends.length && !select2Weekends.hasClass('select2-initialized')) {
+            // Check if element exists and hasn't been fully initialized by Select2
+            if (select2Weekends.length && !select2Weekends.hasClass('select2-hidden-accessible')) {
                 console.log('Initializing Select2 for #select2Weekends...');
-
-                // Destroy existing Select2 instance to prevent issues with re-initialization on subsequent Livewire updates
-                if (select2Weekends.hasClass('select2-hidden-accessible')) { // Check if Select2 has initialized itself
-                    try {
-                        select2Weekends.select2('destroy');
-                        console.log('Destroyed existing Select2 instance for #select2Weekends');
-                    } catch (e) {
-                        console.warn('Could not destroy Select2 instance:', e);
-                    }
-                }
 
                 // Initialize Select2
                 select2Weekends.select2({
-                    placeholder: '{{ __('Select value') }}', // Use translation helper
-                    dropdownParent: $('#centerModal'), // Use the modal's ID as the parent for correct positioning
+                    placeholder: '{{ __('Select value') }}',
+                    // Use the modal's container element as the parent for correct positioning
+                    // This depends on your exact modal DOM structure and where the Select2 dropdown should appear
+                    dropdownParent: select2Weekends.parent().parent(), // Adjust selector based on your DOM
+                    // Or use a specific modal container ID if available and outside the Alpine x-data scope
+                    // dropdownParent: $('#centerModal'), // If you keep the ID on the main modal div
                     width: 'resolve' // Helps resolve width issues in flexible layouts
                 });
-                select2Weekends.addClass('select2-initialized'); // Mark as initialized
-                console.log('Initialized Select2 for #select2Weekends');
 
                 // Manually update Livewire property when Select2's value changes
-                // Use .on() to ensure the event listener is attached reliably
                 select2Weekends.on('change', function(e) {
                     var data = $(this).select2("val");
-                    // Only update Livewire if the value is different to prevent unnecessary component updates
+                    // Only update Livewire if the value is different
+                    // Using JSON.stringify for deep comparison of arrays
                     if (JSON.stringify(data) !== JSON.stringify(@this.get('weekends'))) {
                         console.log('Select2 #select2Weekends value changed, setting Livewire property:', data);
                         @this.set('weekends', data);
@@ -340,63 +320,27 @@
                             'Select2 #select2Weekends value changed, but Livewire property is already in sync.');
                     }
                 });
+                console.log('Initialized and configured Select2 for #select2Weekends.');
 
-                // --- Handle Livewire -> Select2 Updates ---
-                // This is needed when Livewire properties are updated (e.g., when opening for edit, or after validation errors)
-                // A common way is to listen for Livewire updates to the specific element.
-                Livewire.hook('element.updated', ({
-                    el,
-                    component
-                }) => {
-                    // Check if the updated element is our Select2 input and its bound Livewire property
-                    if (el.id === 'select2Weekends' && el.__livewire_model === 'weekends') {
-                        // Use a slight delay to ensure Select2's DOM elements are ready after Livewire update
-                        setTimeout(() => {
-                            const currentValue = $(el).val();
-                            const livewireValue = @this.get('weekends');
-
-                            // Only update Select2 if its current value doesn't match the Livewire property
-                            // This prevents infinite loops or unnecessary updates
-                            if (JSON.stringify(currentValue) !== JSON.stringify(livewireValue)) {
-                                console.log(
-                                    'Livewire hook: Updating Select2 #select2Weekends value to match Livewire property:',
-                                    livewireValue);
-                                $(el).val(livewireValue).trigger(
-                                'change.select2'); // Trigger Select2's own change event
-                            } else {
-                                console.log(
-                                    'Livewire hook: Select2 #select2Weekends value already matches Livewire property.'
-                                    );
-                            }
-                        }, 50); // Adjust delay if needed
-                    }
-                });
-
-                // --- Handle Initial Value Setting on Modal Show ---
-                // When the modal is shown (either by Livewire/Alpine or Bootstrap JS), set the initial Select2 value
-                // We'll handle this via the 'shown.bs.modal' event listener if still using Bootstrap modal JS to show.
-                // If using Livewire/Alpine purely, you'd use a Livewire event or watch the 'showModal' property in Alpine.
             } // End Select2 initialization block
 
 
-            // Flatpickr Initialization and Livewire Integration
-            // Target inputs that haven't been initialized using a data attribute
-            const startWorkHourInput = document.querySelector('#startWorkHour:not([data-flatpickr-initialized])');
-            if (startWorkHourInput) {
+            // Flatpickr Initialization and Livewire Integration - Start Work Hour
+            // Target the input element and check if it hasn't been initialized using a data attribute
+            const startWorkHourInput = document.querySelector('#startWorkHour');
+            // Check for both element existence and Flatpickr instance presence
+            if (startWorkHourInput && !startWorkHourInput._flatpickr) {
                 console.log('Initializing Flatpickr for #startWorkHour...');
                 // Initialize Flatpickr as a time picker
-                const startWorkHourFP = startWorkHourInput.flatpickr({
-                    enableTime: true, // Enable time selection
-                    noCalendar: true, // Disable calendar view
-                    time_24hr: true, // Use 24-hour format
-                    dateFormat: "H:i", // Format the output time (matches HH:MM placeholder)
-                    // Set initial value using defaultValue or setDate later
-                    // defaultHour: 9, // Optional: Default hour when opening empty
-                    // defaultMinute: 0, // Optional: Default minute when opening empty
+                startWorkHourInput.flatpickr({
+                    enableTime: true,
+                    noCalendar: true,
+                    time_24hr: true,
+                    dateFormat: "H:i",
                     // Update Livewire property on close
                     onClose: function(selectedDates, dateStr, instance) {
                         console.log('Flatpickr #startWorkHour onClose event:', dateStr);
-                        @this.set('startWorkHour', dateStr); // Set Livewire property with formatted time string
+                        @this.set('startWorkHour', dateStr);
                     },
                     // Add a handler for clearing the input manually
                     onInputChange: function(selectedDates, dateStr, instance) {
@@ -407,47 +351,25 @@
                         }
                     }
                 });
-                startWorkHourInput.setAttribute('data-flatpickr-initialized', 'true'); // Mark as initialized
-                console.log('Initialized Flatpickr for #startWorkHour');
-
-                // --- Handle Livewire -> Flatpickr Updates ---
-                // Set initial value from Livewire property when component updates (e.g., after Livewire rerender)
-                Livewire.hook('element.updated', ({
-                    el,
-                    component
-                }) => {
-                    if (el.id === 'startWorkHour' && el.__livewire_model === 'startWorkHour') {
-                        console.log(
-                            'Livewire hook: Updating Flatpickr #startWorkHour value to match Livewire property:',
-                            @this.get('startWorkHour'));
-                        if (el._flatpickr) { // Check if Flatpickr instance exists
-                            el._flatpickr.setDate(@this.get('startWorkHour'),
-                            false); // false means don't trigger onClose again
-                        }
-                    }
-                });
-
-                // --- Handle Initial Value Setting on Modal Show ---
-                // We'll handle this via the 'shown.bs.modal' event listener below.
+                console.log('Initialized and configured Flatpickr for #startWorkHour.');
             } // End Flatpickr startWorkHour initialization
 
 
-            const endWorkHourInput = document.querySelector('#endWorkHour:not([data-flatpickr-initialized])');
-            if (endWorkHourInput) {
+            // Flatpickr Initialization and Livewire Integration - End Work Hour
+            const endWorkHourInput = document.querySelector('#endWorkHour');
+            // Check for both element existence and Flatpickr instance presence
+            if (endWorkHourInput && !endWorkHourInput._flatpickr) {
                 console.log('Initializing Flatpickr for #endWorkHour...');
                 // Initialize Flatpickr as a time picker
-                const endWorkHourFP = endWorkHourInput.flatpickr({
-                    enableTime: true, // Enable time selection
-                    noCalendar: true, // Disable calendar view
-                    time_24hr: true, // Use 24-hour format
-                    dateFormat: "H:i", // Format the output time (matches HH:MM placeholder)
-                    // Set initial value using defaultValue or setDate later
-                    // defaultHour: 15, // Optional: Default hour
-                    // defaultMinute: 30, // Optional: Default minute
+                endWorkHourInput.flatpickr({
+                    enableTime: true,
+                    noCalendar: true,
+                    time_24hr: true,
+                    dateFormat: "H:i",
                     // Update Livewire property on close
                     onClose: function(selectedDates, dateStr, instance) {
                         console.log('Flatpickr #endWorkHour onClose event:', dateStr);
-                        @this.set('endWorkHour', dateStr); // Set Livewire property with formatted time string
+                        @this.set('endWorkHour', dateStr);
                     },
                     // Add a handler for clearing the input
                     onInputChange: function(selectedDates, dateStr, instance) {
@@ -458,139 +380,95 @@
                         }
                     }
                 });
-                endWorkHourInput.setAttribute('data-flatpickr-initialized', 'true'); // Mark as initialized
-                console.log('Initialized Flatpickr for #endWorkHour');
-
-                // --- Handle Livewire -> Flatpickr Updates ---
-                // Set initial value from Livewire property when component updates (e.g., after Livewire rerender)
-                Livewire.hook('element.updated', ({
-                    el,
-                    component
-                }) => {
-                    if (el.id === 'endWorkHour' && el.__livewire_model === 'endWorkHour') {
-                        console.log(
-                            'Livewire hook: Updating Flatpickr #endWorkHour value to match Livewire property:',
-                            @this.get('endWorkHour'));
-                        if (el._flatpickr) { // Check if Flatpickr instance exists
-                            el._flatpickr.setDate(@this.get('endWorkHour'),
-                            false); // false means don't trigger onClose again
-                        }
-                    }
-                });
-
-                // --- Handle Initial Value Setting on Modal Show ---
-                // We'll handle this via the 'shown.bs.modal' event listener below.
+                console.log('Initialized and configured Flatpickr for #endWorkHour.');
             } // End Flatpickr endWorkHour initialization
-
 
             console.log('Center modal components initialization function finished.');
         }
 
-        // --- Bootstrap Modal Events and Livewire Integration ---
-        // These listeners assume Bootstrap JS is still managing the modal's show/hide state
-        const centerModalElement = document.getElementById('centerModal');
-        if (centerModalElement) {
+        // --- Livewire Events and Lifecycle Hooks for Initialization ---
+        // Listen for the custom Livewire event dispatched from the component when the modal should be initialized/re-initialized
+        // This is more reliable than listening for Bootstrap modal events when using Alpine/Livewire for control
+        Livewire.on('centerModalShown', function() {
+            console.log('Livewire event "centerModalShown" received. Re-initializing modal components.');
+            initializeCenterModalComponents(); // Initialize or re-initialize the plugins
 
-            // Listen for the modal being fully shown by Bootstrap JS
-            // This is the best place to initialize external JS components and set initial values
-            centerModalElement.addEventListener('shown.bs.modal', function() {
-                console.log('Bootstrap modal "shown.bs.modal" event fired.');
-
-                // Initialize components within the modal
-                initializeCenterModalComponents();
-
-                // Manually set initial values for Select2/Flatpickr from Livewire properties
-                // This is crucial when the modal is opened, especially for editing.
-                // Use a slight delay to ensure components are fully rendered before setting values.
-                setTimeout(() => {
-                    const select2Weekends = $('#select2Weekends');
-                    if (select2Weekends.length && @this.has(
-                        'weekends')) { // Check if Livewire property exists
-                        const livewireWeekends = @this.get('weekends');
-                        console.log(
-                            'shown.bs.modal: Setting Select2 #select2Weekends initial value from Livewire:',
-                            livewireWeekends);
-                        // Set the value and trigger Select2's internal change event
-                        // This might also trigger the .on('change') listener above, which is fine if it checks for differences.
-                        select2Weekends.val(livewireWeekends).trigger('change.select2');
-                    } else if (select2Weekends.length) {
-                        // If the Livewire property doesn't exist or is null, clear Select2
-                        select2Weekends.val(null).trigger('change.select2');
-                        console.log('shown.bs.modal: Clearing Select2 #select2Weekends.');
-                    }
-
-
-                    const startWorkHourInput = document.querySelector('#startWorkHour');
-                    if (startWorkHourInput && startWorkHourInput._flatpickr && @this.has('startWorkHour') &&
-                        @this.get('startWorkHour')) {
-                        const livewireStartHour = @this.get('startWorkHour');
-                        console.log(
-                            'shown.bs.modal: Setting Flatpickr #startWorkHour initial value from Livewire:',
-                            livewireStartHour);
-                        startWorkHourInput._flatpickr.setDate(livewireStartHour,
-                        false); // false to prevent triggering onClose immediately
-                    } else if (startWorkHourInput && startWorkHourInput._flatpickr) {
-                        // If Livewire property doesn't exist or is empty, clear Flatpickr
-                        startWorkHourInput._flatpickr.clear();
-                        console.log('shown.bs.modal: Clearing Flatpickr #startWorkHour.');
-                    }
-
-
-                    const endWorkHourInput = document.querySelector('#endWorkHour');
-                    if (endWorkHourInput && endWorkHourInput._flatpickr && @this.has('endWorkHour') && @this
-                        .get('endWorkHour')) {
-                        const livewireEndHour = @this.get('endWorkHour');
-                        console.log(
-                            'shown.bs.modal: Setting Flatpickr #endWorkHour initial value from Livewire:',
-                            livewireEndHour);
-                        endWorkHourInput._flatpickr.setDate(livewireEndHour,
-                        false); // false to prevent triggering onClose immediately
-                    } else if (endWorkHourInput && endWorkHourInput._flatpickr) {
-                        // If Livewire property doesn't exist or is empty, clear Flatpickr
-                        endWorkHourInput._flatpickr.clear();
-                        console.log('shown.bs.modal: Clearing Flatpickr #endWorkHour.');
-                    }
-
-                }, 150); // Adjust delay as needed
-
-
-            });
-
-            // Listen for the modal being fully hidden by Bootstrap JS
-            // This is where you typically reset the form state in the Livewire component.
-            centerModalElement.addEventListener('hidden.bs.modal', function() {
-                console.log('Bootstrap modal "hidden.bs.modal" event fired. Calling resetForm...');
-                // Call a Livewire method on the component to reset its state
-                // Make sure your Livewire component has a public method like 'resetForm'
-                @this.call('resetForm');
-
-                // Optional: Manually clear the Select2 selection and Flatpickr values on hide
-                // This can be a fallback or prevent flickering if resetForm is async
+            // --- Set Initial Values from Livewire Properties ---
+            // Set initial values *after* initialization, especially when opening for edit
+            // Use a slight delay to ensure plugins are fully ready
+            setTimeout(() => {
                 const select2Weekends = $('#select2Weekends');
-                if (select2Weekends.length && select2Weekends.hasClass('select2-initialized')) {
+                if (select2Weekends.length && @this.has('weekends')) {
+                    const livewireWeekends = @this.get('weekends');
+                    console.log('Setting Select2 #select2Weekends initial value from Livewire:',
+                        livewireWeekends);
+                    // Set the value and trigger Select2's internal change event
+                    select2Weekends.val(livewireWeekends).trigger('change.select2');
+                } else if (select2Weekends.length) {
+                    // Clear Select2 if Livewire property doesn't exist or is null/empty
                     select2Weekends.val(null).trigger('change.select2');
-                    console.log('Manually cleared Select2 #select2Weekends on modal hide.');
+                    console.log('Clearing Select2 #select2Weekends.');
                 }
+
                 const startWorkHourInput = document.querySelector('#startWorkHour');
-                if (startWorkHourInput && startWorkHourInput._flatpickr) {
+                // Check for Flatpickr instance presence before setting date
+                if (startWorkHourInput && startWorkHourInput._flatpickr && @this.has('startWorkHour') &&
+                    @this.get('startWorkHour')) {
+                    const livewireStartHour = @this.get('startWorkHour');
+                    console.log('Setting Flatpickr #startWorkHour initial value from Livewire:',
+                        livewireStartHour);
+                    startWorkHourInput._flatpickr.setDate(livewireStartHour,
+                    false); // false = don't trigger onClose
+                } else if (startWorkHourInput && startWorkHourInput._flatpickr) {
+                    // Clear Flatpickr if Livewire property doesn't exist or is null
                     startWorkHourInput._flatpickr.clear();
-                    console.log('Manually cleared Flatpickr #startWorkHour on modal hide.');
+                    console.log('Clearing Flatpickr #startWorkHour.');
                 }
+
+
                 const endWorkHourInput = document.querySelector('#endWorkHour');
-                if (endWorkHourInput && endWorkHourInput._flatpickr) {
+                // Check for Flatpickr instance presence before setting date
+                if (endWorkHourInput && endWorkHourInput._flatpickr && @this.has('endWorkHour') && @this
+                    .get('endWorkHour')) {
+                    const livewireEndHour = @this.get('endWorkHour');
+                    console.log('Setting Flatpickr #endWorkHour initial value from Livewire:',
+                        livewireEndHour);
+                    endWorkHourInput._flatpickr.setDate(livewireEndHour,
+                    false); // false = don't trigger onClose
+                } else if (endWorkHourInput && endWorkHourInput._flatpickr) {
+                    // Clear Flatpickr if Livewire property doesn't exist or is null
                     endWorkHourInput._flatpickr.clear();
-                    console.log('Manually cleared Flatpickr #endWorkHour on modal hide.');
+                    console.log('Clearing Flatpickr #endWorkHour.');
                 }
-            });
 
-        } else {
-            console.warn('Center modal element (#centerModal) not found in the DOM.');
-        }
+                console.log('Initial values set from Livewire properties.');
 
-        // If you are controlling the modal show state purely via Livewire property (e.g., $showModal)
-        // and *not* using Bootstrap JS to show it initially, you might need an observer or
-        // Livewire.hook('dom-updated') to detect when the modal becomes visible and trigger
-        // initializeCenterModalComponents() and initial value setting. However, the 'shown.bs.modal'
-        // event is the most reliable trigger if Bootstrap JS is involved in showing it.
+            }, 100); // Increased delay slightly to give Select2/Flatpickr time
+        });
+
+        // --- Optional: Listen for Livewire component finishes rendering ---
+        // Use this hook to re-initialize components after a Livewire rerender if the 'centerModalShown' event isn't sufficient
+        // Livewire.hook('component.initialized', ({ component, commit, cleanup }) => {}); // When component is initialized
+        // Livewire.hook('element.initialized', ({ el, component }) => {}); // When a new element is added by Livewire
+        // Livewire.hook('element.updated', ({ el, component }) => {
+        //     // Re-initialize specific elements here if needed after update,
+        //     // but the 'centerModalShown' event should handle modal content updates
+        // });
+        // Livewire.hook('message.processed', (message, component) => {}); // After a message roundtrip
+
+        // --- Listen for modal close and reset form in Livewire ---
+        // This handles closing the modal via Alpine or other means
+        centerModalElement.addEventListener('hide.bs.modal', function() { // If Bootstrap JS is still used for hiding
+            @this.call('resetForm'); // Call Livewire method to reset form state
+            console.log('Modal hidden, calling Livewire resetForm.');
+        });
+
+        // If only using Alpine/Livewire for hiding, listen to the Alpine 'show' variable changing
+        //  Alpine.effect(() => {
+        //     if (!Alpine.store('show')) { // Assuming 'showModal' is stored in Alpine store or accessible
+        //         @this.call('resetForm');
+        //         console.log('Alpine show is false, calling Livewire resetForm.');
+        //     }
+        // });
     </script>
 @endpush

@@ -142,8 +142,15 @@ Route::middleware([
 
   // User-facing Application Forms (Accessible to all authenticated users)
   Route::prefix('resource-management')->name('resource-management.')->group(function () {
-    Route::get('/email-application/create', EmailApplicationForm::class)->name('email-applications.create');
-    Route::get('/loan-application/create', LoanRequestForm::class)->name('loan-applications.create');
+    // UPDATED: Added optional {emailApplication} parameter for editing functionality
+    // This route can now handle:
+    // GET /resource-management/email-application/create (for new applications)
+    // GET /resource-management/email-application/create/{emailApplication} (for editing a draft application)
+    Route::get('/email-application/create/{emailApplication?}', EmailApplicationForm::class)->name('email-applications.create');
+
+    Route::get('/loan-application/create', LoanRequestForm::class)->name('loan-applications.create'); // Keep this as is for now
+
+    // ... other resource-management routes
   });
 
 
@@ -153,6 +160,7 @@ Route::middleware([
     Route::get('/email', [EmailApplicationController::class, 'index'])->name('email.index');
     Route::get('/loan', [LoanApplicationController::class, 'index'])->name('loan.index');
     // Routes to view a specific application detail (show method). Policies will enforce ownership.
+    // Note: Route model binding {emailApplication} and {loanApplication} parameters match the variable names in the controller methods.
     Route::get('/email/{emailApplication}', [EmailApplicationController::class, 'show'])->name('email.show');
     Route::get('/loan/{loanApplication}', [LoanApplicationController::class, 'show'])->name('loan.show');
   });
@@ -169,12 +177,12 @@ Route::middleware([
   // Routes for Approvers to view and act on applications
   Route::prefix('approvals')->name('approvals.')->group(function () {
     // Routes to view a specific application detail for approval. Policies will check if the user is an assigned approver.
-    // Assuming dedicated controller methods like showForApproval for this context.
+    // Assuming dedicated controller methods like showForApproval for this context. Route model binding applies.
     Route::get('/email/{emailApplication}', [EmailApplicationController::class, 'showForApproval'])->name('email.show');
     Route::get('/loan/{loanApplication}', [LoanApplicationController::class, 'showForApproval'])->name('loan.show');
 
     // Routes for handling approval actions (approve/reject). Policies should protect these actions.
-    // These routes typically receive a form submission with approval/rejection decision and comments.
+    // These routes typically receive a form submission with approval/rejection decision and comments. Route model binding applies.
     Route::post('/email/{emailApplication}/approve', [EmailApplicationController::class, 'approve'])->name('email.approve');
     Route::post('/email/{emailApplication}/reject', [EmailApplicationController::class, 'reject'])->name('email.reject');
     Route::post('/loan/{loanApplication}/approve', [LoanApplicationController::class, 'approve'])->name('loan.approve');
@@ -188,18 +196,19 @@ Route::middleware([
 
   // Admin and BPM Staff Routes for Resource Management
   // Grouping under 'resource-management/admin' prefix for clarity and applying roles
-  Route::group(['prefix' => 'resource-management/admin', 'as' => 'resource-management.admin.', 'middleware' => ['role:Admin|BPM']], function () { // Apply Admin or BPM role middleware
+  // CORRECTED THE NAME PREFIX HERE from 'resource-management.admin.' to 'admin.'
+  Route::group(['prefix' => 'resource-management/admin', 'as' => 'admin.', 'middleware' => ['role:Admin|BPM']], function () { // Changed 'as' here
 
     // Manage Users (Admin only) - Uses App\Http\Controllers\Admin\UserController
-    // Resource routes for full CRUD on users, restricted to Admin role.
+    // Resource routes for full CRUD on users, restricted to Admin role. Route model binding applies to {user}.
     Route::resource('users', AdminUserController::class)->middleware('role:Admin');
 
     // Manage Equipment Assets (Admin/BPM) - Uses App\Http\Controllers\Admin\EquipmentController
-    // Resource routes for full CRUD on equipment, accessible to Admin and BPM roles.
+    // These resource routes will now have names like admin.equipment.index, admin.equipment.create, etc. Route model binding applies to {equipment}.
     Route::resource('equipment', EquipmentController::class);
 
     // Manage Organizational Data specific to MOTAC (Grades, etc.) (Admin only)
-    // Assuming Controllers for these in the Admin namespace and resource routes for CRUD.
+    // Assuming Controllers for these in the Admin namespace and resource routes for CRUD. Route model binding applies to {grade}.
     Route::resource('grades', GradeController::class)->middleware('role:Admin'); // Example using Admin namespace
 
     // BPM Staff Interface for Issuance and Return processes
@@ -210,10 +219,10 @@ Route::middleware([
       // Uses LoanApplicationController to list applications with status 'ready_for_issuance'.
       Route::get('/outstanding-loans', [LoanApplicationController::class, 'outstandingLoansList'])->name('outstanding-loans'); // Assuming a method to list outstanding loans
 
-      // Form to view a loan application and record equipment issuance
+      // Form to view a loan application and record equipment issuance. Route model binding applies to {loanApplication}.
       // Uses LoanApplicationController to display the form.
       Route::get('/issue/{loanApplication}', [LoanApplicationController::class, 'issueEquipmentForm'])->name('issue.form');
-      // Route to process the equipment issuance (creates LoanTransaction record(s))
+      // Route to process the equipment issuance (creates LoanTransaction record(s)). Route model binding applies to {loanApplication}.
       // Uses LoanTransactionController for the action.
       Route::post('/issue/{loanApplication}', [LoanTransactionController::class, 'issue'])->name('issue');
 
@@ -221,14 +230,14 @@ Route::middleware([
       // Uses LoanTransactionController to list transactions with status 'issued'.
       Route::get('/issued-loans', [LoanTransactionController::class, 'issuedLoansList'])->name('issued-loans'); // Assuming a method to list issued loans
 
-      // Form to view an issued loan transaction and record equipment return
+      // Form to view an issued loan transaction and record equipment return. Route model binding applies to {loanTransaction}.
       // Uses LoanTransactionController to display the form.
       Route::get('/return/{loanTransaction}', [LoanTransactionController::class, 'returnEquipmentForm'])->name('return.form');
-      // Route to process the equipment return (updates LoanTransaction status/details)
+      // Route to process the equipment return (updates LoanTransaction status/details). Route model binding applies to {loanTransaction}.
       // Uses LoanTransactionController for the action.
       Route::post('/return/{loanTransaction}', [LoanTransactionController::class, 'processReturn'])->name('return');
 
-      // Route to view a specific loan transaction detail (could be issuance or return)
+      // Route to view a specific loan transaction detail (could be issuance or return). Route model binding applies to {loanTransaction}.
       Route::get('/transactions/{loanTransaction}', [LoanTransactionController::class, 'show'])->name('transactions.show');
     });
 

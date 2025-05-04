@@ -1,7 +1,7 @@
 {{--
     resources/views/layouts/app.blade.php
 
-    This layout file is designed to be extended by views or used as a Blade component (<x-app-layout>).
+    This layout file is designed to be extended by views using @extends and @section directives.
     It integrates with a common master layout ('layouts/commonMaster') and includes Livewire components
     for the main structural elements like the menu, navbar, and footer.
     It uses the App\Helpers\Helpers class for layout configuration and dynamic class application.
@@ -24,7 +24,7 @@
 
     /* Layout Structure Visibility and Classes - Provide default values safely */
     // These variables control which layout elements are displayed and their base classes.
-    // They can be set in the view or component using this layout to customize the page.
+    // They can be set in the view using this layout to customize the page.
     $contentNavbar = $contentNavbar ?? true; // Controls if the content navbar area is shown
     $containerNav = $containerNav ?? 'container-xxl'; // Default class for the main navbar container width (Bootstrap)
     $isNavbar = $isNavbar ?? true; // Controls if the entire navbar component is shown
@@ -99,9 +99,8 @@
                             <div class="{{ $container }} flex-grow-1 container-p-y">
                     @endif
 
-                    {{-- The main content of the specific page view is rendered here --}}
-                    {{-- This assumes the layout is used via <x-app-layout> or Livewire full-page components --}}
-                    {{ $slot }}
+                    {{-- The main content from the @section('content') in the extending view is rendered here --}}
+                    @yield('content') {{-- CORRECTED: Changed from {{ $slot }} to @yield('content') --}}
 
                     {{-- Include pricing modal partial if $pricingModal is true --}}
                     @if ($pricingModal)

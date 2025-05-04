@@ -7,16 +7,25 @@ use App\Models\Timeline;
 use Carbon\Carbon;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
+use Illuminate\Support\Facades\Log; // Import Log Facade
+use Illuminate\Support\Facades\Auth; // Import Auth Facade
+use Illuminate\Pagination\LengthAwarePaginator; // Import for return type hint (optional)
+
+// Add the WithPagination trait
+use Livewire\WithPagination;
+
 
 class Centers extends Component
 {
+  // Use the WithPagination trait
+  use WithPagination;
+
   // TODO: Show supervisor name beside each center in the table.
   // FIXME: Weekends input (select2) doesn't turn red on validation error.
   // FIXME: Weekends input (select2) doesn't display previously entered values visually when click on edit center.
+  // (These Fixme/Todo comments are kept from your original code)
 
   // Variables - Start //
-  // No need to define $centers here if fetched and passed directly in render
-  // public $centers = []; // Remove or keep if needed elsewhere in component logic
 
   #[Rule('required')]
   public $name;
@@ -27,189 +36,266 @@ class Centers extends Component
   #[Rule('required')]
   public $endWorkHour;
 
+  // Store weekends as an array of numbers (0-6)
   #[Rule('required')]
-  public $weekends = []; // Initialize as array for Select2
+  public $weekends = [];
 
-  public $center; // To hold the model instance for editing
+  // Use type-hinting for the model instance for editing
+  public ?Center $center = null;
 
-  public $isEdit = false;
+  // Boolean flag for toggling between add/edit mode
+  public bool $isEdit = false;
 
-  public $confirmedId;
+  // Property to hold the ID for the delete confirmation UI
+  public $confirmedId = null;
+
+  // Property for pagination - number of items per page
+  // #[Rule('numeric', min: 1)] // Add rule if user can change per page
+  public int $perPage = 10; // Default items per page
+
+
   // Variables - End //
 
-  public function render()
-  {
-    // Fetch centers
-    // Apply any sorting, filtering, or pagination here
-    $centers = Center::all(); // Or use your preferred query
 
-    // Process centers to add computed properties (members_count, days_name)
-    // This moves the logic from the Blade template into the component class
-    $processedCenters = $centers->map(function ($center) {
+  /**
+   * Render the component view.
+   * Fetches and paginates centers, adds computed properties, and passes the paginator to the view.
+   *
+   * @return \Illuminate\Contracts\View\View|\Illuminate\Contracts\View\Factory
+   */
+  public function render() //: \Illuminate\Contracts\View\View|\Illuminate\Contracts\View\Factory // Optional return type hint
+  {
+    // Start with the query builder for Centers
+    $centersQuery = Center::query();
+
+    // Apply any sorting or filtering here based on other component properties if needed
+    // Example: $centersQuery->orderBy('name');
+
+    // Apply pagination FIRST to get a Paginator instance
+    $paginator = $centersQuery->paginate($this->perPage);
+
+    // Process the collection *within* the paginator to add computed properties
+    // This preserves the pagination links and metadata
+    $processedItems = $paginator->getCollection()->map(function ($center) {
       // Add members count as a property
+      // Assumes getMembersCount method exists below
       $center->members_count = $this->getMembersCount($center->id);
 
-      // Add days name string as a property, handle potential null or non-array weekends
-      $center->days_name = $this->getDaysName($center->weekends ?? []);
+      // Add days name string as a property
+      // Uses the weekends_formatted accessor from the Center model (recommended)
+      // Assumes you have added the weekendsFormatted accessor to App\Models\Center.php
+      $center->days_name = $center->weekends_formatted;
+
 
       return $center; // Return the modified center object
     });
 
-    // Pass the processed centers to the view
-    // The Blade view will now iterate over $centers and access $center->members_count and $center->days_name
+    // Set the processed items back onto the paginator instance
+    $paginator->setCollection($processedItems);
+
+
+    // Pass the PAGINATOR instance to the view
     return view('livewire.human-resource.structure.centers', [
-      'centers' => $processedCenters,
+      'centers' => $paginator, // Pass the Paginator object to the view
     ]);
   }
 
+  /**
+   * Handle form submission (either add or edit).
+   */
   public function submitCenter()
   {
-    // The validate method is called inside addCenter/editCenter
+    // Validation is handled within addCenter/editCenter
+    // Call the appropriate method based on isEdit flag
     $this->isEdit ? $this->editCenter() : $this->addCenter();
 
-    // Reset form properties after submission (whether adding or editing)
-    // Moved reset outside the conditional to ensure it always happens on successful submission
-    $this->reset(['name', 'startWorkHour', 'endWorkHour', 'weekends', 'center', 'isEdit']); // Specify properties to reset
-    $this->confirmedId = null; // Also reset confirmedId
+    // Reset form properties and confirmedId after successful submission
+    $this->reset(['name', 'startWorkHour', 'endWorkHour', 'weekends', 'center', 'isEdit', 'confirmedId']);
+    // Also reset validation errors
+    $this->resetValidation();
+
+    // The render method will automatically re-run and update the list with the new/updated center
   }
 
+  /**
+   * Add a new center record.
+   */
   public function addCenter()
   {
-    $this->validate(); // Validate properties defined with #[Rule]
+    // Validate component properties defined with #[Rule]
+    $this->validate();
 
     Center::create([
       'name' => $this->name,
       'start_work_hour' => $this->startWorkHour,
       'end_work_hour' => $this->endWorkHour,
-      'weekends' => $this->weekends,
+      // Store weekends as JSON string in the database
+      // Assumes the 'weekends' column in the database is TEXT or JSON and cast to 'array' in the Model
+      'weekends' => json_encode($this->weekends),
     ]);
 
-    // Dispatch events - assuming these are for closing a modal and showing a toast notification
-    $this->dispatch('closeModal', elementId: '#centerModal');
-    $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Center created successfully!')); // More specific message
+    // Dispatch events for modal closing and toast notification
+    $this->dispatch('closeModal', elementId: '#centerModal'); // Assuming this event closes your modal
+    $this->dispatch('toastr', type: 'success', message: __('Center created successfully!')); // Toast notification
   }
 
+  /**
+   * Edit an existing center record.
+   * Requires $this->center to be populated with the model instance.
+   */
   public function editCenter()
   {
-    $this->validate(); // Validate properties defined with #[Rule]
+    // Validate component properties defined with #[Rule]
+    $this->validate();
 
     // Ensure $this->center exists and is a Center model instance before attempting to update
-    if (! $this->center instanceof Center) {
-      // Optionally log an error or dispatch an error message if $this->center is not set correctly
+    if (!$this->center instanceof Center) {
+      Log::error('Attempted to edit center but $this->center is not a Center model instance.', [
+        'user_id' => Auth::id() ?? 'guest', // Log the current user ID
+        'center_data' => $this->center, // Log the value of $this->center for debugging
+      ]);
+      // Dispatch an error toast notification
       $this->dispatch('toastr', type: 'error', message: __('Error: Center not selected for editing.'));
       return; // Stop execution if center is not valid
     }
 
+    // Update the existing center record
     $this->center->update([
       'name' => $this->name,
       'start_work_hour' => $this->startWorkHour,
       'end_work_hour' => $this->endWorkHour,
-      'weekends' => $this->weekends,
+      // Store weekends as JSON string in the database
+      'weekends' => json_encode($this->weekends),
     ]);
 
-    // Dispatch events
-    $this->dispatch('closeModal', elementId: '#centerModal');
-    $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Center updated successfully!')); // More specific message
+    // Dispatch events for modal closing and toast notification
+    $this->dispatch('closeModal', elementId: '#centerModal'); // Assuming this event closes your modal
+    $this->dispatch('toastr', type: 'success', message: __('Center updated successfully!')); // Toast notification
 
-    // Reset properties is handled in submitCenter now
-    // $this->reset(); // Removed from here
+    // Reset properties is handled in submitCenter
+    // The render method will automatically re-run and update the list
   }
 
-  public function confirmDeleteCenter($id)
+  /**
+   * Set the ID of the center to be confirmed for deletion.
+   * This is typically called from the view before showing a "Sure?" button.
+   */
+  public function confirmDeleteCenter($centerId)
   {
-    $this->confirmedId = $id;
-    // Optionally fetch the center here if you need its name for a confirmation message
-    // $center = Center::find($id);
-    // $this->dispatch('showConfirmationModal', message: "Are you sure you want to delete center: {$center->name}?");
+    $this->confirmedId = $centerId;
+    // Optional: Fetch center name for a more informative confirmation message in the UI
+    // $center = Center::find($centerId);
+    // if ($center) {
+    //     // Dispatch an event to show a specific confirmation prompt in the view (optional)
+    //     // $this->dispatch('showConfirmationPrompt', message: "Are you sure you want to delete center: {$center->name}?");
+    // }
   }
 
-  // Using route model binding for the Center model
-  public function deleteCenter(Center $center)
+  /**
+   * Delete a center record.
+   * Uses Livewire Model Binding to automatically resolve the Center model based on the ID passed from the view.
+   *
+   * @param Center $center The Center model instance to delete.
+   */
+  public function deleteCenter(Center $center) // Livewire Model Binding handles fetching the model by ID
   {
-    $center->delete();
+    try {
+      // Attempt to delete the center
+      $center->delete();
 
-    // Reset confirmedId after deletion
+      // Dispatch a success toast notification
+      $this->dispatch('toastr', type: 'success', message: __('Center deleted successfully!'));
+    } catch (\Exception $e) {
+      // Log the error for debugging
+      Log::error('Error deleting center.', [
+        'center_id' => $center->id ?? 'N/A', // Log the ID of the center being deleted
+        'error' => $e->getMessage(),
+        'user_id' => Auth::id() ?? 'guest', // Log the current user ID
+      ]);
+      // Dispatch an error toast notification
+      $this->dispatch('toastr', type: 'error', message: __('Error deleting center.'));
+    }
+
+    // Reset confirmedId after the delete attempt (success or failure)
     $this->confirmedId = null;
 
-    // Dispatch toast notification
-    $this->dispatch('toastr', type: 'success' /* , title: 'Done!' */, message: __('Center deleted successfully!')); // More specific message
+    // The render method will automatically re-run due to the confirmedId change or the implicit update from delete
+    // No need to manually call $this->render()
   }
 
-  // Method to show the new center modal
+  /**
+   * Show the modal for creating a new center.
+   */
   public function showNewCenterModal()
   {
-    $this->reset(['name', 'startWorkHour', 'endWorkHour', 'weekends', 'center', 'isEdit']); // Reset relevant properties
+    // Reset all relevant properties for a clean form for new entry
+    $this->reset(['name', 'startWorkHour', 'endWorkHour', 'weekends', 'center', 'isEdit', 'confirmedId']);
+    // Reset validation errors
+    $this->resetValidation();
+
     $this->isEdit = false; // Ensure it's set to create mode
-    // Dispatch an event to show the modal (if not automatically handled by Livewire/Alpine)
-    $this->dispatch('showModal', elementId: '#centerModal');
-    // Dispatch event to signal modal is ready for component initialization (for Select2/Flatpickr)
-    $this->dispatch('centerModalShown'); // Custom event used in the Blade JS
+
+    // Dispatch events to control the modal and signal for JS component initialization
+    $this->dispatch('showModal', elementId: '#centerModal'); // Assuming this event shows your modal
+    $this->dispatch('centerModalShown'); // Custom event for JS initialization (Select2, Flatpickr)
   }
 
-  // Method to show the edit center modal
-  public function showEditCenterModal(Center $center)
+  /**
+   * Show the modal for editing an existing center.
+   * Uses Livewire Model Binding to resolve the Center model based on the ID passed from the view.
+   *
+   * @param Center $center The Center model instance to edit.
+   */
+  public function showEditCenterModal(Center $center) // Livewire Model Binding handles fetching the model by ID
   {
-    // Reset properties before populating for edit
-    $this->reset(['name', 'startWorkHour', 'endWorkHour', 'weekends', 'center', 'isEdit']); // Reset relevant properties
+    // Reset properties before populating for edit to clear previous data/errors
+    $this->reset(['name', 'startWorkHour', 'endWorkHour', 'weekends', 'center', 'isEdit', 'confirmedId']);
+    // Reset validation errors
+    $this->resetValidation();
+
 
     $this->isEdit = true; // Set to edit mode
-    $this->center = $center; // Store the model instance
+    $this->center = $center; // Store the resolved model instance
 
-    // Populate form properties from the model
+
+    // Populate form properties from the model attributes
     $this->name = $center->name;
     $this->startWorkHour = $center->start_work_hour;
     $this->endWorkHour = $center->end_work_hour;
-    // Ensure weekends is an array, even if stored as string/null
-    $this->weekends = is_array($center->weekends) ? $center->weekends : json_decode($center->weekends, true) ?? [];
 
-    // Dispatch an event to show the modal (if not automatically handled by Livewire/Alpine)
-    $this->dispatch('showModal', elementId: '#centerModal');
-    // Dispatch event to signal modal is ready for component initialization (for Select2/Flatpickr)
-    $this->dispatch('centerModalShown'); // Custom event used in the Blade JS
+    // Populate weekends property
+    // Assumes 'weekends' is cast to 'array' in the Center model.
+    // It will be an array (or null) containing the stored day numbers (0-6).
+    $this->weekends = $center->weekends ?? [];
+
+
+    // Dispatch events to control the modal and signal for JS component initialization
+    $this->dispatch('showModal', elementId: '#centerModal'); // Assuming this event shows your modal
+    $this->dispatch('centerModalShown'); // Custom event for JS initialization (Select2, Flatpickr)
   }
 
-  // This method is no longer needed in the component if the calculation is done in render
-  // public function getSupervisor($id)
-  // {
-  //     //
-  // }
 
-  // This method is kept to be called from the render method
-  public function getMembersCount($center_id)
+  // Helper method to get the count of active members in a center
+  // This method is called from the render method
+  public function getMembersCount(int $center_id): int // Added type hints
   {
+    // Find Timeline records for the given center_id with no end date (active assignment)
+    // Count distinct employee IDs
     return Timeline::where('center_id', $center_id)
-      ->whereNull('end_date')
-      ->distinct('employee_id')
+      ->whereNull('end_date') // Assuming 'end_date' null means currently assigned
+      ->distinct('employee_id') // Count unique employees
       ->count();
   }
 
-  // This method is kept to be called from the render method
-  public function getDaysName(array $weekends) // Added type hint
-  {
-    $daysName = [];
-    // Ensure $weekends is iterable, though type hint helps
-    if (!is_array($weekends)) {
-      return ''; // Return empty string or handle error if not an array
+  // The getDaysName method is no longer needed here if using the model's weekendsFormatted accessor in render.
+  /*
+    public function getDaysName(array $weekends): string
+    {
+       // ... (remove this method if using the model accessor) ...
     }
+    */
 
-    foreach ($weekends as $day) {
-      // Ensure $day is a valid integer before using addDays
-      if (is_numeric($day)) {
-        $daysName[] = mb_substr(
-          Carbon::now()
-            ->startOfWeek()
-            ->addDays((int) $day) // Cast to int
-            ->format('l'),
-          0,
-          3
-        );
-      }
-    }
-
-    return implode(', ', $daysName);
-  }
-
-  // Optional: Add a mount method if you need to initialize properties on component load
+  // Optional mount method if you need to initialize properties on component load
   // public function mount()
   // {
   //     //

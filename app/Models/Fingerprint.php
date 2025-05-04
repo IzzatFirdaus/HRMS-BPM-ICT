@@ -19,7 +19,7 @@ use App\Models\User; // For audit columns (handled by trait)
 
 /**
  * App\Models\Fingerprint
- * 
+ *
  * Represents a daily attendance record for an employee, typically captured via a fingerprint or time clock system.
  * Includes check-in/out times, logs, and related information.
  *
