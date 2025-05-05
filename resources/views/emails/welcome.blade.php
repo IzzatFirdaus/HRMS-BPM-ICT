@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Selamat Datang ke Sistem HRMS MOTAC</title>
+    <title>Selamat Datang ke MOTAC ICT - Akaun E-mel Anda Disediakan</title> {{-- Updated title --}}
     <style>
         /* Basic inline styles for email compatibility */
         body {
@@ -54,34 +54,65 @@
             text-decoration: none;
             border-radius: 5px;
         }
+
+        .credentials {
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+            /* Highlight with a color bar */
+        }
+
+        .credentials p {
+            margin-bottom: 8px;
+        }
+
+        .credentials strong {
+            display: inline-block;
+            /* Ensure bold text doesn't break line before value */
+            min-width: 120px;
+            /* Align labels */
+        }
     </style>
 </head>
 
 <body>
     <div class="email-container">
-        <h1>Selamat Datang ke Sistem HRMS MOTAC!</h1>
+        {{-- Updated Title to reflect email provisioning --}}
+        <h1>Selamat Datang ke MOTAC ICT!</h1>
 
         {{-- Access the $user data passed from the Mailable --}}
-        <p>Salam sejahtera {{ $user->name ?? 'Pengguna Baru' }},</p> {{-- Assuming 'name' is the common attribute --}}
+        {{-- Use full_name if available, fallback to name --}}
+        <p>Salam sejahtera {{ $user->full_name ?? ($user->name ?? 'Pengguna') }},</p>
 
-        <p>Kami sangat gembira anda telah menyertai sistem HRMS MOTAC.</p>
+        {{-- Updated content to inform about email provisioning --}}
+        <p>Akaun e-mel rasmi MOTAC ICT anda telah berjaya disediakan.</p>
 
-        <p>Anda kini boleh log masuk menggunakan kredensial pendaftaran anda.</p>
+        {{-- Display the provisioned email address and initial password --}}
+        <div class="credentials">
+            <p><strong>Alamat E-mel:</strong> {{ $motacEmail }}</p>
+            <p><strong>Kata Laluan Awal:</strong> {{ $password }}</p>
+        </div>
 
-        {{-- Optional: Add a login button or link --}}
-        {{-- @if (isset($loginUrl))
-            <p style="text-align: center;">
-                <a href="{{ $loginUrl }}" class="button">Log Masuk Sekarang</a>
-            </p>
-        @endif --}}
+        <p>Sila log masuk ke webmail MOTAC di [Alamat Webmail Anda] dan tukar kata laluan anda dengan segera untuk
+            keselamatan akaun anda.</p>
 
-        <p>Jika anda mempunyai sebarang pertanyaan, sila hubungi bahagian Sumber Manusia atau sokongan IT.</p>
+        {{-- Optional: Add a login button or link to webmail --}}
+        {{-- You might pass the webmail URL via the Mailable if it's dynamic --}}
+        <p style="text-align: center;">
+            <a href="[Alamat Webmail Anda]" class="button">Log Masuk Webmail MOTAC</a>
+        </p>
+
+
+        <p>Jika anda mempunyai sebarang pertanyaan atau menghadapi masalah log masuk, sila hubungi Unit Sokongan
+            Teknikal ICT MOTAC.</p>
 
         <p>Terima kasih,</p>
-        <p>Pasukan HRMS MOTAC</p>
+        <p>Unit ICT MOTAC</p> {{-- Changed sender to reflect ICT team --}}
 
         <div class="footer">
-            <p>Ini adalah e-mel automatik, sila jangan balas.</p>
+            <p>Ini adalah e-mel automatik dari Sistem HRMS MOTAC, sila jangan balas.</p> {{-- Mention HRMS system origin --}}
             <p>&copy; {{ date('Y') }} MOTAC. Hak Cipta Terpelihara.</p>
         </div>
     </div>
