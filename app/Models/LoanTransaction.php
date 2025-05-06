@@ -2,21 +2,31 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Carbon;
 use App\Traits\CreatedUpdatedDeletedBy;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User; // Import User model
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
+use App\Models\Equipment; // Import Equipment model
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\LoanApplication; // Import LoanApplication model
+use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo
 
 /**
+ * App\Models\LoanTransaction
+ *
+ * Represents a specific transaction record for an equipment loan,
+ * tracking issuance, return, and associated details.
+ *
  * @property int $id
- * @property int $loan_application_id
- * @property int|null $equipment_id // nullable if equipment was lost before transaction created? Or should always link to Equipment?
- * @property int|null $issuing_officer_id
- * @property int|null $receiving_officer_id // The person receiving on behalf of the applicant (if different)
+ * @property int $loan_application_id // The application this transaction is part of
+ * @property int|null $equipment_id // The specific equipment item involved
+ * @property int|null $user_id // The user who is the borrower (if linked directly to transaction) - Added based on ReportController needs
+ * @property int|null $issuing_officer_id // BPM staff who issued
+ * @property int|null $receiving_officer_id // The person receiving the equipment
  * @property array|null $accessories_checklist_on_issue // JSON column
  * @property Carbon|null $issue_timestamp
- * @property int|null $returning_officer_id // The person returning on behalf of the applicant (if different)
+ * @property int|null $returning_officer_id // The person returning the equipment
  * @property int|null $return_accepting_officer_id // BPM staff who accepted the return
  * @property array|null $accessories_checklist_on_return // JSON column
  * @property string|null $equipment_condition_on_return // e.g., 'Good', 'Damaged', 'Lost', 'Needs Maintenance'
@@ -30,24 +40,22 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  *
- * Relationships:
- * @property-read \App\Models\LoanApplication $loanApplication
- * @property-read \App\Models\Equipment|null $equipment
- * @property-read \App\Models\User|null $issuingOfficer
- * @property-read \App\Models\User|null $receivingOfficer
- * @property-read \App\Models\User|null $returningOfficer
- * @property-read \App\Models\User|null $returnAcceptingOfficer
+ * @property-read LoanApplication $loanApplication
+ * @property-read Equipment $equipment
+ * @property-read User|null $user // Relationship to the borrower - Added based on ReportController needs
+ * @property-read User|null $issuingOfficer // Relationship to the issuing BPM officer
+ * @property-read User|null $receivingOfficer // Relationship to the receiving person
+ * @property-read User|null $returningOfficer // Relationship to the returning person
+ * @property-read User|null $returnAcceptingOfficer // Relationship to the return accepting BPM officer
  */
 class LoanTransaction extends Model
 {
-  use SoftDeletes, CreatedUpdatedDeletedBy; // Assuming these traits are used
+  use HasFactory, SoftDeletes, CreatedUpdatedDeletedBy; // Added CreatedUpdatedDeletedBy trait
 
-  protected $table = 'loan_transactions'; // Ensure table name is correct
-
-  // Fillable fields based on columns that can be mass-assigned
   protected $fillable = [
     'loan_application_id',
     'equipment_id',
+    'user_id', // Added user_id to fillable
     'issuing_officer_id',
     'receiving_officer_id',
     'accessories_checklist_on_issue',
@@ -61,37 +69,28 @@ class LoanTransaction extends Model
     'status',
   ];
 
-  // Cast JSON columns to arrays
   protected $casts = [
     'accessories_checklist_on_issue' => 'array',
     'accessories_checklist_on_return' => 'array',
     'issue_timestamp' => 'datetime',
     'return_timestamp' => 'datetime',
+    'created_at' => 'datetime',
+    'updated_at' => 'datetime',
+    'deleted_at' => 'datetime',
   ];
 
-  // Default values for attributes if needed
-  // protected $attributes = [
-  //     'status' => self::STATUS_DRAFT, // Example if transactions start as draft
-  // ];
+  // Define status constants
+  const STATUS_PENDING_ISSUE = 'pending_issue'; // Transaction created but not issued yet
+  const STATUS_ISSUED = 'issued';
+  const STATUS_RETURNED = 'returned';
+  const STATUS_UNDER_MAINTENANCE_ON_LOAN = 'under_maintenance_on_loan';
+  const STATUS_DAMAGED_ON_RETURN = 'damaged_on_return';
+  const STATUS_LOST_ON_RETURN = 'lost_on_return';
+  const STATUS_CANCELLED = 'cancelled'; // Transaction cancelled before issuance
+  const STATUS_OVERDUE = 'overdue';
+  const STATUS_UNDER_MAINTENANCE_ON_RETURN = 'under_maintenance_on_return';
 
-  // --- Status Constants ---
-  // Define possible statuses for a loan transaction lifecycle.
-  const STATUS_ISSUED                         = 'issued'; // Equipment has been issued
-  const STATUS_RETURNED                       = 'returned'; // Equipment has been successfully returned
-  const STATUS_UNDER_MAINTENANCE_ON_LOAN      = 'under_maintenance_on_loan'; // Equipment needed maintenance while issued
-  const STATUS_DAMAGED_ON_RETURN              = 'damaged_on_return'; // Equipment returned damaged
-  const STATUS_LOST_ON_RETURN                 = 'lost_on_return'; // Equipment reported lost on return
-  const STATUS_CANCELLED                      = 'cancelled'; // Transaction was cancelled (e.g., before issue)
-  const STATUS_OVERDUE                        = 'overdue'; // Transaction is overdue for return
-  const STATUS_UNDER_MAINTENANCE_ON_RETURN    = 'under_maintenance_on_return'; // Equipment needs maintenance after return
-
-  // *** FIX 4: Add the missing STATUS_ON_LOAN constant ***
-  // Note: While the service uses STATUS_ISSUED for the transaction state
-  // when equipment is out, the policy diagnostic specifically requires this constant.
-  const STATUS_ON_LOAN = 'on_loan'; // Adding constant as requested by diagnostic
-
-  // --- End Status Constants ---
-
+  // Removed the STATUS_ON_LOAN constant as it belongs to Equipment availability status
 
   /**
    * Get the loan application that this transaction belongs to.
@@ -106,8 +105,19 @@ class LoanTransaction extends Model
    */
   public function equipment(): BelongsTo
   {
-    // Ensure the foreign key is correct if it's not the default 'equipment_id'
-    return $this->belongsTo(Equipment::class, 'equipment_id');
+    return $this->belongsTo(Equipment::class);
+  }
+
+  /**
+   * Get the user (borrower) associated with this loan transaction.
+   * Assumes 'user_id' foreign key in loan_transactions table.
+   * This relationship is needed for the ReportController eager loading.
+   */
+  public function user(): BelongsTo
+  {
+    // If your foreign key is something other than 'user_id',
+    // specify it as the second argument: ->belongsTo(User::class, 'your_foreign_key_name')
+    return $this->belongsTo(User::class);
   }
 
   /**
@@ -119,7 +129,7 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the officer who received the equipment on behalf of the applicant (if applicable).
+   * Get the person who received the equipment.
    */
   public function receivingOfficer(): BelongsTo
   {
@@ -127,7 +137,7 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the officer who returned the equipment on behalf of the applicant (if applicable).
+   * Get the officer who returned the equipment.
    */
   public function returningOfficer(): BelongsTo
   {
@@ -158,7 +168,6 @@ class LoanTransaction extends Model
     return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_LOAN; // Use constant
   }
 
-  // Add other helper methods for other statuses as needed
   public function isDamagedOnReturn(): bool
   {
     return $this->status === self::STATUS_DAMAGED_ON_RETURN; // Use constant
@@ -183,6 +192,4 @@ class LoanTransaction extends Model
   {
     return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_RETURN; // Use constant
   }
-
-  // Add any other model logic (scopes, accessors, mutators) here...
 }
