@@ -35,8 +35,14 @@ use App\Livewire\HumanResource\Structure\EmployeeInfo;
 use App\Livewire\HumanResource\Attendance\Fingerprints;
 use App\Livewire\HumanResource\Attendance\Leaves;
 use App\Livewire\HumanResource\Structure\Centers;
-use App\Livewire\HumanResource\Structure\Employees; // Assuming this is the Employee Livewire component
+use App\Livewire\HumanResource\Structure\Employees as HrmsEmployees; // Assuming this is the Employee Livewire component, using alias to avoid conflict if App\Models\Employee is used frequently without namespace
 use App\Livewire\HumanResource\Structure\Positions as StructurePositions; // Alias existing Positions Livewire component
+
+
+// *** NEW: Import the new Livewire components for Settings ***
+use App\Livewire\Settings\Roles as SettingsRoles; // <-- Added/Uncommented this line
+use App\Livewire\Settings\Permissions as SettingsPermissions; // <-- Added/Uncommented this line
+// *** END NEW IMPORTS ***
 
 
 /**
@@ -104,7 +110,7 @@ Route::middleware([
       Route::get('/centers', Centers::class)->name('structure-centers');
       Route::get('/departments', Departments::class)->name('structure-departments');
       Route::get('/positions', StructurePositions::class)->name('structure-positions');
-      Route::get('/employees', Employees::class)->name('structure-employees'); // HRMS Employee list
+      Route::get('/employees', HrmsEmployees::class)->name('structure-employees'); // HRMS Employee list
       Route::get('/employee/{id?}', EmployeeInfo::class)->name('structure-employees-info'); // HRMS Employee details
     });
 
@@ -120,8 +126,11 @@ Route::middleware([
   // Existing HRMS Settings Routes, restricted to Admin role
   Route::prefix('settings')->middleware(['role:Admin'])->group(function () {
     Route::get('/users', SettingsUsers::class)->name('settings-users'); // Existing Livewire User management
-    Route::get('/roles', ComingSoon::class)->name('settings-roles'); // Placeholder
-    Route::get('/permissions', ComingSoon::class)->name('settings-permissions'); // Placeholder
+    // 👇 NEW: Pointing to actual Livewire components for Roles and Permissions
+    Route::get('/roles', SettingsRoles::class)->name('settings-roles');
+    Route::get('/permissions', SettingsPermissions::class)->name('settings-permissions');
+    // 👆 END NEW
+
   });
 
   // Existing HRMS Assets Routes (Note: /assets prefix here vs /admin/equipment below for RM)
@@ -166,12 +175,16 @@ Route::middleware([
 
   // Routes for Approvers to view and act on applications
   Route::prefix('approvals')->name('approvals.')->group(function () {
+    // Show methods for approvals (can be handled by controllers or Livewire, check implementation)
     Route::get('/email/{emailApplication}', [EmailApplicationController::class, 'showForApproval'])->name('email.show');
     Route::get('/loan/{loanApplication}', [LoanApplicationController::class, 'showForApproval'])->name('loan.show');
+
+    // Approval/Rejection actions (assuming controller methods)
     Route::post('/email/{emailApplication}/approve', [EmailApplicationController::class, 'approve'])->name('email.approve');
-    Route::post('/loan/{loanApplication}/reject', [LoanApplicationController::class, 'reject'])->name('loan.reject');
+    Route::post('/email/{emailApplication}/reject', [EmailApplicationController::class, 'reject'])->name('email.reject'); // Corrected method name
     Route::post('/loan/{loanApplication}/approve', [LoanApplicationController::class, 'approve'])->name('loan.approve');
     Route::post('/loan/{loanApplication}/reject', [LoanApplicationController::class, 'reject'])->name('loan.reject');
+
 
     // Route definition for Approvals History - NOW POINTING TO loanHistory METHOD
     // This route is called from the sidebar menu (vertical-menu.blade.php).
@@ -198,6 +211,7 @@ Route::middleware([
     Route::resource('equipment', EquipmentController::class);
     Route::resource('grades', GradeController::class)->middleware('role:Admin');
 
+    // BPM specific routes (subset of admin tasks)
     Route::prefix('bpm')->name('bpm.')->middleware('role:BPM')->group(function () {
       Route::get('/outstanding-loans', [LoanApplicationController::class, 'outstandingLoansList'])->name('outstanding-loans');
       Route::get('/issue/{loanApplication}', [LoanApplicationController::class, 'issueEquipmentForm'])->name('issue.form');
