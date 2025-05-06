@@ -120,7 +120,8 @@ class EmailApplicationController extends Controller // Renamed to plural as per 
       // - Setting the initial status ('draft' or 'pending_support').
       // - Saving the application to the database.
       // - Potentially triggering initial workflow steps (e.g., routing to supporting officer if status is pending_support).
-      $application = $this->emailApplicationService->createApplication(Auth::user(), $request->validated());
+      // *** FIX 1: Correct the order of arguments ***
+      $application = $this->emailApplicationService->createApplication($request->validated(), Auth::user());
 
       // Log successful creation
       Log::info('Email application created successfully.', [
@@ -234,7 +235,8 @@ class EmailApplicationController extends Controller // Renamed to plural as per 
       // - Ensuring updates are only allowed in the correct status ('draft').
       // - Saving changes.
       // - Potentially resetting status if significant changes occur (though usually not needed for draft edits).
-      $updated = $this->emailApplicationService->updateApplication($emailApplication, $request->validated());
+      // *** FIX 2: Pass the authenticated user as the third argument ***
+      $updated = $this->emailApplicationService->updateApplication($emailApplication, $request->validated(), Auth::user());
 
       if ($updated) {
         // Log successful update
@@ -295,7 +297,7 @@ class EmailApplicationController extends Controller // Renamed to plural as per 
 
     // Prevent deletion if the application is not in 'draft' status.
     // This is a critical business rule from the workflow.
-    if ($emailApplication->status !== 'draft') {
+    if ($emailApplication->status !== EmailApplication::STATUS_DRAFT) { // Use constant for status check
       Log::warning('Attempted to delete email application not in draft status.', [
         'application_id' => $emailApplication->id,
         'user_id' => Auth::id(),

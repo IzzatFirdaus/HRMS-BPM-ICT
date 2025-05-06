@@ -33,6 +33,8 @@ use Illuminate\Support\Facades\Lang; // Assuming you use Laravel's localization 
  * @property string|null $rejection_reason Reason for rejection if status is rejected.
  * @property string|null $final_assigned_email The email/ID finally assigned by IT Admin.
  * @property string|null $admin_notes Notes added by the IT Admin (requires column via migration).
+ * @property Carbon|null $submission_timestamp Timestamp when the application was first submitted for approval.
+ * @property Carbon|null $provisioned_at Timestamp when the email account was provisioned (requires column via migration).
  *
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -71,6 +73,7 @@ class EmailApplication extends Model
   public const STATUS_REJECTED = 'rejected';
   public const STATUS_PROCESSING = 'processing';
   public const STATUS_COMPLETED = 'completed';
+  public const STATUS_PROVISIONING_FAILED = 'provisioning_failed'; // Added based on service logic
 
   // Service status constants - Match the ENUM in the email_applications migration's 'service_status' column.
   public const SERVICE_STATUS_KAKITANGAN_TETAP = 'Kakitangan Tetap';
@@ -78,6 +81,26 @@ class EmailApplication extends Model
   public const SERVICE_STATUS_PERSONEL_MYSTEP = 'Personel MySTEP';
   public const SERVICE_STATUS_PELAJAR_INDUSTRI = 'Pelajar Latihan Industri';
   public const SERVICE_STATUS_EMEL_SANDARAN = 'E-mel Sandaran MOTAC';
+
+  // --- NEW CONSTANTS FOR SERVICE STATUSES LIST AND SELECT ---
+  public const SERVICE_STATUSES = [
+    self::SERVICE_STATUS_KAKITANGAN_TETAP,
+    self::SERVICE_STATUS_LANTIKAN_KONTRAK,
+    self::SERVICE_STATUS_PERSONEL_MYSTEP,
+    self::SERVICE_STATUS_PELAJAR_INDUSTRI,
+    self::SERVICE_STATUS_EMEL_SANDARAN,
+  ];
+
+  public const SERVICE_STATUSES_SELECT = [
+    self::SERVICE_STATUS_KAKITANGAN_TETAP => 'Kakitangan Tetap', // You can use __() here if you prefer localization directly in the model,
+    self::SERVICE_STATUS_LANTIKAN_KONTRAK => 'Lantikan Kontrak', // but often localization is done in the view.
+    self::SERVICE_STATUS_PERSONEL_MYSTEP => 'Personel MySTEP',
+    self::SERVICE_STATUS_PELAJAR_INDUSTRI => 'Pelajar Latihan Industri',
+    self::SERVICE_STATUS_EMEL_SANDARAN => 'E-mel Sandaran MOTAC',
+  ];
+  // You could also use the accessor $this->service_status_translated for translated labels if needed elsewhere.
+  // --- END NEW CONSTANTS ---
+
 
   /**
    * The attributes that are mass assignable.
@@ -93,12 +116,14 @@ class EmailApplication extends Model
     'group_admin_name',
     'group_admin_email',
     'supporting_officer_id', // FK to users table (for the support reviewer)
-    'status',
+    'status', // This is set by the service methods, but included in fillable if creating/updating models directly
     'certification_accepted',
     'certification_timestamp',
     'rejection_reason',
     'final_assigned_email',
     'admin_notes', // Included as noted in the service code
+    'submission_timestamp', // Added based on service logic
+    'provisioned_at', // Added based on service logic
     // Audit columns handled by trait, no need to include here
   ];
 
@@ -110,6 +135,8 @@ class EmailApplication extends Model
   protected $casts = [
     'certification_accepted' => 'boolean',
     'certification_timestamp' => 'datetime',
+    'submission_timestamp' => 'datetime', // Added based on service logic
+    'provisioned_at' => 'datetime', // Added based on service logic
     'created_at' => 'datetime',
     'updated_at' => 'datetime',
     'deleted_at' => 'datetime',
@@ -219,11 +246,18 @@ class EmailApplication extends Model
     return $this->hasStatus(self::STATUS_COMPLETED);
   }
 
+  public function isProvisioningFailed(): bool
+  {
+    return $this->hasStatus(self::STATUS_PROVISIONING_FAILED);
+  }
+
+
   public function isSubmitted(): bool
   {
     // Any status other than draft means it's been submitted at least once
     return !$this->isDraft();
   }
+
 
   // --- Local Scope ---
   // Allows querying for applications by status easily.
@@ -270,7 +304,10 @@ class EmailApplication extends Model
       self::STATUS_REJECTED => __('application.status.rejected'),
       self::STATUS_PROCESSING => __('application.status.processing'),
       self::STATUS_COMPLETED => __('application.status.completed'),
+      self::STATUS_PROVISIONING_FAILED => __('application.status.provisioning_failed'), // Added
       default => __('application.status.unknown'), // Handles unexpected values
     };
   }
+
+  // Add other model methods or scopes as needed
 }

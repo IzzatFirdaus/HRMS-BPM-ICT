@@ -20,6 +20,12 @@ use App\Traits\CreatedUpdatedDeletedBy;
 // Import specific Notification classes you might route emails for
 use App\Notifications\EmailProvisioningComplete; // Example: Need to route this to personal email
 
+// --- ADD THESE TWO USE STATEMENTS for Email Verification ---
+use Illuminate\Contracts\Auth\MustVerifyEmail; // Import the interface
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait; // Import the trait, use alias to avoid conflict if another MustVerifyEmail exists
+// --- END ADDITIONS ---
+
+
 /**
  * Add PHPDoc annotations to help static analysis tools (like Intelephense)
  * recognize the dynamic properties provided by Eloquent's magic methods.
@@ -79,7 +85,7 @@ use App\Notifications\EmailProvisioningComplete; // Example: Need to route this 
  *
  * @mixin \Illuminate\Database\Eloquent\Builder // Include mixin for model scopes and query builder methods
  */
-class User extends Authenticatable // Or extends Authenticatable implements MustVerifyEmail if needed
+class User extends Authenticatable implements MustVerifyEmail // <<< IMPLEMENT THE MustVerifyEmail INTERFACE HERE
 {
   // --- Traits (As provided in your code) ---
   use CreatedUpdatedDeletedBy, // Assuming this trait exists and works with audit columns
@@ -89,7 +95,9 @@ class User extends Authenticatable // Or extends Authenticatable implements Must
     HasRoles, // Assuming Spatie Permission
     Notifiable, // For sending notifications
     SoftDeletes, // Assuming SoftDeletes from migration
-    TwoFactorAuthenticatable; // Assuming Fortify
+    TwoFactorAuthenticatable, // Assuming Fortify
+    MustVerifyEmailTrait; // <<< USE THE MustVerifyEmail TRAIT HERE
+
 
   // --- Constants for Enum Values (ADDED based on users table migration) ---
   // These match the enum values defined in 2013_11_01_132200_add_motac_columns_to_users_table.php
@@ -158,7 +166,7 @@ class User extends Authenticatable // Or extends Authenticatable implements Must
    * @var array<string, string>
    */
   protected $casts = [
-    'email_verified_at' => 'datetime',
+    'email_verified_at' => 'datetime', // This MUST be cast to 'datetime' for email verification to work
     'mobile_verified_at' => 'datetime', // Added from migration
     'created_at' => 'datetime', // Redundant but harmless
     'updated_at' => 'datetime', // Redundant but harmless
@@ -167,6 +175,7 @@ class User extends Authenticatable // Or extends Authenticatable implements Must
     'is_bpm_staff' => 'boolean', // Added from migration
     'two_factor_recovery_codes' => 'array', // Standard Fortify
     // Add other casts as needed (e.g., 'password' => 'hashed' if not already done by default)
+    'password' => 'hashed', // Explicitly cast password to hashed
   ];
 
   /**
@@ -340,8 +349,8 @@ class User extends Authenticatable // Or extends Authenticatable implements Must
   // You can add similar methods for other notification channels if needed
   // public function routeNotificationForVonage($notification): string
   // {
-  //     // Return the user's mobile number if available and valid for SMS notifications
-  //     return $this->mobile_number;
+  //      // Return the user's mobile number if available and valid for SMS notifications
+  //      return $this->mobile_number;
   // }
 
   /**
@@ -364,4 +373,6 @@ class User extends Authenticatable // Or extends Authenticatable implements Must
 
     return $statuses[$this->service_status] ?? $this->service_status; // Return translated or raw value
   }
+
+  // Add other model methods, scopes, or relationships as needed.
 }

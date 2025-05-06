@@ -1,268 +1,221 @@
 <?php
 
-namespace App\Http\Controllers; // Ensure the namespace is correct for your project. Consider App\Http\Controllers\Admin if transaction management is an admin function.
+namespace App\Http\Controllers;
 
-use App\Models\LoanTransaction; // Import LoanTransaction model
-use App\Models\LoanApplication; // Needed for issuance logic (route model binding)
-use App\Models\Equipment; // Needed for issuance logic
-use App\Models\User; // Needed for return logic (returning officer)
-use Illuminate\Http\Request; // Standard Request object
-use Illuminate\Support\Facades\Auth; // Import Auth facade
-use Illuminate\Support\Facades\Gate; // Import Gate (less needed with Policies)
-// Assuming a LoanApplicationService handles transaction creation/updates or is orchestrated via it
-use App\Services\LoanApplicationService; // Import LoanApplicationService
-// Assuming dedicated Form Requests for validation of BPM actions
-use App\Http\Requests\IssueEquipmentRequest; // Import IssueEquipmentRequest Form Request
-use App\Http\Requests\ProcessReturnRequest; // Import ProcessReturnRequest Form Request
+use App\Models\LoanApplication; // Needed for issueEquipmentForm, issueEquipment
+use App\Models\LoanApplicationItem; // Needed for issueEquipment (specific item) - though not passed to service
+use App\Models\Equipment; // Needed for issueEquipmentForm, issueEquipment (specific equipment), and constants
+use App\Models\LoanTransaction; // Needed for index, show, returnEquipmentForm, processReturn, and constants
+use App\Models\User; // Needed for issueEquipment (receiving officer) and return (returning/accepting)
+use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate; // Needed for authorize (though Policy is preferred)
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use Exception;
+use App\Services\LoanApplicationService; // Orchestrates via this service
+// You might inject a dedicated LoanTransactionService if your transaction logic is complex
+// use App\Services\LoanTransactionService;
+use Illuminate\Validation\Rule; // Needed for validation potentially
+use Illuminate\Support\Collection; // Needed for returningOfficers collection (if fetching multiple)
+use App\Http\Requests\IssueEquipmentRequest; // Assuming this Form Request exists
+use App\Http\Requests\ProcessReturnRequest; // Assuming this Form Request exists
 
 
-use Illuminate\Validation\Rule; // Import Rule for validation rules
-use Illuminate\Support\Facades\Log; // Import Log facade for logging
-use Exception; // Import Exception for general errors
-use Illuminate\Database\Eloquent\ModelNotFoundException; // Import ModelNotFoundException
-use Illuminate\Validation\ValidationException; // Import ValidationException
-use Illuminate\Http\RedirectResponse; // Import RedirectResponse for type hinting
-use Illuminate\View\View; // Import View for type hinting
-
-
-// This controller manages Loan Transaction records and handles specific BPM staff workflow actions
-// related to equipment issuance and return.
 class LoanTransactionController extends Controller
 {
-  protected $loanApplicationService; // Service for orchestrating loan application/transaction logic
+  // Inject the service responsible for loan transaction logic
+  protected LoanApplicationService $loanApplicationService; // Use LoanApplicationService
 
   /**
-   * Inject services and apply authentication/authorization middleware.
+   * Inject the LoanApplicationService and apply middleware.
    *
-   * @param \App\Services\LoanApplicationService $loanApplicationService The application service instance.
+   * @param \App\Services\LoanApplicationService $loanApplicationService
    */
   public function __construct(LoanApplicationService $loanApplicationService)
   {
-    // Apply authentication middleware to all methods in this controller
     $this->middleware('auth');
-
-    // Apply authorization policy checks automatically for standard resource methods (index, show)
-    // Custom methods (issue, return) will have manual authorization checks or route middleware.
+    // Apply authorization policy checks.
     // Assumes a LoanTransactionPolicy exists and is registered.
-    // Policy methods: viewAny, view, issue, processReturn
-    $this->authorizeResource(LoanTransaction::class, 'loan_transaction', [
-      'only' => ['index', 'show'] // Apply authorizeResource only to index and show
-    ]);
+    // Policy methods: viewAny, view, create, issue, return, etc.
+    $this->authorizeResource(LoanTransaction::class, 'loan_transaction'); // Use 'loan_transaction' parameter name
 
-
-    $this->loanApplicationService = $loanApplicationService;
+    $this->loanApplicationService = $loanApplicationService; // Assign injected service
   }
 
   /**
-   * Display a listing of the loan transactions.
-   * Useful for BPM staff or admins to see all transactions.
+   * Display a listing of loan transactions.
    *
+   * @param  \Illuminate\Http\Request  $request
    * @return \Illuminate\View\View
    */
-  public function index(): View // Add return type hint
+  public function index(Request $request): View // Add return type hint
   {
-    // Authorization handled by authorizeResource in the constructor ('viewAny' on LoanTransaction).
-    // The policy's 'viewAny' method should ideally handle filtering based on roles/permissions (e.g., BPM staff see all, others see none).
+    // Authorization handled by authorizeResource ('viewAny')
+    // Policy viewAny method should scope results based on user roles/permissions.
 
-    // Log viewing loan transactions index
-    Log::info('Viewing loan transactions index.', [
-      'user_id' => Auth::id(),
-      'ip_address' => request()->ip(),
-    ]);
-
-    // Fetch loan transactions with relationships, ordered by latest.
     $transactions = LoanTransaction::query()
-      ->with(['loanApplication.user', 'equipment', 'issuingOfficer', 'receivingOfficer', 'returningOfficer', 'returnAcceptingOfficer']) // Eager load related data
-      ->latest(); // Order by latest transaction
+      ->with(['loanApplication.user', 'equipment', 'issuingOfficer', 'receivingOfficer', 'returningOfficer', 'returnAcceptingOfficer']) // Eager load relationships
+      ->latest() // Order by latest transaction
+      ->paginate(10); // Paginate results
 
-
-    // Apply the 'viewAny' policy scope if it exists in your policy to handle filtering.
-    // If not using policy scopes, manual filtering might be necessary here based on user roles/permissions.
-    // Example manual filtering (less recommended than policy scopes):
-    // if (!Auth::user()->can('viewAllLoanTransactions')) { // Assuming a permission check for BPM staff/admins
-    //      // Maybe redirect or abort if user doesn't have permission
-    //      abort(403, 'Unauthorized');
-    // }
-
-
-    $transactions = $transactions->paginate(10); // Paginate for better performance
-
-
-    // Return the view with the list of transactions
-    // Ensure your view file name matches: resources/views/loan-transactions/index.blade.php
     return view('loan-transactions.index', compact('transactions'));
   }
 
-
   /**
-   * Display the specified loan transaction record.
-   * Shows details of a specific equipment issuance or return transaction.
+   * Display the specified loan transaction.
    *
-   * @param  \App\Models\LoanTransaction  $loanTransaction  The transaction instance resolved by route model binding.
+   * @param  \App\Models\LoanTransaction  $loanTransaction
    * @return \Illuminate\View\View
    */
-  public function show(LoanTransaction $loanTransaction): View // Use 'loanTransaction' as parameter name, add return type hint
+  public function show(LoanTransaction $loanTransaction): View // Add return type hint
   {
-    // Authorization handled by authorizeResource in the constructor ('view' on the specific $loanTransaction).
-    // The policy's 'view' method should verify if the user has permission to see this transaction
-    // (e.g., is the applicant, is BPM staff, is admin, is any of the involved officers).
+    // Authorization handled by authorizeResource ('view' on $loanTransaction)
+    // Policy view method should check if user is involved or is admin.
 
-    // Log viewing loan transaction details
-    Log::info('Viewing loan transaction details.', [
-      'transaction_id' => $loanTransaction->id,
-      'loan_application_id' => $loanTransaction->loan_application_id,
-      'equipment_id' => $loanTransaction->equipment_id,
-      'user_id' => Auth::id(), // Log the user viewing the transaction
-    ]);
+    // Eager load relationships needed for the show view
+    $loanTransaction->load(['loanApplication.user', 'equipment', 'issuingOfficer', 'receivingOfficer', 'returningOfficer', 'returnAcceptingOfficer']);
 
-    // Eager load related data needed for the show view:
-    // - Loan Application and its applicant user
-    // - Equipment involved
-    // - Involved officers
-    $loanTransaction->load([
-      'loanApplication.user', // Load application and applicant
-      'equipment',
-      'issuingOfficer',
-      'receivingOfficer',
-      'returningOfficer',
-      'returnAcceptingOfficer'
-    ]);
-
-
-    // Return the view to show transaction details
-    // Ensure your view file name matches: resources/views/loan-transactions/show.blade.php
-    return view('loan-transactions.show', compact('loanTransaction')); // Pass as 'loanTransaction'
+    return view('loan-transactions.show', compact('loanTransaction'));
   }
 
 
-  // --- BPM Staff Workflow Actions (Issuance and Return) ---
-  // These methods are transferred from the LoanApplicationController.
-
   /**
-   * Show the form to issue equipment for an approved application.
-   * This method is accessed by BPM staff and binds a LoanApplication.
+   * Show the form for issuing equipment for a specific approved application item.
    *
-   * @param LoanApplication $loanApplication The approved application instance.
+   * @param  \App\Models\LoanApplicationItem  $loanApplicationItem  The specific item from the application to issue.
    * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
    */
-  public function issueEquipmentForm(LoanApplication $loanApplication): View|RedirectResponse // Add return type hint
+  // Changed route model binding to LoanApplicationItem as per form context
+  public function issueEquipmentForm(LoanApplicationItem $loanApplicationItem): View | RedirectResponse // Add return types
   {
-    // Authorization check: Ensure user is BPM staff and the application is in a state ready for issuance (e.g., 'approved', 'partially_issued').
-    // This check is crucial and should be implemented in the Policy's 'issue' method on LoanApplicationPolicy.
-    // This uses the LoanApplicationPolicy because the action is tied to the application's workflow state.
-    $this->authorize('issue', $loanApplication); // Assumes a policy action 'issue' on LoanApplicationPolicy
+    // Authorization check: Can the user (likely IT Admin) issue this item?
+    // Assumes a 'issue' policy method on LoanApplicationItem or LoanApplication.
+    // Policy should check user role and application/item status.
+    // Gate::authorize('issue', $loanApplicationItem); // Using Gate or Policy
 
+    // Using authorizeResource setup: Need a specific permission check or policy method not covered by standard resource methods.
+    // A custom gate/policy check here is more explicit.
+    // Example using Gate:
+    // if (! Gate::allows('issue loan application item', $loanApplicationItem)) { // Assuming a specific gate
+    //     abort(403);
+    // }
+    // Example using Policy (define a 'issue' method in LoanTransactionPolicy or LoanApplicationPolicy):
+    $this->authorize('issue', $loanApplicationItem); // Assuming LoanTransactionPolicy has an 'issue' method for LoanApplicationItem
 
-    // Optional: Add logging for accessing issuance form
-    Log::info('User accessing equipment issuance form.', [
-      'application_id' => $loanApplication->id,
-      'user_id' => Auth::id(), // BPM Staff user accessing form
-    ]);
-
-    // Ensure the application status allows issuance before showing the form
-    $issuableStatuses = ['approved', 'partially_issued']; // Define statuses where issuance is possible
-    if (!in_array($loanApplication->status, $issuableStatuses)) {
-      Log::warning('Attempted to access issuance form for application not in issuable status.', [
-        'application_id' => $loanApplication->id,
-        'user_id' => Auth::id(),
-        'current_status' => $loanApplication->status,
-      ]);
-      // Changed message to Malay
-      return redirect()->route('loan-applications.show', $loanApplication)->with('error', 'Permohonan pinjaman tidak berstatus bersedia untuk pengeluaran peralatan.'); // Malay error message
+    // Ensure the application item is approved and not yet fully issued.
+    if (!$loanApplicationItem->isApproved() || $loanApplicationItem->quantity_approved <= $loanApplicationItem->quantity_issued) { // Assuming isApproved() and quantity_issued properties exist
+      return redirect()->back()->with('error', 'Item permohonan ini tidak diluluskan atau telah dikeluarkan sepenuhnya.'); // Malay message
     }
 
-    // Eager load necessary relationships for the form view:
-    // - Applicant User details
-    // - Requested Items and their equipment details
-    // - Existing transactions if partially issued
-    $loanApplication->load(['user.department', 'user.position', 'items.equipment', 'transactions.equipment']);
+    // Fetch potential receiving officers (e.g., from the same department as the applicant, or specific roles)
+    // For simplicity, fetching all active users with a certain role or criteria
+    $receivingOfficers = User::active()->get(); // Assumes User model has 'active' scope
 
-    // Pass the application data to the issuance form view
-    // Ensure your view file name matches: resources/views/loan-transactions/issue.blade.php
-    return view('loan-transactions.issue', compact('loanApplication')); // Pass the application
+    // Fetch available equipment of the requested type
+    // Assuming equipment relationship exists on LoanApplicationItem to get equipment type
+    // Assumes AVAILABILITY_AVAILABLE constant exists on Equipment model
+    $availableEquipment = Equipment::where('equipment_type_id', $loanApplicationItem->equipment_type_id) // Assumes equipment_type_id on item/equipment
+      ->where('availability_status', Equipment::AVAILABILITY_AVAILABLE)
+      ->get();
+
+    // Check if any equipment is available
+    if ($availableEquipment->isEmpty()) {
+      return redirect()->back()->with('error', 'Tiada peralatan jenis ini yang tersedia untuk dikeluarkan.'); // Malay message
+    }
+
+    // Return the view for the issuance form
+    // Ensure view path is correct: resources/views/loan-transactions/issue.blade.php
+    return view('loan-transactions.issue', compact('loanApplicationItem', 'receivingOfficers', 'availableEquipment'));
   }
 
-
   /**
-   * Process the issuance of equipment for an application.
-   * Called by BPM staff when the issuance form is submitted.
-   * Creates a LoanTransaction record.
+   * Process the equipment issuance for an approved application item.
+   * Receives input from the issue form, delegates to the service.
    *
-   * @param LoanApplication $loanApplication The application instance.
-   * @param IssueEquipmentRequest $request The validated issuance request.
+   * @param  \App\Http\Requests\IssueEquipmentRequest  $request  The validated incoming request for issuance.
+   * @param  \App\Models\LoanApplicationItem  $loanApplicationItem The specific item from the application to issue.
    * @return \Illuminate\Http\RedirectResponse
    */
-  public function issueEquipment(LoanApplication $loanApplication, IssueEquipmentRequest $request): RedirectResponse // Use Form Request, add return type hint
+  public function issueEquipment(IssueEquipmentRequest $request, LoanApplicationItem $loanApplicationItem): RedirectResponse // Use Form Request, add return type hint
   {
-    // Authorization check: Ensure user is BPM staff and application state allows issuance.
-    // Handled by the Policy's 'issue' method on LoanApplicationPolicy.
-    $this->authorize('issue', $loanApplication); // Assumes a policy action 'issue' on LoanApplicationPolicy
+    // Authorization handled by the policy/gate check within this method or via authorizeResource if applicable
+    $this->authorize('issue', $loanApplicationItem); // Ensure authorization is re-checked
 
-    // Validation handled automatically by IssueEquipmentRequest.
-    // IssueEquipmentRequest should validate: equipment_id, accessories, notes, receiving_user_id, etc.
-
-    // Log issuance attempt
-    Log::info('Attempting to issue equipment for loan application.', [
-      'application_id' => $loanApplication->id,
-      'user_id' => Auth::id(), // BPM Staff user performing issuance
-      'ip_address' => $request->ip(),
-      'validated_data_keys' => array_keys($request->validated()), // Log keys
-    ]);
-
-
-    // Ensure the application status allows issuance before processing the request.
-    $issuableStatuses = ['approved', 'partially_issued']; // Define statuses where issuance is possible
-    if (!in_array($loanApplication->status, $issuableStatuses)) {
-      Log::warning('Attempted to issue equipment for application not in issuable status.', [
-        'application_id' => $loanApplication->id,
-        'user_id' => Auth::id(),
-        'current_status' => $loanApplication->status,
-      ]);
-      // Changed message to Malay
-      return redirect()->back()->withInput()->with('error', 'Permohonan pinjaman tidak berstatus bersedia untuk pengeluaran peralatan.'); // Malay error message
+    // Ensure the item is still issuable
+    if (!$loanApplicationItem->isApproved() || $loanApplicationItem->quantity_approved <= $loanApplicationItem->quantity_issued) {
+      return redirect()->back()->withInput()->with('error', 'Item permohonan ini tidak boleh dikeluarkan pada masa ini.'); // Malay message
     }
 
+    $validatedData = $request->validated();
 
+    Log::info('Attempting to issue equipment for application item.', [
+      'item_id' => $loanApplicationItem->id,
+      'application_id' => $loanApplicationItem->loan_application_id,
+      'user_id' => Auth::id(),
+      'validated_data_keys' => array_keys($validatedData),
+    ]);
+
+    // Fetch necessary models based on validated data
     try {
-      $validatedData = $request->validated();
-      $issuingOfficer = Auth::user(); // The BPM staff performing the issuance
+      // *** FIX 1: Change get() to firstOrFail() to get single models ***
+      $equipment = Equipment::where('asset_tag', $validatedData['asset_tag'])->firstOrFail(); // Find the specific equipment by asset tag
+      $receivingOfficer = User::where('staff_id', $validatedData['receiving_officer_staff_id'])->firstOrFail(); // Find the receiving officer by staff ID
 
-      // Delegate the issuance logic to the LoanApplicationService (or a dedicated LoanTransactionService).
-      // The service should:
-      // - Validate equipment availability and linkage to requested items.
-      // - Create a new LoanTransaction record.
-      // - Link the transaction to the LoanApplication and the specific Equipment.
-      // - Set issuance details (issuing officer, receiving officer, accessories, notes, timestamp).
-      // - Update the Equipment status to 'on_loan'.
-      // - Update the LoanApplication status to 'partially_issued' or 'issued'/'completed' if all items are issued.
-      // - Potentially trigger notifications.
-      $transaction = $this->loanApplicationService->issueEquipment( // Assumes service method exists
-        $loanApplication,
-        $validatedData['equipment_id'], // Pass equipment ID
-        $validatedData['receiving_user_id'], // Pass receiving officer ID
-        $issuingOfficer, // Pass issuing officer user model
-        $validatedData['accessories'] ?? null, // Pass optional accessories
-        $validatedData['notes'] ?? null // Pass optional notes
+      // The issuing officer is the currently authenticated user
+      $issuingOfficer = Auth::user();
+
+      // Prepare issue details array
+      $issueDetails = $request->only(['accessories_checklist_on_issue', 'notes']); // Assuming notes field in form
+
+
+      // Delegate the issuance logic to the LoanApplicationService
+      // The service should handle:
+      // - Creating the LoanTransaction record.
+      // - Updating the equipment's status to 'on loan'.
+      // - Updating the LoanApplicationItem's quantity_issued.
+      // - Updating the parent LoanApplication's status (partially issued/fully issued).
+      // - Potentially triggering notifications.
+      // - Ensuring the transaction is atomic (using DB transactions).
+      // *** FIX 2: Correct the arguments passed to issueEquipment ***
+      $transaction = $this->loanApplicationService->issueEquipment(
+        $loanApplicationItem->loanApplication, // Pass the parent application model
+        $equipment,                             // Pass the single Equipment model
+        $receivingOfficer,                      // Pass the single Receiving User model
+        $issuingOfficer,                        // Pass the single Issuing User (Auth::user())
+        $issueDetails                           // Pass the issue details array
+        // REMOVED: $loanApplicationItem - This was the extra argument
       );
 
       // Log successful issuance
-      Log::info('Equipment issued successfully for loan application.', [
-        'application_id' => $loanApplication->id,
+      Log::info('Equipment issued successfully.', [
         'transaction_id' => $transaction->id,
-        'equipment_id' => $transaction->equipment_id,
-        'issued_by' => $issuingOfficer->id,
-        'received_by' => $transaction->receiving_user_id,
+        'item_id' => $loanApplicationItem->id,
+        'equipment_id' => $equipment->id,
+        'issued_by_user_id' => Auth::id(),
       ]);
 
-      // Redirect to the newly created Loan Transaction show page with a success message
+      // Redirect to the transaction's show page or application show page
       // Changed message to Malay
       return redirect()->route('loan-transactions.show', $transaction)
         ->with('success', 'Peralatan berjaya dikeluarkan.'); // Malay success message
 
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+      // Log failure if equipment or user is not found
+      Log::warning('Equipment or Receiving Officer not found during issuance.', [
+        'item_id' => $loanApplicationItem->id,
+        'user_id' => Auth::id(),
+        'message' => $e->getMessage(),
+      ]);
+      // Changed message to Malay
+      return redirect()->back()->withInput()->with('error', 'Peralatan atau Pegawai Penerima tidak ditemui.'); // Malay error message
     } catch (ValidationException $e) {
-      // Catch validation errors from the service (if service re-validates or throws)
-      Log::warning('Equipment issuance validation failed in controller or service.', [
-        'application_id' => $loanApplication->id,
+      // Catch validation errors from the Form Request or service (if service re-validates or throws)
+      // *** FIX 3: Corrected syntax for the array literal ***
+      Log::warning('Equipment issuance validation failed.', [
+        'item_id' => $loanApplicationItem->id,
         'user_id' => Auth::id(),
         'errors' => $e->errors(),
       ]);
@@ -270,8 +223,8 @@ class LoanTransactionController extends Controller
       throw $e;
     } catch (Exception $e) {
       // Log any exceptions thrown by the service or during the process
-      Log::error('Error processing equipment issuance for loan application.', [
-        'application_id' => $loanApplication->id,
+      Log::error('Error processing equipment issuance.', [
+        'item_id' => $loanApplicationItem->id,
         'user_id' => Auth::id(),
         'error' => $e->getMessage(),
         'ip_address' => $request->ip(),
@@ -281,130 +234,115 @@ class LoanTransactionController extends Controller
     }
   }
 
+
   /**
-   * Show the form to process the return of equipment.
-   * This method is accessed by BPM staff and binds a specific LoanTransaction.
+   * Show the form for returning a specific issued equipment item.
    *
-   * @param LoanTransaction $loanTransaction The transaction instance being returned.
+   * @param  \App\Models\LoanTransaction  $loanTransaction  The transaction representing the issued item.
    * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
    */
-  public function returnEquipmentForm(LoanTransaction $loanTransaction): View|RedirectResponse // Use 'loanTransaction' as parameter name, add return type hint
+  public function returnEquipmentForm(LoanTransaction $loanTransaction): View | RedirectResponse // Add return types
   {
-    // Authorization check: Ensure user is BPM staff and the transaction status allows return processing (e.g., 'on_loan').
-    // This check is crucial and should be implemented in the Policy's 'processReturn' method on LoanTransactionPolicy.
-    $this->authorize('processReturn', $loanTransaction); // Assumes a policy action 'processReturn' on LoanTransactionPolicy
+    // Authorization check: Can the user (likely IT Admin) process the return for this transaction?
+    // Assumes a 'return' policy method on LoanTransaction.
+    // Policy should check user role and transaction status.
+    $this->authorize('return', $loanTransaction); // Assuming LoanTransactionPolicy has a 'return' method
 
-
-    // Optional: Add logging for accessing return form
-    Log::info('User accessing equipment return form.', [
-      'transaction_id' => $loanTransaction->id,
-      'loan_application_id' => $loanTransaction->loan_application_id,
-      'equipment_id' => $loanTransaction->equipment_id,
-      'user_id' => Auth::id(), // BPM Staff user accessing form
-    ]);
-
-    // Ensure the transaction status allows processing return
-    $returnableStatuses = ['on_loan']; // Define statuses where return processing is possible
-    if (!in_array($loanTransaction->status, $returnableStatuses)) {
-      Log::warning('Attempted to access return form for transaction not in returnable status.', [
-        'transaction_id' => $loanTransaction->id,
-        'user_id' => Auth::id(),
-        'current_status' => $loanTransaction->status,
-      ]);
-      // Changed message to Malay
-      return redirect()->route('loan-applications.show', $loanTransaction->loanApplication)->with('error', 'Transaksi pinjaman tidak berstatus "sedang dipinjam" dan tidak bersedia untuk pemulangan peralatan.'); // Malay error message
+    // Ensure the transaction is in a status that can be returned (e.g., 'issued', 'under_maintenance_on_loan')
+    // Assumes isIssued() and isUnderMaintenanceOnLoan() helper methods or constants exist on LoanTransaction model
+    if (!$loanTransaction->isIssued() && !$loanTransaction->isUnderMaintenanceOnLoan()) { // Use helper methods/constants
+      return redirect()->back()->with('error', 'Peralatan ini tidak dalam status yang boleh dipulangkan.'); // Malay message
     }
 
-    // Eager load necessary relationships for the form view
-    $loanTransaction->load(['loanApplication.user', 'equipment', 'issuingOfficer', 'receivingOfficer', 'returningOfficer']); // Load relevant relationships
+    // Fetch potential returning officers (e.g., the original applicant, or other users)
+    // If returningOfficer_id is nullable in the form, this list might include many users.
+    // If the form requires specifying the returning officer, you might filter this list.
+    $returningOfficers = User::active()->get(); // Assumes User model has 'active' scope
 
-    // Load data for the form (e.g., list of users for "Pegawai Yang Memulangkan" dropdown)
-    $returningOfficers = User::all(); // Or filter based on department/role if needed
+    // Fetch potential return accepting officers (e.g., IT Admin users)
+    // Assuming a role or permission to identify who can accept returns
+    $returnAcceptingOfficers = User::role('IT Admin')->get(); // Assumes Spatie Role Trait and 'IT Admin' role
 
+    // Ensure necessary relationships are loaded
+    $loanTransaction->load(['equipment']); // Load equipment for details in the form
 
-    // Pass the transaction data and returning officers list to the return form view
-    // Ensure your view file matches: resources/views/loan-transactions/return.blade.php
-    return view('loan-transactions.return', compact('loanTransaction', 'returningOfficers')); // Pass the transaction and list
+    // Return the view for the return form
+    // Ensure view path is correct: resources/views/loan-transactions/return.blade.php
+    return view('loan-transactions.return', compact('loanTransaction', 'returningOfficers', 'returnAcceptingOfficers'));
   }
 
 
   /**
-   * Process the return of equipment for a specific transaction.
-   * Called by BPM staff when the return form is submitted.
-   * Updates the LoanTransaction record and equipment/application statuses.
+   * Process the return of a specific issued equipment item.
+   * Receives input from the return form, delegates to the service.
    *
-   * @param LoanTransaction $loanTransaction The transaction instance being returned.
-   * @param ProcessReturnRequest $request The validated return request.
+   * @param  \App\Http\Requests\ProcessReturnRequest  $request  The validated incoming request for return processing.
+   * @param  \App\Models\LoanTransaction  $loanTransaction  The transaction representing the issued item.
    * @return \Illuminate\Http\RedirectResponse
    */
-  public function processReturn(LoanTransaction $loanTransaction, ProcessReturnRequest $request): RedirectResponse // Use Form Request, add return type hint
+  public function processReturn(ProcessReturnRequest $request, LoanTransaction $loanTransaction): RedirectResponse // Use Form Request, add return type hint
   {
-    // Authorization check: Ensure user is BPM staff and transaction state allows return processing.
-    // Handled by the Policy's 'processReturn' method on LoanTransactionPolicy.
-    $this->authorize('processReturn', $loanTransaction); // Assumes a policy action 'processReturn' on LoanTransactionPolicy
+    // Authorization handled by the policy/gate check within this method or via authorizeResource if applicable
+    $this->authorize('return', $loanTransaction); // Ensure authorization is re-checked
 
-    // Validation handled automatically by ProcessReturnRequest.
-    // ProcessReturnRequest should validate: returning_user_id, accessories_on_return, return_notes, equipment_condition, etc.
-
-    // Log return processing attempt
-    Log::info('Attempting to process equipment return for transaction.', [
-      'transaction_id' => $loanTransaction->id,
-      'loan_application_id' => $loanTransaction->loan_application_id,
-      'equipment_id' => $loanTransaction->equipment_id,
-      'user_id' => Auth::id(), // BPM Staff user processing return
-      'ip_address' => $request->ip(),
-      'validated_data_keys' => array_keys($request->validated()), // Log keys
-    ]);
-
-    // Ensure the transaction status allows processing return before proceeding.
-    $returnableStatuses = ['on_loan']; // Define statuses where return processing is possible
-    if (!in_array($loanTransaction->status, $returnableStatuses)) {
-      Log::warning('Attempted to process return for transaction not in returnable status.', [
-        'transaction_id' => $loanTransaction->id,
-        'user_id' => Auth::id(),
-        'current_status' => $loanTransaction->status,
-      ]);
-      // Changed message to Malay
-      return redirect()->back()->withInput()->with('error', 'Transaksi pinjaman tidak berstatus "sedang dipinjam" dan tidak bersedia untuk pemulangan peralatan.'); // Malay error message
+    // Ensure the transaction is still in a status that can be returned
+    if (!$loanTransaction->isIssued() && !$loanTransaction->isUnderMaintenanceOnLoan()) { // Use helper methods/constants
+      return redirect()->back()->withInput()->with('error', 'Peralatan ini tidak boleh dipulangkan pada masa ini.'); // Malay message
     }
 
+    $validatedData = $request->validated();
 
+    Log::info('Attempting to process equipment return for transaction.', [
+      'transaction_id' => $loanTransaction->id,
+      'user_id' => Auth::id(),
+      'validated_data_keys' => array_keys($validatedData),
+    ]);
+
+    // Fetch necessary models based on validated data if they are not already relationships
+    // For instance, if returning_officer_id and return_accepting_officer_id are validated
     try {
-      $validatedData = $request->validated();
-      $acceptingOfficer = Auth::user(); // The BPM staff accepting the return
+      // The return accepting officer is the currently authenticated user
+      $returnAcceptingOfficer = Auth::user();
 
-      // Delegate the return processing logic to the LoanApplicationService (or a dedicated LoanTransactionService).
+      // Prepare return details array
+      // Make sure the keys here match what the service's handleReturn method expects in its $returnDetails array
+      $returnDetails = $request->only([
+        'returning_officer_id', // If the form collects who returned it
+        'accessories_checklist_on_return',
+        'equipment_condition_on_return',
+        'return_notes',
+        'return_timestamp' // Might be collected from form or set to now() in service
+      ]);
+
+      // Delegate the return processing logic to the LoanApplicationService
       // The service should handle:
-      // - Updating the LoanTransaction record with return details (notes, condition, timestamp, accepting officer).
-      // - Updating the Transaction status to 'returned'.
-      // - Updating the associated Equipment status back to 'available' or 'under_maintenance' based on condition.
-      // - Updating the LoanApplication status if all items are returned.
+      // - Updating the LoanTransaction record with return details.
+      // - Updating the equipment's status (e.g., back to 'available', 'damaged', 'under maintenance').
+      // - Updating the LoanApplicationItem's quantity_returned.
+      // - Updating the parent LoanApplication's status (fully returned, partially returned).
       // - Potentially triggering notifications.
-      $updatedTransaction = $this->loanApplicationService->processReturn( // Assumes service method exists
-        $loanTransaction,
-        $validatedData['returning_user_id'], // Pass returning officer ID
-        $acceptingOfficer, // Pass return accepting officer user model
-        $validatedData['accessories_on_return'] ?? null, // Pass optional accessories
-        $validatedData['return_notes'] ?? null, // Pass optional notes
-        $validatedData['equipment_condition'] // Pass equipment condition
+      // - Ensuring the transaction is atomic.
+      // *** FIX 3: Change method name to handleReturn and pass Auth::user() as the third argument ***
+      $updatedTransaction = $this->loanApplicationService->handleReturn(
+        $loanTransaction, // Pass the transaction model
+        $returnDetails,   // Pass the return details array
+        $returnAcceptingOfficer // Pass the user accepting the return (Auth::user())
       );
 
       // Log successful return processing
-      Log::info('Equipment return processed successfully for transaction.', [
-        'transaction_id' => $loanTransaction->id,
-        'loan_application_id' => $loanTransaction->loan_application_id,
-        'equipment_id' => $loanTransaction->equipment_id,
-        'returning_user_id' => $updatedTransaction->returning_user_id,
-        'accepted_by' => $acceptingOfficer->id,
+      Log::info('Equipment return processed successfully.', [
+        'transaction_id' => $updatedTransaction->id,
+        'status' => $updatedTransaction->status,
+        'processed_by_user_id' => Auth::id(),
       ]);
 
-      // Redirect to the updated Loan Transaction show page with a success message
+      // Redirect to the transaction's show page
       // Changed message to Malay
-      return redirect()->route('loan-transactions.show', $loanTransaction)->with('success', 'Pemulangan peralatan berjaya diproses.'); // Malay success message
+      return redirect()->route('loan-transactions.show', $updatedTransaction)->with('success', 'Pemulangan peralatan berjaya diproses.'); // Malay success message
 
     } catch (ValidationException $e) {
-      // Catch validation errors from the service (if service re-validates or throws)
-      Log::warning('Equipment return validation failed in controller or service.', [
+      // Catch validation errors from the Form Request or service (if service re-validates or throws)
+      Log::warning('Equipment return validation failed.', [
         'transaction_id' => $loanTransaction->id,
         'user_id' => Auth::id(),
         'errors' => $e->errors(),
@@ -413,8 +351,10 @@ class LoanTransactionController extends Controller
       throw $e;
     } catch (Exception $e) {
       // Log any exceptions thrown by the service or during the process
-      Log::error('Error processing equipment return for transaction.', [
+      Log::error('Error processing equipment return.', [
         'transaction_id' => $loanTransaction->id,
+        'loan_application_id' => $loanTransaction->loan_application_id,
+        'equipment_id' => $loanTransaction->equipment_id, // Can be null
         'user_id' => Auth::id(),
         'error' => $e->getMessage(),
         'ip_address' => $request->ip(),
@@ -424,8 +364,8 @@ class LoanTransactionController extends Controller
     }
   }
 
-  // Note: Standard resource methods like create, store, edit, update, destroy are typically
-  // not used for LoanTransaction records as they are created/managed as part of the
-  // loan application workflow (issuance, return). The issue and processReturn methods
-  // serve the purpose of 'creating' and 'updating' transaction records via workflow actions.
+  // TODO: Add methods for handling other transaction states like 'Cancelled', 'Overdue', etc.\
+  // These could update transaction status, equipment status, and potentially trigger notifications.\
+  // Example: public function cancelIssuance(LoanTransaction $transaction): RedirectResponse { ... }\
+
 }

@@ -15,7 +15,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log; // Import Log facade for logging
 use Illuminate\Support\Facades\Auth; // Import Auth facade to get authenticated user ID
 
-
 // This controller is a single-action controller that handles the email verification link.
 // When a user clicks the signed verification link in the email, this controller's
 // __invoke method is executed. It verifies the request and marks the user's email as verified.

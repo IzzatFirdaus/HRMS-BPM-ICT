@@ -2,409 +2,565 @@
 
 namespace App\Services;
 
-use App\Models\LoanApplication; // Import LoanApplication model
-use App\Models\LoanApplicationItem; // Import LoanApplicationItem model
-use App\Models\LoanTransaction; // Import LoanTransaction model
-use App\Models\Equipment; // Import Equipment model
-use App\Models\User; // Import User model
-use App\Models\Approval; // Import Approval model (needed for initiating workflow)
-use App\Services\ApprovalService; // Import ApprovalService (if needed for complex creation, but here creating directly)
-use Illuminate\Support\Facades\DB; // Import DB facade for transactions
-use Illuminate\Support\Facades\Log; // For logging
-use Illuminate\Support\Facades\Notification; // For sending notifications
-use Exception; // Import Exception
-use Illuminate\Database\Eloquent\ModelNotFoundException; // Import ModelNotFoundException if finding related models
+use App\Models\LoanApplication;
+use App\Models\LoanTransaction;
+use App\Models\Equipment;
+use App\Models\User;
+use App\Models\Approval;
+use App\Services\ApprovalService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Exception;
+use Illuminate\Support\Facades\Notification; // Import Notification facade
 
-// Import Notification classes (create these if they don't exist)
-// use App\Notifications\NewLoanApplicationForApproval; // Notification for the first approver
-// use App\Notifications\LoanApplicationDraftSaved; // Optional notification for applicant
+// Assuming these Notification classes exist
+// use App\Notifications\EquipmentIssuedNotification;
+// use App\Notifications\EquipmentReturnedNotification;
 
 
 class LoanApplicationService
 {
-  // Inject any services needed for subsequent workflow steps or related logic
-  protected $approvalService; // Inject ApprovalService if needed for complex approval creation
+  protected ApprovalService $approvalService;
 
-  // Inject dependency (ApprovalService might be needed for other logic later)
   public function __construct(ApprovalService $approvalService)
   {
     $this->approvalService = $approvalService;
   }
 
-
   /**
-   * Create a new loan application record.
-   * Handles basic data mapping and sets initial status (e.g., 'draft' or 'pending_support').
+   * Creates a new draft loan application.
    *
-   * @param User $applicant The user submitting the application.
-   * @param array $applicationData Main application data (validated).
-   * @param array $itemsData Array of equipment item data (validated).
-   * @return LoanApplication The newly created LoanApplication model instance.
-   * @throws \Exception
+   * @param  array  $validatedData
+   * @param  User   $applicant
+   * @return LoanApplication
+   * @throws Exception
    */
-  public function createApplication(User $applicant, array $applicationData, array $itemsData): LoanApplication
+  public function createApplication(array $validatedData, User $applicant): LoanApplication // Add return type hint
   {
-    // Ensure policy check (can('create', LoanApplication::class)) is done in the controller/component before calling this method.
-
-    DB::beginTransaction(); // Start database transaction
-
-    try {
-      // Create the main application record and fill data
-      $application = new LoanApplication();
-      $application->fill($applicationData); // Fill application data (purpose, location, dates, responsible_officer_id, confirmation_timestamp, etc.)
-
-      // Associate the application with the applicant user
-      $application->user()->associate($applicant);
-
-      // Status should be provided in $applicationData array by the component (e.g., 'draft')
-      // If you want to default to draft here if not provided:
-      $application->status = $applicationData['status'] ?? 'draft';
-
-      // applicant_confirmation_timestamp should be provided in $applicationData by the component
-      // if ($application->status === 'pending_support' && !isset($applicationData['applicant_confirmation_timestamp'])) {
-      //     $application->applicant_confirmation_timestamp = now(); // Set timestamp if submitting immediately and not provided
-      // }
-
-
-      $application->save(); // Save main application first to get its ID
-
-
-      // Attach requested equipment items
-      foreach ($itemsData as $itemData) {
-        // Ensure itemData has 'equipment_type', 'quantity_requested', 'notes'
-        // Use create to automatically associate with the application
-        $application->items()->create($itemData); // Assuming LoanApplication has 'items' hasMany relationship to LoanApplicationItem
-      }
-
-
-      DB::commit(); // Commit the transaction
-
-      Log::info("New loan application created: " . $application->id . " by user: " . $applicant->id . " with status: " . $application->status);
-
-      // Optional: Trigger notification if needed (e.g., Draft saved)
-      // if ($application->status === 'draft') {
-      //     $applicant->notify(new LoanApplicationDraftSaved($application)); // Create this notification
-      // }
-
-
-      return $application;
-    } catch (Exception $e) {
-      DB::rollBack(); // Rollback the transaction on error
-      Log::error("Failed to create loan application for user: " . $applicant->id . ". Error: " . $e->getMessage());
-      throw $e; // Re-throw the exception
-    }
-  }
-
-  /**
-   * Update an existing loan application record (e.g., a draft).
-   * Updates main application data and synchronizes items.
-   *
-   * @param LoanApplication $application The application instance to update.
-   * @param array $applicationData Updated main application data (validated).
-   * @param array $itemsData Updated array of equipment item data (validated).
-   * @return LoanApplication The updated application record.
-   * @throws \Exception
-   */
-  public function updateApplication(LoanApplication $application, array $applicationData, array $itemsData): LoanApplication
-  {
-    // Ensure policy check (can('update', $application)) is done in the controller/component before calling this method.
-    // Ensure the application status is 'draft' before allowing update if that's your workflow.
-
-    DB::beginTransaction(); // Start database transaction
-
-    try {
-      // Update the main application data
-      // Ensure fillable properties are set in the LoanApplication model.
-      $application->fill($applicationData);
-
-      // Save the updated application
-      $application->save(); // Save main application first
-
-      // Sync items - delete existing and create new ones.
-      // This is a simple sync method. If items can be updated by ID, a more complex sync might be needed.
-      $application->items()->delete(); // Delete all existing items
-      foreach ($itemsData as $itemData) {
-        // Ensure itemData has 'equipment_type', 'quantity_requested', 'notes'
-        $application->items()->create($itemData); // Recreate items
-      }
-
-
-      DB::commit(); // Commit the transaction
-
-      Log::info("Loan application updated: " . $application->id);
-
-      // Optional: Trigger notifications if needed (e.g., Draft updated)
-      // $application->user->notify(new LoanApplicationDraftSaved($application)); // Create this notification if different from creation notification
-
-
-      return $application; // Return the updated application record
-    } catch (Exception $e) {
-      DB::rollBack(); // Rollback the transaction on error
-      Log::error("Failed to update loan application: " . $application->id . ". Error: " . $e->getMessage());
-      throw $e; // Re-throw the exception
-    }
-  }
-
-  /**
-   * Initiate the approval workflow for a draft loan application.
-   * This method transitions the application status from 'draft' to 'pending_support'
-   * and creates the first Approval record for the designated approver (Gred 41+).
-   * This method resolves the "Undefined method 'initiateApprovalWorkflow'" error in the Livewire component.
-   *
-   * @param LoanApplication $application The draft application instance to submit.
-   * @return LoanApplication The application after workflow initiation.
-   * @throws \Exception
-   */
-  public function initiateApprovalWorkflow(LoanApplication $application): LoanApplication
-  {
-    // Ensure policy check (can('update', $application)) is done in the controller/component.
-    // Ensure the application status is 'draft' before calling this method.
-
-    DB::beginTransaction(); // Start database transaction
-
-    try {
-      // 1. Check if the application is in the correct status for submission (must be 'draft')
-      if ($application->status !== 'draft') {
-        throw new Exception("Loan Application ID " . $application->id . " cannot initiate workflow. Status is not 'draft'.");
-      }
-
-      // 2. Update application status to 'pending_support'
-      $application->status = 'pending_support';
-      // The applicant_confirmation_timestamp is set by the component before calling this service method
-      // $application->applicant_confirmation_timestamp = now(); // Ensure this is set if not already done
-
-      $application->save(); // Save status change
-
-      // 3. Find the first approver (Gred 41+ Officer)
-      // Based on PDF, endorsement by Bahagian/Unit/Seksyen officer Gred 41+ is required.
-      // Logic to find the correct approver(s) based on applicant's department, location, or other criteria.
-      // Simplified example: Find the first user with Grade level 41 or higher.
-      // Use explicit integer cast as a potential workaround for static analysis tool confusion.
-      $minApproverGradeLevel = (int) config('motac.approval.min_loan_approver_grade_level', 41); // Get min grade from config - FIX: Added explicit cast
-
-
-      $firstApproverUser = User::whereHas('grade', fn($query) => $query->where('level', '>=', $minApproverGradeLevel))
-        // Add more complex logic here to filter by department/location if needed
-        // ->whereHas('department', fn($query) => $query->where('id', $application->user->department_id)) // Filter by applicant's department ID
-        // Add filtering by position (e.g., Head of Department role/title) if applicable
-        // ->whereHas('position', fn($query) => $query->where('name', 'like', '%Head%'))
-        ->first(); // Get the first matching user
-
-      // Check if an approver was found
-      if (!$firstApproverUser) {
-        // Log a critical error as the workflow cannot proceed
-        Log::critical("No approver (Gred " . $minApproverGradeLevel . "+) found to initiate workflow for Loan Application ID: " . $application->id);
-        // You might want to revert status, notify admin, or throw a more specific exception
-        throw new Exception("No eligible approver found for this application.");
-      }
-
-
-      // 4. Create the first Approval record assigned to the designated approver
-      // Use the polymorphic relationship (Assuming LoanApplication has 'approvals' relationship to Approval)
-      $approval = $application->approvals()->create([
-        'officer_id' => $firstApproverUser->id, // Assign to the Gred 41+ officer
-        'status' => 'pending', // Set status of this approval step to pending
-        'stage' => 'support_review', // Identify the stage (e.g., 'division_endorsement')
-        // Add other relevant data like due date if applicable
-      ]);
-
-      DB::commit(); // Commit the transaction
-
-      Log::info("Workflow initiated for Loan Application ID: " . $application->id . ". Status set to 'pending_support'. First approval created (Approval ID: " . $approval->id . ") for officer ID: " . $firstApproverUser->id);
-
-      // 5. Trigger notification to the first approver
-      // Ensure NewLoanApplicationForApproval Notification class exists
-      // $firstApproverUser->notify(new NewLoanApplicationForApproval($application, $approval)); // Create this notification
-
-
-      return $application; // Return the application after initiating workflow
-    } catch (Exception $e) {
-      DB::rollBack(); // Rollback the transaction on error
-      Log::error("Failed to initiate workflow for Loan Application ID: " . $application->id . ". Error: " . $e->getMessage());
-      // Re-throw the exception for the Livewire component to handle
-      throw $e;
-    }
-  }
-
-
-  /**
-   * BPM Staff issues equipment for an approved loan application.
-   *
-   * @param LoanApplication $application The approved loan application.
-   * @param Equipment $equipment The specific equipment asset being issued.
-   * @param array $transactionData Transaction details (e.g., accessories, notes).
-   * @param User $issuingOfficer The BPM staff issuing.
-   * @return LoanTransaction The newly created LoanTransaction record.
-   * @throws \Exception
-   */
-  public function issueEquipment(LoanApplication $application, Equipment $equipment, array $transactionData, User $issuingOfficer): LoanTransaction
-  {
-    // Ensure policy check is done before calling this method (e.g., can('issue', $application))
+    Log::debug('Creating new loan application draft', ['user_id' => $applicant->id ?? 'N/A']);
 
     DB::beginTransaction();
     try {
-      // Create the loan transaction record
-      // Assuming LoanApplication has a 'transactions' hasMany relationship to LoanTransaction
-      $transaction = $application->transactions()->create([
-        'equipment_id' => $equipment->id,
-        'issuing_officer_id' => $issuingOfficer->id,
-        'receiving_officer_id' => $transactionData['receiving_officer_id'] ?? $application->user_id, // Default to applicant if receiving officer not specified
-        'accessories_checklist_on_issue' => $transactionData['accessories'] ?? null, // Ensure these fields exist in LoanTransaction model
-        'issue_timestamp' => now(),
-        'status' => 'issued', // Status of this specific transaction
-        'notes' => $transactionData['notes'] ?? null, // Or dedicated notes field
+      $app = new LoanApplication();
+      $app->user_id = $applicant->id;
+      $app->fill($validatedData);
+      $app->status = LoanApplication::STATUS_DRAFT; // Use constant
+      $app->save();
+
+      Log::info('Draft loan application created', ['application_id' => $app->id]);
+      DB::commit();
+
+      return $app->fresh(); // Return fresh instance
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Failed to create draft loan application', ['user_id' => $applicant->id ?? 'N/A', 'error' => $e->getMessage()]);
+      throw new Exception('Gagal mencipta permohonan pinjaman peralatan: ' . $e->getMessage()); // Malay message
+    }
+  }
+
+  /**
+   * Update an existing draft loan application.
+   *
+   * @param  LoanApplication  $application
+   * @param  array             $validatedData
+   * @param  User              $user
+   * @return LoanApplication
+   * @throws Exception
+   */
+  public function updateApplication(LoanApplication $application, array $validatedData, User $user): LoanApplication // Add return type hint
+  {
+    Log::debug('Updating loan application draft', ['application_id' => $application->id ?? 'N/A']);
+
+    if (!$application->isDraft() || $application->user_id !== $user->id) { // Use isDraft() helper
+      throw new Exception('Permohonan tidak sah untuk dikemaskini.'); // Malay message
+    }
+
+    DB::beginTransaction();
+    try {
+      $application->fill($validatedData);
+      $application->save();
+
+      Log::info('Draft loan application updated', ['application_id' => $application->id ?? 'N/A']);
+      DB::commit();
+
+      return $application->fresh(); // Return fresh instance
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Failed to update draft loan application', ['application_id' => $application->id ?? 'N/A', 'error' => $e->getMessage()]);
+      throw new Exception('Gagal mengemaskini permohonan pinjaman peralatan: ' . $e->getMessage()); // Malay message
+    }
+  }
+
+  /**
+   * Submits a draft loan application for approval.
+   *
+   * @param  LoanApplication  $application
+   * @param  User              $applicant
+   * @return LoanApplication
+   * @throws Exception
+   */
+  public function submitApplication(LoanApplication $application, User $applicant): LoanApplication // Add return type hint
+  {
+    Log::debug('Submitting loan application', ['application_id' => $application->id ?? 'N/A']);
+
+    if (!$application->isDraft() || $application->user_id !== $applicant->id) { // Use isDraft() helper
+      throw new Exception('Permohonan tidak sah untuk dihantar.'); // Malay message
+    }
+
+    DB::beginTransaction();
+    try {
+      $application->status = LoanApplication::STATUS_PENDING_SUPPORT; // Use constant
+      $application->submission_timestamp = now();
+      $application->save();
+
+      // Logic to assign supporting officer and create initial approval step
+      // This logic should likely live in or be coordinated with an ApprovalService
+      // $this->approvalService->startApprovalProcess($application, Approval::STAGE_SUPPORT_REVIEW); // Example call
+
+      // Example: Find first user with 'support officer' role and notify
+      $supportOfficer = User::role('support officer')->first(); // Assuming Spatie Roles
+
+      if ($supportOfficer) {
+        // Assuming a notification exists
+        // Notification::send($supportOfficer, new NewLoanApplicationForApproval($application));
+        Log::info('Notified support officer about new loan application.', [
+          'application_id' => $application->id ?? 'N/A',
+          'officer_id'     => $supportOfficer->id
+        ]);
+      } else {
+        Log::warning('No support officer found to notify for loan application ID: ' . ($application->id ?? 'N/A'));
+        // Optionally mark application as stuck or notify admin
+      }
+
+
+      Log::info('Loan application submitted', ['application_id' => $application->id ?? 'N/A']);
+      DB::commit();
+
+      return $application->fresh();
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Submission of loan application failed', ['application_id' => $application->id ?? 'N/A', 'error' => $e->getMessage()]);
+      throw new Exception('Gagal menghantar permohonan pinjaman peralatan: ' . $e->getMessage()); // Malay message
+    }
+  }
+
+  /**
+   * Deletes a draft loan application.
+   *
+   * @param  LoanApplication  $application
+   * @param  User              $user
+   * @return bool
+   * @throws Exception
+   */
+  public function deleteApplication(LoanApplication $application, User $user): bool // Add return type hint
+  {
+    Log::debug('Deleting loan application draft', ['application_id' => $application->id ?? 'N/A']);
+
+    if (!$application->isDraft() || $application->user_id !== $user->id) { // Use isDraft() helper
+      throw new Exception('Permohonan tidak sah untuk dibuang.'); // Malay message
+    }
+
+    DB::beginTransaction();
+    try {
+      $deleted = $application->delete();
+      DB::commit();
+      Log::info('Draft loan application deleted', ['application_id' => $application->id ?? 'N/A']);
+      return $deleted;
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Deletion of loan application failed', ['application_id' => $application->id ?? 'N/A', 'error' => $e->getMessage()]);
+      throw new Exception('Gagal membuang permohonan pinjaman peralatan: ' . $e->getMessage()); // Malay message
+    }
+  }
+
+  /**
+   * Handles approval decisions for a loan application.
+   * This method is likely called by an ApprovalService.
+   *
+   * @param  LoanApplication  $application The application being acted upon.
+   * @param  string           $decision    'approved' or 'rejected'.
+   * @param  User             $officer     The officer making the decision.
+   * @param  string|null      $comments    Optional comments.
+   * @param  string           $stage       The approval stage (e.g., 'support', 'head').
+   * @return LoanApplication  The updated application.
+   * @throws Exception        If the decision is invalid or application status is wrong.
+   */
+  public function handleApprovalDecision(
+    LoanApplication $application,
+    string $decision,
+    User $officer,
+    ?string $comments,
+    string $stage
+  ): LoanApplication // Add return type hint
+  {
+    Log::debug('Handling approval decision for loan application ID: ' . ($application->id ?? 'N/A'), [
+      'decision' => $decision,
+      'officer_id' => $officer->id ?? 'N/A',
+      'stage' => $stage
+    ]);
+    // Basic validation for decision
+    if (!in_array($decision, [Approval::STATUS_APPROVED, Approval::STATUS_REJECTED])) { // Use Approval constants
+      throw new Exception('Keputusan kelulusan tidak sah.'); // Malay message
+    }
+
+    // Ensure the application is in a pending status relevant to the stage
+    // Example: if stage is 'support', status should be 'pending_support'
+    // This logic might be better handled within an ApprovalService
+    // if ($stage === Approval::STAGE_SUPPORT_REVIEW && $application->status !== LoanApplication::STATUS_PENDING_SUPPORT) {
+    //     throw new Exception('Permohonan tidak dalam status menunggu sokongan.');
+    // }
+    // if ($stage === Approval::STAGE_HEAD_REVIEW && $application->status !== LoanApplication::STATUS_PENDING_HEAD) {
+    //     throw new Exception('Permohonan tidak dalam status menunggu kelulusan ketua.');
+    // }
+
+
+    DB::beginTransaction();
+    try {
+      // Record the approval/rejection transaction
+      // This should likely create an Approval record, not update the application directly yet
+      // $approval = $this->approvalService->recordDecision($application, $decision, $officer, $comments, $stage); // Example call to ApprovalService
+
+      // Update application status based on decision and stage
+      // This logic can be complex depending on your workflow (sequential/parallel approvals)
+      if ($decision === Approval::STATUS_REJECTED) { // Use constant
+        $application->status = LoanApplication::STATUS_REJECTED; // Use constant
+        $application->rejection_reason = $comments ?? 'Ditolak oleh pegawai ' . ($officer->name ?? 'Tidak Dikenali'); // Store rejection reason
+        $application->save();
+        Log::info('Loan application rejected.', ['application_id' => $application->id ?? 'N/A', 'officer_id' => $officer->id ?? 'N/A', 'stage' => $stage]);
+      } elseif ($decision === Approval::STATUS_APPROVED) { // Use constant
+        // If it's the final approval stage (e.g., 'head'), set status to APPROVED
+        // If it's an intermediate stage, set status to the next pending stage
+        // This requires workflow logic here or in ApprovalService
+        // Example simplified logic: if this was the 'support' stage approval:
+        // $application->status = LoanApplication::STATUS_PENDING_HEAD; // Move to next stage
+        // Or if this was the final 'head' stage approval:
+        $application->status = LoanApplication::STATUS_APPROVED; // Set to final APPROVED status
+        $application->save();
+        Log::info('Loan application approved.', ['application_id' => $application->id ?? 'N/A', 'officer_id' => $officer->id ?? 'N/A', 'stage' => $stage]);
+
+        // If fully approved, trigger IT Admin processing / notification
+        // This step might also involve creating tasks for the IT team
+        if ($application->status === LoanApplication::STATUS_APPROVED) {
+          // Notify IT Admin team that an application is ready for issuance
+          $itAdmins = User::role('IT Admin')->get(); // Example: Get all IT Admins
+          if ($itAdmins->isNotEmpty()) {
+            // Assuming a notification exists
+            // Notification::send($itAdmins, new LoanApplicationApprovedForProcessing($application));
+            Log::info('Notified IT Admins about approved loan application.', ['application_id' => $application->id ?? 'N/A']);
+          } else {
+            Log::warning('No IT Admins found to notify for approved loan application ID: ' . ($application->id ?? 'N/A'));
+          }
+        }
+      }
+
+      // Save changes to the application (status, rejection reason)
+      $application->save();
+
+      // Save the Approval record (if using a dedicated Approval model/service)
+      // $approval->update(['status' => $decision, 'comments' => $comments, 'approval_timestamp' => now()]);
+
+      DB::commit();
+
+      // Trigger notification to applicant about the decision
+      // Notification::send($application->user, new LoanApplicationDecision($application, $decision)); // Assuming a notification exists
+
+      return $application->fresh(); // Return updated application
+
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Failed to process approval decision for loan application ID ' . ($application->id ?? 'N/A') . '.', ['error' => $e->getMessage()]);
+      throw new Exception('Gagal memproses keputusan kelulusan: ' . $e->getMessage()); // Malay message
+    }
+  }
+
+
+  /**
+   * Handles the issuance of a specific equipment item for a loan application.
+   *
+   * @param  \App\Models\LoanApplication  $application        The parent loan application.
+   * @param  \App\Models\Equipment        $equipmentToIssue   The equipment being issued.
+   * @param  \App\Models\User|null        $receivingOfficer   The officer receiving on behalf of applicant (nullable).
+   * @param  \App\Models\User             $issuingOfficer     The officer performing the issuance.
+   * @param  array                        $issueDetails       Optional details (accessories checklist, notes).
+   * @return \App\Models\LoanTransaction                      The created loan transaction record.
+   * @throws \Exception                                     If issuance fails or equipment is unavailable.
+   */
+  public function issueEquipment(
+    LoanApplication $application,
+    Equipment $equipmentToIssue,
+    ?User $receivingOfficer, // Make nullable explicit if it can be null
+    User $issuingOfficer,
+    array $issueDetails = []
+  ): LoanTransaction // Add return type hint
+  {
+    Log::debug('Attempting to issue equipment ID ' . ($equipmentToIssue->id ?? 'N/A') . ' for application ID ' . ($application->id ?? 'N/A'), [
+      'issuing_officer_id'  => $issuingOfficer->id ?? 'N/A',
+      'receiving_officer_id' => $receivingOfficer->id ?? null,
+    ]);
+
+    // Basic check: Is the equipment available?
+    if (!($equipmentToIssue->availability_status === Equipment::AVAILABILITY_AVAILABLE)) { // Use constant
+      Log::warning('Attempted to issue unavailable equipment.', [
+        'equipment_id' => $equipmentToIssue->id ?? 'N/A',
+        'status'       => $equipmentToIssue->availability_status ?? 'N/A',
+        'application_id' => $application->id ?? 'N/A',
       ]);
+      throw new Exception('Peralatan dengan tag aset ' . ($equipmentToIssue->asset_tag ?? 'N/A') . ' tidak tersedia untuk dikeluarkan.'); // Malay message
+    }
 
-      // Update the specific equipment asset status
-      $equipment->status = 'on_loan';
-      $equipment->save();
+    DB::beginTransaction();
+    try {
+      // Create the LoanTransaction record
+      $transaction = new LoanTransaction();
+      $transaction->loan_application_id            = $application->id;
+      $transaction->equipment_id                   = $equipmentToIssue->id;
+      $transaction->issuing_officer_id             = $issuingOfficer->id;
+      $transaction->receiving_officer_id           = $receivingOfficer->id ?? null; // Use null coalescing operator
+      $transaction->accessories_checklist_on_issue = $issueDetails['accessories_checklist_on_issue'] ?? null; // Check for key existence
+      $transaction->issue_timestamp                = now();
+      $transaction->status                         = LoanTransaction::STATUS_ISSUED; // Use constant
+      $transaction->save();
 
-      // Update the loan application status based on items issued vs requested
-      // You would need logic to check if all requested items have been issued
-      // For simplification, set status to 'partially_issued' or 'issued' based on counting transactions vs items
-      $totalRequested = $application->items->sum('quantity_requested');
-      $totalIssuedTransactions = $application->transactions()->whereIn('status', ['issued', 'returned', 'damaged', 'lost'])->count(); // Count transactions related to items
+      // Update equipment status
+      $equipmentToIssue->availability_status = Equipment::AVAILABILITY_ON_LOAN; // Use constant
+      $equipmentToIssue->save();
 
-      $application->status = ($totalIssuedTransactions >= $totalRequested) ? 'issued' : 'partially_issued';
+      // Update related LoanApplicationItem's quantity_issued
+      // Find the specific item for this equipment type in the application
+      // Ensure items relationship is loaded on application or load here
+      $application->load('items');
+      $applicationItem = $application->items
+        ->where('equipment_type_id', $equipmentToIssue->equipment_type_id) // Assumes equipment_type_id exists and matches
+        ->first(); // Get the first matching item (assuming one item per type in application)
+
+      if ($applicationItem) {
+        $applicationItem->quantity_issued++;
+        $applicationItem->save();
+        Log::debug('Updated quantity_issued for application item.', [
+          'item_id' => $applicationItem->id,
+          'new_quantity_issued' => $applicationItem->quantity_issued,
+        ]);
+      } else {
+        Log::warning('LoanApplicationItem not found for equipment type during issuance.', [
+          'application_id' => $application->id ?? 'N/A',
+          'equipment_id'   => $equipmentToIssue->id ?? 'N/A',
+          'equipment_type_id' => $equipmentToIssue->equipment_type_id ?? 'N/A',
+        ]);
+        // Decide if this should throw an error or just log a warning.
+        // For now, just log and continue.
+      }
+
+
+      // Update application status (partial vs full issuance) based on total issued vs approved quantity across all items
+      // $application->load('items'); // Ensure items are loaded to sum quantities - already done above
+      $totalApproved = $application->items->sum('quantity_approved');
+      $totalIssued   = $application->items->sum('quantity_issued'); // Sum issued quantity across all items
+
+      // $totalIssued   = $application->transactions() // Alternative: count issued transactions directly
+      //   ->where('status', LoanTransaction::STATUS_ISSUED)
+      //   ->count();
+
+      if ($totalIssued > 0 && $totalIssued < $totalApproved) {
+        $application->status = LoanApplication::STATUS_PARTIALLY_ISSUED; // Use constant
+      } elseif ($totalIssued >= $totalApproved && $totalApproved > 0) { // Check totalApproved > 0 to avoid setting ISSUED for 0 approved items
+        $application->status = LoanApplication::STATUS_ISSUED; // Use constant
+      }
+      // If $totalIssued is 0, status remains as APPROVED
+
       $application->save();
 
 
       DB::commit();
 
-      Log::info("Equipment issued for loan application " . $application->id . ": Transaction " . $transaction->id . ". Application status set to: " . $application->status);
+      Log::info('Equipment issuance completed.', [
+        'transaction_id' => $transaction->id ?? 'N/A',
+        'application_id' => $application->id ?? 'N/A',
+        'equipment_id'   => $equipmentToIssue->id ?? 'N/A',
+      ]);
 
-      // Notify the applicant that equipment has been issued
-      // $application->user->notify(new \App\Notifications\EquipmentIssuedNotification($transaction)); // Create this notification
+      // Optionally send notification to applicant about issuance
+      // Notification::send($application->user, new EquipmentIssuedNotification($transaction)); // Assumes notification exists
 
+      return $transaction->fresh(); // Return the fresh transaction model
 
-      return $transaction; // Return the newly created transaction
     } catch (Exception $e) {
       DB::rollBack();
-      Log::error("Failed to issue equipment for loan application " . $application->id . ". Error: " . $e->getMessage());
-      throw $e;
+      Log::error('Failed to issue equipment.', [
+        'application_id' => $application->id ?? 'N/A',
+        'equipment_id'   => $equipmentToIssue->id ?? 'N/A',
+        'error'          => $e->getMessage()
+      ]);
+      throw new Exception('Gagal memproses pengeluaran peralatan: ' . $e->getMessage()); // Malay message
     }
   }
 
   /**
-   * BPM Staff processes the return of equipment.
+   * Handles the return process for an issued equipment transaction.
    *
-   * @param LoanTransaction $transaction The transaction record for the issued equipment being returned.
-   * @param array $returnDetails Return details (e.g., accessories checklist on return, notes, equipment status on return).
-   * @param User $acceptingOfficer The BPM staff accepting the return.
-   * @return LoanTransaction The updated LoanTransaction record.
-   * @throws \Exception
+   * @param  \App\Models\LoanTransaction  $transaction           The loan transaction being returned.
+   * @param  array                        $returnDetails         Details about the return (condition, notes, checklist, returning officer ID).
+   * @param  \App\Models\User             $returnAcceptingOfficer The officer accepting the return (IT Admin).
+   * @return \App\Models\LoanTransaction                       The updated loan transaction record.
+   * @throws \Exception                                      If return processing fails or transaction status is invalid.
    */
-  public function processReturn(LoanTransaction $transaction, array $returnDetails, User $acceptingOfficer): LoanTransaction
+  public function handleReturn(LoanTransaction $transaction, array $returnDetails, User $returnAcceptingOfficer): LoanTransaction
   {
-    // Ensure policy check is done before calling this method (e.g., can('processReturn', $transaction->loanApplication))
-    // Ensure the transaction status is 'issued' before allowing return processing
+    Log::debug('Attempting to process return for transaction ID: ' . ($transaction->id ?? 'N/A'), [
+      'accepting_officer_id' => $returnAcceptingOfficer->id ?? 'N/A',
+      'current_status'       => $transaction->status ?? 'N/A',
+    ]);
+
+    // Ensure the transaction is in a state that can be returned
+    // Use isIssued() helper method or check against relevant constants
+    if (!$transaction->isIssued() && !$transaction->isUnderMaintenanceOnLoan()) { // Example check using helper methods/constants
+      Log::warning('Attempted to return transaction not in valid return status.', [
+        'transaction_id' => $transaction->id ?? 'N/A',
+        'status' => $transaction->status ?? 'N/A',
+      ]);
+      throw new Exception('Transaksi tidak dalam status yang boleh dipulangkan.'); // Malay message
+    }
+
+    // Eager load equipment relationship if it's not already loaded, needed for status update
+    $transaction->load('equipment');
+    $equipment = $transaction->equipment;
+
+    // Critical check: Ensure equipment relationship exists
+    if (!$equipment) {
+      Log::critical('Equipment relationship missing for transaction ID: ' . ($transaction->id ?? 'N/A') . ' during return process.');
+      throw new Exception('Ralat sistem: Peralatan tidak ditemui untuk transaksi ini.'); // Malay message
+    }
+
 
     DB::beginTransaction();
     try {
-      // Check if the transaction is in 'issued' status
-      if ($transaction->status !== 'issued') {
-        throw new Exception("Transaction ID " . $transaction->id . " cannot process return. Status is not 'issued'.");
+      // 1. Update the LoanTransaction record with return details
+      $transaction->returning_officer_id        = $returnDetails['returning_officer_id'] ?? null; // Get from $returnDetails array
+      $transaction->return_accepting_officer_id = $returnAcceptingOfficer->id; // The IT Admin user
+      $transaction->accessories_checklist_on_return = $returnDetails['accessories_checklist_on_return'] ?? null;
+      $transaction->equipment_condition_on_return = $returnDetails['equipment_condition_on_return'] ?? null; // Condition reported on return
+      $transaction->return_notes                  = $returnDetails['return_notes'] ?? null;
+      $transaction->return_timestamp              = $returnDetails['return_timestamp'] ?? now(); // Use provided timestamp or now()
+
+      // Determine final transaction status based on return condition
+      // Assumes constants like STATUS_RETURNED, STATUS_DAMAGED_ON_RETURN, STATUS_LOST_ON_RETURN, STATUS_UNDER_MAINTENANCE_ON_RETURN exist
+      switch ($transaction->equipment_condition_on_return) { // Base status on condition
+        case Equipment::CONDITION_DAMAGED: // Use constant from Equipment model? Or define in Transaction model?
+          $transaction->status = LoanTransaction::STATUS_DAMAGED_ON_RETURN; // Assumes this constant exists
+          // Potentially trigger process for damage assessment/repair
+          break;
+        case 'needs_maintenance': // Example condition value not necessarily in Equipment model constants
+        case Equipment::CONDITION_BAD: // Example
+          $transaction->status = LoanTransaction::STATUS_UNDER_MAINTENANCE_ON_RETURN; // Assumes this constant exists
+          // Potentially trigger process for maintenance
+          break;
+        case 'lost': // Example
+          $transaction->status = LoanTransaction::STATUS_LOST_ON_RETURN; // Assumes this constant exists
+          // Potentially trigger process for reporting loss
+          break;
+        case Equipment::CONDITION_GOOD: // Use constant
+        case Equipment::CONDITION_FINE: // Use constant
+        default: // Assume good condition if not specified or recognised
+          $transaction->status = LoanTransaction::STATUS_RETURNED; // Use constant
+          break;
       }
 
-      // Update the loan transaction record with return details
-      $transaction->fill([
-        'returning_officer_id' => $returnDetails['returning_officer_id'] ?? $transaction->loanApplication->user_id, // Default to applicant if returning officer not specified
-        'return_accepting_officer_id' => $acceptingOfficer->id, // Current user is accepting officer
-        'return_timestamp' => now(),
-        'accessories_checklist_on_return' => $returnDetails['accessories'] ?? null, // Ensure this field exists in LoanTransaction model
-        'return_notes' => $returnDetails['notes'] ?? null, // Ensure this field exists in LoanTransaction model
-        'status' => $returnDetails['status'] ?? 'returned', // Allow specifying transaction status like 'returned', 'damaged', 'lost'
-      ]);
       $transaction->save();
+      Log::info('LoanTransaction record updated with return details.', ['transaction_id' => $transaction->id ?? 'N/A', 'status' => $transaction->status ?? 'N/A']);
 
-      // Update the specific equipment asset status based on return condition
-      $equipment = $transaction->equipment;
-      if ($equipment) {
-        // Use the status provided in returnDetails (e.g., 'available', 'under_maintenance', 'disposed')
-        $equipment->status = $returnDetails['equipment_status_on_return'] ?? 'available';
-        $equipment->save();
+
+      // 2. Update the Equipment status based on the return outcome
+      switch ($transaction->status) {
+        case LoanTransaction::STATUS_RETURNED:
+          $equipment->availability_status = Equipment::AVAILABILITY_AVAILABLE; // Use constant
+          $equipment->condition_status    = $transaction->equipment_condition_on_return; // Update equipment condition
+          break;
+        case LoanTransaction::STATUS_DAMAGED_ON_RETURN:
+        case LoanTransaction::STATUS_UNDER_MAINTENANCE_ON_RETURN:
+          $equipment->availability_status = Equipment::AVAILABILITY_UNDER_MAINTENANCE; // Use constant
+          $equipment->condition_status    = $transaction->equipment_condition_on_return; // Update equipment condition
+          break;
+        case LoanTransaction::STATUS_LOST_ON_RETURN:
+          $equipment->availability_status = Equipment::AVAILABILITY_LOST; // Use constant
+          // Condition status might remain as is or be set to null/unknown
+          break;
+        // If statuses like CANCELLED, OVERDUE are possible final states, handle them
+        default:
+          // If the transaction status doesn't imply a change back to AVAILABLE,
+          // keep the equipment status as is (e.g., still ON_LOAN if transaction was cancelled mid-loan)
+          Log::warning('Equipment status not updated after return due to unexpected transaction status.', [
+            'transaction_id' => $transaction->id ?? 'N/A',
+            'transaction_status' => $transaction->status ?? 'N/A',
+            'equipment_id' => $equipment->id ?? 'N/A',
+          ]);
+          break;
+      }
+      $equipment->save();
+      Log::info('Equipment status updated after return.', ['equipment_id' => $equipment->id ?? 'N/A', 'status' => $equipment->availability_status ?? 'N/A']);
+
+
+      // 3. Update the related LoanApplicationItem's quantity_returned
+      // Ensure loanApplication relationship is loaded on transaction
+      $transaction->load('loanApplication.items');
+      $applicationItem = $transaction->loanApplication->items
+        ->where('equipment_type_id', $equipment->equipment_type_id) // Assumes equipment_type_id exists and matches
+        ->first(); // Get the first matching item (assuming one item per type in application)
+
+      if ($applicationItem) {
+        $applicationItem->quantity_returned++;
+        $applicationItem->save();
+        Log::debug('Updated quantity_returned for application item.', [
+          'item_id' => $applicationItem->id,
+          'new_quantity_returned' => $applicationItem->quantity_returned,
+        ]);
       } else {
-        Log::warning("Equipment not found for transaction ID: " . $transaction->id . " during return processing.");
+        Log::warning('LoanApplicationItem not found for equipment type during return process.', [
+          'transaction_id' => $transaction->id ?? 'N/A',
+          'application_id' => $transaction->loan_application_id ?? 'N/A',
+          'equipment_id'   => $equipment->id ?? 'N/A',
+          'equipment_type_id' => $equipment->equipment_type_id ?? 'N/A',
+        ]);
+        // Log a warning, but don't necessarily throw an error as the transaction/equipment updates are key.
       }
 
 
-      // Update the loan application status (e.g., 'returned', 'partially_returned', 'overdue')
-      // Check if all items related to the application are returned/accounted for
-      $loanApplication = $transaction->loanApplication;
-      // Example logic: Count issued items vs. returned/damaged/lost transactions
-      $totalIssuedItemsCount = $loanApplication->items->sum('quantity_requested'); // Total quantity requested and approved
-      $totalReturnedOrAccountedForCount = $loanApplication->transactions()
-        ->whereIn('status', ['returned', 'damaged', 'lost']) // Transactions representing items accounted for
-        ->count();
+      // 4. Update the parent LoanApplication's status based on quantities issued/returned across all items
+      $application = $transaction->loanApplication; // Get the parent application
+      $application->load('items'); // Ensure items are loaded for the application
+      $totalApproved  = $application->items->sum('quantity_approved');
+      $totalIssued    = $application->items->sum('quantity_issued');
+      $totalReturned  = $application->items->sum('quantity_returned');
 
-      // Check if all *issued* transactions are marked as returned/damaged/lost
-      $allIssuedTransactionsAccountedFor = $loanApplication->transactions()
-        ->where('status', 'issued') // Find any remaining 'issued' transactions
-        ->count() === 0;
-
-
-      if ($allIssuedTransactionsAccountedFor) {
-        // If all issued transactions are accounted for, mark application as returned
-        $loanApplication->status = 'returned'; // Set application status to 'returned'
-        $loanApplication->save();
-        Log::info("Loan Application ID: " . $loanApplication->id . " status set to 'returned' as all issued items are accounted for.");
-        // Notify applicant that the loan is completed?
-        // $loanApplication->user->notify(new \App\Notifications\LoanCompletedNotification($loanApplication)); // Create this notification
-
-      } else {
-        // If not all items are returned, status might remain 'issued' or change to 'partially_returned' (if you have that status)
-        // Or check for overdue status based on original end date
-        Log::info("Loan Application ID: " . $loanApplication->id . " remains 'issued' or 'partially_returned' as not all items are accounted for.");
-        // Implement logic for 'partially_returned' or overdue here if applicable
-        // if ($loanApplication->status === 'issued') { // Only change from 'issued' to 'partially_returned'
-        //      $loanApplication->status = 'partially_returned';
-        //      $loanApplication->save();
-        // }
+      if ($totalReturned >= $totalApproved && $totalApproved > 0) { // Check if all approved items are returned
+        $application->status = LoanApplication::STATUS_RETURNED; // Use constant
+      } elseif ($totalReturned > 0 && $totalReturned < $totalApproved) { // Check if some, but not all, approved items are returned
+        $application->status = LoanApplication::STATUS_PARTIALLY_RETURNED; // *** Use the newly added constant ***
       }
+      // If totalReturned is 0, status remains as ISSUED or PARTIALLY_ISSUED
+      $application->save();
+      Log::info('LoanApplication status updated after return processing.', [
+        'application_id' => $application->id ?? 'N/A',
+        'status' => $application->status ?? 'N/A',
+      ]);
 
 
       DB::commit();
 
-      Log::info("Equipment return processed for transaction " . $transaction->id . ". Equipment status set to: " . $equipment->status . ". Loan Application status set to: " . $loanApplication->status);
+      Log::info('Equipment return processing completed for transaction ID: ' . ($transaction->id ?? 'N/A') . '. Final Transaction Status: ' . ($transaction->status ?? 'N/A'));
 
-      // Notify the applicant about the return of the specific item? Or only when the whole loan is returned?
-      // $transaction->loanApplication->user->notify(new \App\Notifications\EquipmentReturnedNotification($transaction)); // Create this notification
+      // 5. Trigger post-return notifications (optional)
+      // Notify the applicant/user that the item has been returned/processed.
+      // Notification::send($application->user, new EquipmentReturnedNotification($transaction)); // Assumes notification exists
 
 
-      return $transaction; // Return the updated transaction record
+      return $transaction->fresh(); // Return the updated transaction model
+
     } catch (Exception $e) {
       DB::rollBack();
-      Log::error("Failed to process equipment return for transaction " . $transaction->id . ". Error: " . $e->getMessage());
-      throw $e;
+      Log::error('Failed to process return for transaction ID: ' . ($transaction->id ?? 'N/A') . ': ' . $e->getMessage(), ['exception' => $e]);
+      throw new Exception('Gagal memproses pemulangan peralatan: ' . $e->getMessage()); // Malay message
     }
   }
 
-  // Add methods for checking equipment availability, generating reports, etc.
 
-  /**
-   * Find the appropriate first approver (Gred 41+) for a loan application.
-   * This logic needs refinement based on your organizational structure.
-   *
-   * @param LoanApplication $application The loan application.
-   * @return User|null The first approver user, or null if none found.
-   */
-  protected function findFirstApprover(LoanApplication $application): ?User
-  {
-    // Based on PDF, endorsement by Bahagian/Unit/Seksyen officer Gred 41+ is required.
-    // This officer might be the Head of Department or a designated approver for the applicant's unit.
-    // Simplified logic: Find the first user who is Gred 41 or higher.
-    // Use explicit integer cast as a potential workaround for static analysis tool confusion.
-    $minApproverGradeLevel = (int) config('motac.approval.min_loan_approver_grade_level', 41); // Get min grade from config
-
-
-    $firstApproverUser = User::whereHas('grade', fn($query) => $query->where('level', '>=', $minApproverGradeLevel))
-      // Add more complex logic here to filter by department/location if needed
-      // ->whereHas('department', fn($query) => $query->where('id', $application->user->department_id)) // Filter by applicant's department ID
-      // Add filtering by position (e.g., Head of Department role/title) if applicable
-      // ->whereHas('position', fn($query) => $query->where('name', 'like', '%Head%'))
-      ->first(); // Get the first matching user
-
-
-    return $firstApproverUser; // Return the found approver user or null
-  }
+  // Add other service methods related to Loan Applications or Transactions as needed
 }

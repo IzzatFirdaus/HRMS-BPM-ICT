@@ -1,223 +1,117 @@
 <?php
 
-namespace App\Models; // Ensure the namespace is correct for your project
+namespace App\Models;
 
-use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and adds audit FKs/methods like created_by, updated_by, deleted_by
-use Carbon\Carbon; // Import Carbon for type hinting with timestamps and date/datetime casts
-use Illuminate\Database\Eloquent\Factories\HasFactory; // Import HasFactory trait
-use Illuminate\Database\Eloquent\Model; // Import base Model class
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo relationship type
-use Illuminate\Database\Eloquent\SoftDeletes; // Import SoftDeletes trait
-
-
-// Import models for relationships (Eloquent needs to know about the related models for relationships)
-use App\Models\LoanApplication; // LoanTransaction belongsTo LoanApplication
-use App\Models\Equipment; // LoanTransaction belongsTo Equipment
-use App\Models\User; // LoanTransaction belongsTo User (for the new 'user' relationship and audit/officer relationships)
-
+use App\Traits\CreatedUpdatedDeletedBy;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
- * App\Models\LoanTransaction
- *
- * Represents a single transaction record within a loan application.
- * Tracks the issue or return of a specific equipment item, including
- * involved officers, checklists, timestamps, notes, and the transaction status.
- * Linked to a parent LoanApplication and a specific Equipment asset.
- * Includes audit trails and soft deletion.
- *
  * @property int $id
- * @property int $loan_application_id Foreign key to the parent loan application ('loan_applications' table).
- * @property int $equipment_id Foreign key to the specific equipment asset involved ('equipment' table).
- * @property int|null $issuing_officer_id Foreign key to the user who issued the equipment ('users' table, nullable).
- * @property int|null $receiving_officer_id Foreign key to the user who received the equipment at issue ('users' table, typically the applicant, nullable).
- * @property array|null $accessories_checklist_on_issue JSON checklist of accessories noted at the time of issue (nullable).
- * @property \Illuminate\Support\Carbon|null $issue_timestamp Timestamp when the equipment was issued (nullable).
- * @property int|null $returning_officer_id Foreign key to the user who returned the equipment ('users' table, typically the applicant, nullable).
- * @property int|null $return_accepting_officer_id Foreign key to the user who accepted the returned equipment ('users' table, typically BPM staff, nullable).
- * @property array|null $accessories_checklist_on_return JSON checklist of accessories noted at the time of return (nullable).
- * @property \Illuminate\Support\Carbon|null $return_timestamp Timestamp when the equipment was returned (nullable).
- * @property string|null $return_notes Notes recorded upon return of the equipment (Text or String, nullable).
- * @property string $status Workflow status of the transaction (e.g., issued, returned, overdue, lost, damaged).
- * @property int|null $created_by Foreign key to the user who created the record.
- * @property int|null $updated_by Foreign key to the user who last updated the record.
- * @property int|null $deleted_by Foreign key to the user who soft deleted the record.
- * @property \Illuminate\Support\Carbon|null $created_at Automatically managed timestamp for creation.
- * @property \Illuminate\Support\Carbon|null $updated_at Automatically managed timestamp for last update.
- * @property \Illuminate\Support\Carbon|null $deleted_at Timestamp for soft deletion.
+ * @property int $loan_application_id
+ * @property int|null $equipment_id // nullable if equipment was lost before transaction created? Or should always link to Equipment?
+ * @property int|null $issuing_officer_id
+ * @property int|null $receiving_officer_id // The person receiving on behalf of the applicant (if different)
+ * @property array|null $accessories_checklist_on_issue // JSON column
+ * @property Carbon|null $issue_timestamp
+ * @property int|null $returning_officer_id // The person returning on behalf of the applicant (if different)
+ * @property int|null $return_accepting_officer_id // BPM staff who accepted the return
+ * @property array|null $accessories_checklist_on_return // JSON column
+ * @property string|null $equipment_condition_on_return // e.g., 'Good', 'Damaged', 'Lost', 'Needs Maintenance'
+ * @property string|null $return_notes
+ * @property Carbon|null $return_timestamp
+ * @property string $status // e.g., 'issued', 'returned', 'under_maintenance_on_loan', 'damaged_on_return', 'lost_on_return', 'cancelled', 'overdue', 'under_maintenance_on_return'
+ * @property int|null $created_by
+ * @property int|null $updated_by
+ * @property int|null $deleted_by
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  *
- * @property-read \App\Models\Equipment $equipment The specific equipment asset model involved in the transaction.
- * @property-read \App\Models\User|null $issuingOfficer The user model for the officer who issued the equipment.
- * @property-read \App\Models\LoanApplication $loanApplication The parent loan application model associated with the transaction.
- * @property-read \App\Models\User|null $receivingOfficer The user model for the officer who received the equipment at issue.
- * @property-read \App\Models\User|null $returnAcceptingOfficer The user model for the officer who accepted the returned equipment.
- * @property-read \App\Models\User|null $returningOfficer The user model for the officer who returned the equipment.
- * @property-read \App\Models\User|null $user The generic user associated with the transaction (e.g., the recipient). // Added for clarity
- * @property-read \App\Models\User|null $createdBy The user who created the record (if trait adds this).
- * @property-read \App\Models\User|null $deletedBy The user who soft deleted the record (if trait adds this).
- * @property-read \App\Models\User|null $updatedBy The user who last updated the record (if trait adds this).
- *
- * @property-read string $statusTranslated The human-readable, translated workflow status for the transaction.
- *
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction onlyTrashed()
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction query()
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereAccessoriesChecklistOnIssue($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereAccessoriesChecklistOnReturn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereCreatedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereDeletedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereDeletedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereEquipmentId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereIssueTimestamp($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereIssuingOfficerId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereLoanApplicationId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereReceivingOfficerId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereReturnAcceptingOfficerId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereReturnNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereReturnTimestamp($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereReturningOfficerId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction whereUpdatedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction withTrashed()
- * @method static \Illuminate\Database\Eloquent\Builder|LoanTransaction withoutTrashed()
- * @property-read string $status_translated
- * @method static \Database\Factories\LoanTransactionFactory factory($count = null, $state = [])
- * @method static \Illuminate\Database\Eloquent\Builder<static>|LoanTransaction whereId($value)
- * @mixin \Eloquent
+ * Relationships:
+ * @property-read \App\Models\LoanApplication $loanApplication
+ * @property-read \App\Models\Equipment|null $equipment
+ * @property-read \App\Models\User|null $issuingOfficer
+ * @property-read \App\Models\User|null $receivingOfficer
+ * @property-read \App\Models\User|null $returningOfficer
+ * @property-read \App\Models\User|null $returnAcceptingOfficer
  */
 class LoanTransaction extends Model
 {
-  // Use the traits for factory, soft deletes, and audit columns
-  use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;
+  use SoftDeletes, CreatedUpdatedDeletedBy; // Assuming these traits are used
 
-  /**
-   * The table associated with the model.
-   *
-   * @var string
-   */
-  // protected $table = 'loan_transactions';
+  protected $table = 'loan_transactions'; // Ensure table name is correct
 
-
-  // Define constants for transaction statuses
-  public const STATUS_ISSUED = 'issued';
-  public const STATUS_RETURNED = 'returned';
-  public const STATUS_OVERDUE = 'overdue';
-  public const STATUS_LOST = 'lost';
-  public const STATUS_DAMAGED = 'damaged';
-
-
-  /**
-   * The attributes that are mass assignable.
-   *
-   * @var array<int, string>
-   */
+  // Fillable fields based on columns that can be mass-assigned
   protected $fillable = [
     'loan_application_id',
     'equipment_id',
-
     'issuing_officer_id',
-    'receiving_officer_id', // This field might link to the user receiving the loan
-
+    'receiving_officer_id',
     'accessories_checklist_on_issue',
     'issue_timestamp',
-
     'returning_officer_id',
     'return_accepting_officer_id',
-
     'accessories_checklist_on_return',
-    'return_timestamp',
+    'equipment_condition_on_return',
     'return_notes',
-
+    'return_timestamp',
     'status',
   ];
 
-  /**
-   * The attributes that should be cast.
-   *
-   * @var array<string, string>
-   */
+  // Cast JSON columns to arrays
   protected $casts = [
-    'loan_application_id' => 'integer',
-    'equipment_id' => 'integer',
-    'issuing_officer_id' => 'integer',
-    'receiving_officer_id' => 'integer',
-    'returning_officer_id' => 'integer',
-    'return_accepting_officer_id' => 'integer',
-
-    'accessories_checklist_on_issue' => 'json',
-    'accessories_checklist_on_return' => 'json',
-
+    'accessories_checklist_on_issue' => 'array',
+    'accessories_checklist_on_return' => 'array',
     'issue_timestamp' => 'datetime',
     'return_timestamp' => 'datetime',
-
-    'return_notes' => 'string',
-
-    'status' => 'string',
-
-    'created_at' => 'datetime',
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime',
   ];
 
-  /**
-   * The attributes that should be hidden for serialization.
-   *
-   * @var array<int, string>
-   */
-  // protected $hidden = [];
+  // Default values for attributes if needed
+  // protected $attributes = [
+  //     'status' => self::STATUS_DRAFT, // Example if transactions start as draft
+  // ];
 
+  // --- Status Constants ---
+  // Define possible statuses for a loan transaction lifecycle.
+  const STATUS_ISSUED                         = 'issued'; // Equipment has been issued
+  const STATUS_RETURNED                       = 'returned'; // Equipment has been successfully returned
+  const STATUS_UNDER_MAINTENANCE_ON_LOAN      = 'under_maintenance_on_loan'; // Equipment needed maintenance while issued
+  const STATUS_DAMAGED_ON_RETURN              = 'damaged_on_return'; // Equipment returned damaged
+  const STATUS_LOST_ON_RETURN                 = 'lost_on_return'; // Equipment reported lost on return
+  const STATUS_CANCELLED                      = 'cancelled'; // Transaction was cancelled (e.g., before issue)
+  const STATUS_OVERDUE                        = 'overdue'; // Transaction is overdue for return
+  const STATUS_UNDER_MAINTENANCE_ON_RETURN    = 'under_maintenance_on_return'; // Equipment needs maintenance after return
 
-  // The CreatedUpdatedDeletedBy trait is assumed to add these audit relationships:
-  // public function createdBy(): BelongsTo;
-  // public function updatedBy(): BelongsTo;
-  // public function deletedBy(): BelongsTo;
+  // *** FIX 4: Add the missing STATUS_ON_LOAN constant ***
+  // Note: While the service uses STATUS_ISSUED for the transaction state
+  // when equipment is out, the policy diagnostic specifically requires this constant.
+  const STATUS_ON_LOAN = 'on_loan'; // Adding constant as requested by diagnostic
 
-
-  // 👉 Relationships
-
-  /**
-   * Get the user associated with the loan transaction.
-   * This relationship might link to the user who is the recipient of the loan.
-   * Assuming it links to the receiving_officer_id for simplicity based on existing fields.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
-   */
-  public function user(): BelongsTo // Added the missing 'user' relationship
-  {
-    // Link to the User model using the receiving_officer_id foreign key
-    return $this->belongsTo(User::class, 'receiving_officer_id');
-  }
+  // --- End Status Constants ---
 
 
   /**
-   * Get the loan application associated with the transaction.
-   * Defines a many-to-one relationship where a LoanTransaction belongs to one LoanApplication.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\LoanApplication>
+   * Get the loan application that this transaction belongs to.
    */
   public function loanApplication(): BelongsTo
   {
-    return $this->belongsTo(LoanApplication::class, 'loan_application_id');
+    return $this->belongsTo(LoanApplication::class);
   }
 
   /**
-   * Get the specific equipment asset involved in the transaction.
-   * Defines a many-to-one relationship where a LoanTransaction belongs to one Equipment asset.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Equipment>
+   * Get the equipment item involved in this transaction.
    */
   public function equipment(): BelongsTo
   {
+    // Ensure the foreign key is correct if it's not the default 'equipment_id'
     return $this->belongsTo(Equipment::class, 'equipment_id');
   }
 
   /**
-   * Get the issuing officer.
-   * Defines a many-to-one relationship where a LoanTransaction belongs to one User (the issuing officer).
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+   * Get the officer who issued the equipment.
    */
   public function issuingOfficer(): BelongsTo
   {
@@ -225,10 +119,7 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the receiving officer (at issue).
-   * Defines a many-to-one relationship where a LoanTransaction belongs to one User (the receiving officer at issue).
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+   * Get the officer who received the equipment on behalf of the applicant (if applicable).
    */
   public function receivingOfficer(): BelongsTo
   {
@@ -236,10 +127,7 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the returning officer.
-   * Defines a many-to-one relationship where a LoanTransaction belongs to one User (the officer who returned).
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+   * Get the officer who returned the equipment on behalf of the applicant (if applicable).
    */
   public function returningOfficer(): BelongsTo
   {
@@ -247,105 +135,54 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the return accepting officer.
-   * Defines a many-to-one relationship where a LoanTransaction belongs to one User (the officer who accepted the return).
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User>
+   * Get the officer who accepted the return of the equipment.
    */
   public function returnAcceptingOfficer(): BelongsTo
   {
     return $this->belongsTo(User::class, 'return_accepting_officer_id');
   }
 
-
-  // 👉 Helper Methods (Transaction Status Checks)
-
-  /**
-   * Check if the transaction has a specific workflow status.
-   *
-   * @param string $status The status value to check against (use LoanTransaction::STATUS_ constants).
-   * @return bool True if the transaction has the specified status, false otherwise.
-   */
-  public function hasStatus(string $status): bool
-  {
-    return $this->status === $status;
-  }
-
-  /**
-   * Check if the transaction represents an item that has been issued.
-   *
-   * @return bool True if the transaction is issued, false otherwise.
-   */
+  // Add helper methods for status checks
   public function isIssued(): bool
   {
-    return $this->hasStatus(self::STATUS_ISSUED);
+    return $this->status === self::STATUS_ISSUED; // Use constant
   }
 
-  /**
-   * Check if the transaction represents an item that has been returned.
-   *
-   * @return bool True if the transaction is returned, false otherwise.
-   */
   public function isReturned(): bool
   {
-    return $this->hasStatus(self::STATUS_RETURNED);
+    return $this->status === self::STATUS_RETURNED; // Use constant
   }
 
-  /**
-   * Check if the transaction is marked as overdue.
-   *
-   * @return bool True if the transaction is overdue, false otherwise.
-   */
+  public function isUnderMaintenanceOnLoan(): bool
+  {
+    return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_LOAN; // Use constant
+  }
+
+  // Add other helper methods for other statuses as needed
+  public function isDamagedOnReturn(): bool
+  {
+    return $this->status === self::STATUS_DAMAGED_ON_RETURN; // Use constant
+  }
+
+  public function isLostOnReturn(): bool
+  {
+    return $this->status === self::STATUS_LOST_ON_RETURN; // Use constant
+  }
+
+  public function isCancelled(): bool
+  {
+    return $this->status === self::STATUS_CANCELLED; // Use constant
+  }
+
   public function isOverdue(): bool
   {
-    return $this->hasStatus(self::STATUS_OVERDUE);
+    return $this->status === self::STATUS_OVERDUE; // Use constant
   }
 
-  /**
-   * Check if the transaction is marked as lost.
-   *
-   * @return bool True if the transaction is lost, false otherwise.
-   */
-  public function isLost(): bool
+  public function isUnderMaintenanceOnReturn(): bool
   {
-    return $this->hasStatus(self::STATUS_LOST);
+    return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_RETURN; // Use constant
   }
 
-  /**
-   * Check if the transaction is marked as damaged.
-   *
-   * @return bool True if the transaction is damaged, false otherwise.
-   */
-  public function isDamaged(): bool
-  {
-    return $this->hasStatus(self::STATUS_DAMAGED);
-  }
-
-
-  /**
-   * Check if the transaction has both issue and return information recorded.
-   *
-   * @return bool True if both issue and return timestamps are present, false otherwise.
-   */
-  public function isCompletedTransaction(): bool
-  {
-    return $this->issue_timestamp !== null && $this->return_timestamp !== null;
-  }
-
-  /**
-   * Accessor to get the translated status string.
-   *
-   * @return string The human-readable, translated workflow status for the transaction.
-   */
-  protected function getStatusTranslatedAttribute(): string
-  {
-    return match ($this->status) {
-      self::STATUS_ISSUED => __('Issued'),
-      self::STATUS_RETURNED => __('Returned'),
-      self::STATUS_OVERDUE => __('Overdue'),
-      self::STATUS_LOST => __('Lost'),
-      self::STATUS_DAMAGED => __('Damaged'),
-      default => $this->status,
-    };
-  }
+  // Add any other model logic (scopes, accessors, mutators) here...
 }
