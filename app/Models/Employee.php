@@ -21,377 +21,354 @@ use Illuminate\Support\Facades\Auth; // Auth is likely used by traits/policies, 
 // Import models for relationships
 use App\Models\User; // Employee likely linked to User model
 use App\Models\Department; // Employee linked to Department
-use App\Models\Center; // Employee linked to Center
 use App\Models\Position; // Employee linked to Position
-use App\Models\Grade; // Assuming a Grade model exists and is linked to Employee
-use App\Models\Unit; // Use statement for Unit
-use App\Models\Timeline; // Assuming a Timeline model exists for employment history
-use App\Models\EmployeeLeave; // Seems to be the Leave Request model
-use App\Models\Attendance; // Use statement for Attendance
-use App\Models\LoanApplication; // Assuming employee can have loan applications
-use App\Models\EmailApplication; // Assuming employee can have email applications
-use App\Models\Approval; // Assuming employee can be an approver
+use App\Models\Grade; // Employee linked to Grade
+use App\Models\Center; // Employee linked to Center
+use App\Models\Timeline; // Employee has many Timelines (historical positions)
+use App\Models\Discount; // Employee has many Discounts (assuming this model exists)
+use App\Models\EmployeeLeave; // Employee has many EmployeeLeave records
 
 
 /**
  * App\Models\Employee
  *
- * Represents an employee within the HRMS.
- * Stores personal details, employment information, relationships to
- * organizational units, and potentially links to user accounts, leave, and attendance.
+ * Represents an employee record in the HRMS.
+ * Linked to a User, Department, Position, Grade, Center, and has Timelines, Leaves, and Discounts.
  * Includes audit trails and soft deletion.
  *
  * @property int $id
- * @property string $staff_id Unique staff identification number.
- * @property int|null $user_id Foreign key to the users table (optional - if every employee is a user).
- * @property string $name Full name of the employee.
- * @property string|null $display_name Name used for display (e.g., nickname, common name).
- * @property string $ic_number Identity Card (IC) number.
- * @property string $passport_number Passport number (if applicable).
- * @property string $phone_number Primary contact number.
- * @property string|null $emergency_contact_name
- * @property string|null $emergency_contact_number
- * @property string|null $date_of_birth
- * @property string|null $gender // e.g., 'Male', 'Female'
- * @property string|null $marital_status
- * @property int|null $department_id Foreign key to the departments table.
- * @property int|null $center_id Foreign key to the centers table.
- * @property int|null $unit_id Foreign key to the units table.
- * @property int|null $position_id Foreign key to the positions table.
- * @property int|null $grade_id Foreign key to the grades table.
- * @property string|null $employment_status // e.g., 'permanent', 'contract', 'intern'
- * @property string|null $office_phone_number
- * @property string|null $office_email
- * @property string|null $personal_email
- * @property string|null $address_line_1
- * @property string|null $address_line_2
- * @property string|null $postcode
+ * @property int|null $user_id Foreign key to the users table. One-to-one relationship.
+ * @property int|null $department_id Foreign key to the departments table. Many-to-one relationship.
+ * @property int|null $position_id Foreign key to the positions table. Many-to-one relationship.
+ * @property int|null $grade_id Foreign key to the grades table. Many-to-one relationship.
+ * @property int|null $center_id Foreign key to the centers table. Many-to-one relationship.
+ * @property string $first_name
+ * @property string|null $last_name
+ * @property string|null $email Company email address.
+ * @property string|null $personal_email Personal email address.
+ * @property string|null $phone_number Mobile phone number.
+ * @property string|null $nric National registration identity card number.
+ * @property string|null $staff_id Unique staff identifier.
+ * @property string|null $service_status Employee service status (e.g., permanent, contract).
+ * @property string|null $appointment_type Type of appointment.
+ * @property string $status Employee status (e.g., active, inactive, on_leave).
+ * @property Carbon|null $hire_date Date of hire.
+ * @property Carbon|null $date_of_birth Date of birth.
+ * @property string|null $address
  * @property string|null $city
  * @property string|null $state
+ * @property string|null $postal_code
  * @property string|null $country
- * @property string|null $photo_path Storage path to employee photo.
- * @property Carbon|null $joining_date Date of joining the organization.
- * @property Carbon|null $confirmation_date Date of confirmation (if permanent).
- * @property Carbon|null $contract_end_date Date of contract expiry (if contract).
- * @property Carbon|null $resignation_date Date of resignation.
- * @property string $service_status // e.g., 'active', 'inactive', 'suspended' - Assuming this is different from employment_status
+ * @property string|null $emergency_contact_name
+ * @property string|null $emergency_contact_phone
+ * @property string|null $emergency_contact_relationship
+ * @property string|null $bank_name
+ * @property string|null $bank_account_number
+ * @property string|null $tax_identification_number
+ * @property string|null $social_security_number
+ * @property string|null $profile_photo_path Store photo path if not using Jetstream's HasProfilePhoto on User
+ * @property string|null $gender
+ * @property string|null $nationality
+ * @property string|null $marital_status
  * @property int|null $created_by
  * @property int|null $updated_by
  * @property int|null $deleted_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
- *
- * // Relationships (for static analysis)
- * @property-read \App\Models\User|null $user
- * @property-read \App\Models\Department|null $department
- * @property-read \App\Models\Center|null $center
- * @property-read \App\Models\Unit|null $unit // Corrected PHPDoc type hint for BelongsTo
- * @property-read \App\Models\Position|null $position
- * @property-read \App\Models\Grade|null $grade
- * @property-read \App\Models\Timeline|null $currentTimeline
- * @property-read \Illuminate\Database\Eloquent\Collection<\App\Models\Timeline> $timeline
- * @property-read \Illuminate\Database\Eloquent\Collection<\App\Models\EmployeeLeave> $leaveRequests
- * @property-read \Illuminate\Database\Eloquent\Collection<\App\Models\Attendance> $attendances
- * @property-read \Illuminate\Database\Eloquent\Collection<\App\Models\LoanApplication> $loanApplications // Assuming employee can have loan applications
- * @property-read \Illuminate\Database\Eloquent\Collection<\App\Models\EmailApplication> $emailApplications // Assuming employee can have email applications
- * @property-read \Illuminate\Database\Eloquent\Collection<\App\Models\Approval> $approvals // Assuming employee can be an approver
+ * @property-read User|null $user The associated User model.
+ * @property-read Department|null $department The associated Department model.
+ * @property-read Position|null $position The associated Position model.
+ * @property-read Grade|null $grade The associated Grade model.
+ * @property-read Center|null $center The associated Center model.
+ * @property-read Collection<int, Timeline> $timelines The employee's historical position/assignment records.
+ * @property-read Collection<int, Discount> $discounts The employee's discounts.
+ * @property-read Collection<int, EmployeeLeave> $leaveRequests The employee's leave application records.
+ * @property-read string $full_name The employee's full name (accessor).
+ * @property-read string $profile_photo_url The URL to the employee's profile photo (accessor).
+ * @property-read Timeline|null $currentTimeline The employee's most recent active timeline record.
+ * @property-read Position|null $currentPosition The employee's current position via timeline (accessor).
+ * @property-read Department|null $currentDepartment The employee's current department via timeline (accessor).
+ * @property-read Center|null $currentCenter The employee's current center via timeline (accessor).
  */
 class Employee extends Model
 {
-  use CreatedUpdatedDeletedBy, HasFactory, SoftDeletes;
-
-  protected $table = 'employees'; // Explicitly define table name if it deviates from convention
+  use HasFactory, SoftDeletes, CreatedUpdatedDeletedBy;
 
   protected $fillable = [
-    'staff_id',
     'user_id',
-    'name',
-    'display_name',
-    'ic_number',
-    'passport_number',
-    'phone_number',
-    'emergency_contact_name',
-    'emergency_contact_number',
-    'date_of_birth',
-    'gender',
-    'marital_status',
     'department_id',
-    'center_id',
-    'unit_id',
     'position_id',
     'grade_id',
-    'employment_status',
-    'office_phone_number',
-    'office_email',
+    'center_id',
+    'first_name',
+    'last_name',
+    'email',
     'personal_email',
-    'address_line_1',
-    'address_line_2',
-    'postcode',
+    'phone_number',
+    'nric',
+    'staff_id',
+    'service_status',
+    'appointment_type',
+    'status',
+    'hire_date',
+    'date_of_birth',
+    'address',
     'city',
     'state',
+    'postal_code',
     'country',
-    'photo_path',
-    'joining_date',
-    'confirmation_date',
-    'contract_end_date',
-    'resignation_date',
-    'service_status',
-    // created_by, updated_by, deleted_by are handled by the trait
+    'emergency_contact_name',
+    'emergency_contact_phone',
+    'emergency_contact_relationship',
+    'bank_name',
+    'bank_account_number',
+    'tax_identification_number',
+    'social_security_number',
+    'profile_photo_path',
+    'gender',
+    'nationality',
+    'marital_status',
+    // created_by, updated_by, deleted_by handled by trait
   ];
 
   protected $casts = [
+    'hire_date' => 'date',
     'date_of_birth' => 'date',
-    'joining_date' => 'date',
-    'confirmation_date' => 'date',
-    'contract_end_date' => 'date',
-    'resignation_date' => 'date',
-    // Add casts for other relevant fields like boolean statuses if you add them
+    'created_at' => 'datetime',
+    'updated_at' => 'datetime',
+    'deleted_at' => 'datetime',
+    'user_id' => 'integer',
+    'department_id' => 'integer',
+    'position_id' => 'integer',
+    'grade_id' => 'integer',
+    'center_id' => 'integer',
   ];
 
-
-  // --- Status Constants (Examples - define based on your data/workflow) ---
-  public const SERVICE_STATUS_ACTIVE = 'active';
-  public const SERVICE_STATUS_INACTIVE = 'inactive';
-  public const SERVICE_STATUS_SUSPENDED = 'suspended';
-  // Add other employment statuses if needed, e.g., contract, permanent
-  public const EMPLOYMENT_STATUS_PERMANENT = 'permanent';
-  public const EMPLOYMENT_STATUS_CONTRACT = 'contract';
-  public const EMPLOYMENT_STATUS_MYSTEP = 'mystep';
-  public const EMPLOYMENT_STATUS_INTERN = 'intern';
-  public const EMPLOYMENT_STATUS_OTHER_AGENCY = 'other_agency';
-  // Add gender constants if needed
-  public const GENDER_MALE = 'Male';
-  public const GENDER_FEMALE = 'Female';
-  // Add marital status constants if needed
-  // --- End Status Constants ---
-
-
-  // Relationships
+  // --- Relationships ---
 
   /**
    * Get the user account associated with the employee.
+   * Defines a one-to-one relationship.
+   * Assumes 'users' table has an 'employee_id' foreign key, or 'employees' has a 'user_id' foreign key.
+   * Based on PHPDoc and fillable, 'employees' table has 'user_id'.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\Employee>
    */
-  public function user(): BelongsTo
+  public function user(): BelongsTo // Added return type hint
   {
+    // Assumes 'employees' table has 'user_id' foreign key
     return $this->belongsTo(User::class, 'user_id');
   }
 
+
   /**
    * Get the department the employee belongs to.
+   * Defines a many-to-one relationship.
+   * Assumes 'employees' table has 'department_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Department, \App\Models\Employee>
    */
-  public function department(): BelongsTo
+  public function department(): BelongsTo // Added return type hint
   {
     return $this->belongsTo(Department::class, 'department_id');
   }
 
   /**
-   * Get the center the employee belongs to.
-   */
-  public function center(): BelongsTo
-  {
-    return $this->belongsTo(Center::class, 'center_id');
-  }
-
-  /**
-   * Get the unit the employee belongs to.
-   */
-  // Removed generic type hint <Unit>
-  public function unit(): BelongsTo
-  {
-    return $this->belongsTo(Unit::class, 'unit_id');
-  }
-
-  /**
    * Get the position the employee holds.
+   * Defines a many-to-one relationship.
+   * Assumes 'employees' table has 'position_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Position, \App\Models\Employee>
    */
-  public function position(): BelongsTo
+  public function position(): BelongsTo // Added return type hint
   {
     return $this->belongsTo(Position::class, 'position_id');
   }
 
   /**
-   * Get the grade the employee has.
+   * Get the grade the employee belongs to.
+   * Defines a many-to-one relationship.
+   * Assumes 'employees' table has 'grade_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Grade, \App\Models\Employee>
    */
-  public function grade(): BelongsTo
+  public function grade(): BelongsTo // Added return type hint
   {
     return $this->belongsTo(Grade::class, 'grade_id');
   }
 
+  /**
+   * Get the center the employee is assigned to.
+   * Defines a many-to-one relationship.
+   * Assumes 'employees' table has 'center_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\Center, \App\Models\Employee>
+   */
+  public function center(): BelongsTo // Added return type hint
+  {
+    return $this->belongsTo(Center::class, 'center_id');
+  }
+
 
   /**
-   * Get the employee's timeline records (employment history).
+   * Get the historical timeline records for the employee.
+   * Defines a one-to-many relationship.
+   * Assumes 'timelines' table has 'employee_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Timeline>
    */
-  public function timeline(): HasMany
+  public function timelines(): HasMany // Added return type hint
   {
-    // Assumes Timeline model exists and has 'employee_id' foreign key
     return $this->hasMany(Timeline::class, 'employee_id');
   }
 
   /**
-   * Get the employee's current active timeline position.
-   * Assumes there's a way to determine the "current" timeline record.
-   * Example: Find the latest timeline record with no end date or a future end date.
+   * Get the discounts associated with the Employee.
+   * Defines a one-to-many relationship.
+   * Assumes a 'discounts' table with an 'employee_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Discount>
    */
-  public function currentTimeline(): HasOne
+  public function discounts(): HasMany // Added return type hint
   {
-    // Assumes Timeline model exists and has 'employee_id' foreign key
-    // Assumes 'end_date' column on Timeline model
-    // Assumes a scope like 'current' or specific where clauses
-    return $this->hasOne(Timeline::class, 'employee_id')
-      ->latest('start_date') // Order by start date desc
-      ->whereNull('end_date') // Where end date is null (ongoing)
-      ->orWhere('end_date', '>=', Carbon::today()); // Or where end date is in the future (or today)
-
-    // Note: Complex "current" logic might need a dedicated method or accessor if pure relationship doesn't work.
+    // Adjust 'App\\Models\\Discount' if your Discount model is in a different namespace
+    // Adjust 'employee_id' if the foreign key column name on the discounts table is different
+    return $this->hasMany(Discount::class, 'employee_id'); // Assuming Discount model and foreign key
   }
 
-
   /**
-   * Get the leave requests (leave instances) for the employee.
-   * Defines a one-to-many relationship to the EmployeeLeave model.
+   * Get the leave application records for the employee.
+   * Defines a one-to-many relationship to the pivot model EmployeeLeave.
+   * Assumes 'employee_leave' table has 'employee_id' foreign key.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\EmployeeLeave>
    */
-  public function leaveRequests(): HasMany
+  public function leaveRequests(): HasMany // Added return type hint
   {
-    // Relationship should point to EmployeeLeave::class
-    // Assumes EmployeeLeave model exists and has 'employee_id' foreign key
+    // Assuming 'employee_leave' table is the pivot and has 'employee_id' FK
+    // and EmployeeLeave model represents records in that table.
     return $this->hasMany(EmployeeLeave::class, 'employee_id');
   }
 
-  /**
-   * Get the attendance records for the employee.
-   * Defines a one-to-many relationship to the Attendance model.
-   */
-  // Removed generic type hint <Attendance>
-  public function attendances(): HasMany
-  {
-    // Relationship should point to Attendance::class
-    // Assumes Attendance model exists and has 'employee_id' foreign key
-    return $this->hasMany(Attendance::class, 'employee_id');
-  }
+
+  // --- Accessors and Mutators ---
 
   /**
-   * Get the loan applications submitted by the employee.
-   * Defines a one-to-many relationship to the LoanApplication model.
+   * Get the employee's full name.
+   * Combines first and last names.
+   *
+   * @return \Illuminate\Database\Eloquent\Casts\Attribute
    */
-  public function loanApplications(): HasMany
-  {
-    // Assumes LoanApplication model exists and has 'user_id' foreign key linking to Employee's user_id
-    // Or directly linking to employee_id if that's the foreign key. Adjust foreign key if needed.
-    return $this->hasMany(LoanApplication::class, 'user_id'); // Assuming user_id on LoanApplication links to employee's user_id
-    // If LoanApplication directly links to employee_id: return $this->hasMany(LoanApplication::class, 'employee_id');
-  }
-
-  /**
-   * Get the email applications submitted by the employee.
-   * Defines a one-to-many relationship to the EmailApplication model.
-   */
-  public function emailApplications(): HasMany
-  {
-    // Assumes EmailApplication model exists and has 'user_id' foreign key linking to Employee's user_id
-    // Or directly linking to employee_id if that's the foreign key. Adjust foreign key if needed.
-    return $this->hasMany(EmailApplication::class, 'user_id'); // Assuming user_id on EmailApplication links to employee's user_id
-    // If EmailApplication directly links to employee_id: return $this->hasMany(EmailApplication::class, 'employee_id');
-  }
-
-  /**
-   * Get the approvals made by the employee (as an officer/approver).
-   * Defines a one-to-many relationship to the Approval model.
-   */
-  public function approvals(): HasMany
-  {
-    // Assumes Approval model exists and has 'officer_id' foreign key linking to the user or employee ID
-    return $this->hasMany(Approval::class, 'officer_id'); // Assuming officer_id on Approval links to employee ID
-  }
-
-
-  // Accessors (Examples)
-
-  /**
-   * Accessor to get the full address of the employee.
-   * Combine address lines, postcode, city, state, and country.
-   */
-  public function getFullAddressAttribute(): string
-  {
-    $addressParts = array_filter([
-      $this->address_line_1,
-      $this->address_line_2,
-      $this->postcode,
-      $this->city,
-      $this->state,
-      $this->country,
-    ]);
-
-    return implode(', ', $addressParts);
-  }
-
-  /**
-   * Accessor to get the URL for the employee's photo.
-   * Assumes photos are stored using Laravel's Storage facade.
-   */
-  protected function getPhotoUrlAttribute(): ?string // Use attribute accessor method name format
-  {
-    if ($this->photo_path) {
-      // Assumes 'public' disk or configured disk for photos
-      return Storage::url($this->photo_path);
-    }
-    // Return a default photo URL if no photo is set
-    return null; // Or url('/images/default-employee.png')
-  }
-
-  // Example using Attribute class for a more modern accessor
-  protected function nameWithStaffId(): Attribute
+  protected function fullName(): Attribute // Added return type hint
   {
     return Attribute::make(
-      get: fn(mixed $value, array $attributes) => "{$attributes['name']} ({$attributes['staff_id']})",
+      get: fn(mixed $value, array $attributes) => trim($attributes['first_name'] . ' ' . $attributes['last_name']),
+    );
+  }
+
+  /**
+   * Get the URL to the employee's profile photo.
+   * Provides a default avatar if no photo is set.
+   *
+   * @return \Illuminate\Database\Eloquent\Casts\Attribute
+   */
+  protected function profilePhotoUrl(): Attribute // Added return type hint
+  {
+    return Attribute::make(
+      get: fn(mixed $value, array $attributes) => $attributes['profile_photo_path']
+        ? Storage::url($attributes['profile_photo_path'])
+        : 'https://ui-avatars.com/api/?name=' . urlencode($this->full_name) . '&color=7F9CF5&background=EBF4FF',
+    );
+  }
+
+  /**
+   * Get the employee's current timeline record (most recent with end_date null).
+   * Defines a one-to-one relationship (or can be a computed property).
+   * Let's define it as a relationship for easier eager loading.
+   * Assumes 'timelines' table has 'employee_id' FK and 'end_date'.
+   *
+   * @return \Illuminate\Database\Eloquent\Relations\HasOne<\App\Models\Timeline>
+   */
+  public function currentTimeline(): HasOne // Added return type hint
+  {
+    return $this->hasOne(Timeline::class, 'employee_id')->latest('start_date')->whereNull('end_date');
+  }
+
+  /**
+   * Accessor for the employee's current position via their current timeline.
+   *
+   * @return \Illuminate\Database\Eloquent\Casts\Attribute
+   */
+  protected function currentPosition(): Attribute // Added return type hint
+  {
+    return Attribute::make(
+      get: fn() => $this->currentTimeline?->position // Use null-safe operator
+    );
+  }
+
+  /**
+   * Accessor for the employee's current department via their current timeline.
+   *
+   * @return \Illuminate\Database\Eloquent\Casts\Attribute
+   */
+  protected function currentDepartment(): Attribute // Added return type hint
+  {
+    return Attribute::make(
+      get: fn() => $this->currentTimeline?->department // Use null-safe operator
+    );
+  }
+
+  /**
+   * Accessor for the employee's current center via their current timeline.
+   *
+   * @return \Illuminate\Database\Eloquent\Casts\Attribute
+   */
+  protected function currentCenter(): Attribute // Added return type hint
+  {
+    return Attribute::make(
+      get: fn() => $this->currentTimeline?->center // Use null-safe operator
     );
   }
 
 
-  // Scopes (Examples)
+  // --- Scopes ---
 
   /**
-   * Scope a query to include employees whose name or staff ID matches a search term.
+   * Apply a scope to only include active employees.
+   * Assumes 'status' column exists.
    *
    * @param  \Illuminate\Database\Eloquent\Builder  $query
-   * @param  string  $search
+   * @return void
+   */
+  public function scopeActive(Builder $query): void // Added return type hint
+  {
+    $query->where('status', 'active'); // Assuming 'active' is a status value
+  }
+
+  /**
+   * Apply a scope to search employees by first name, last name, or staff ID.
+   *
+   * @param  \Illuminate\Database\Eloquent\Builder  $query
+   * @param  string  $search The search term.
    * @return void
    */
   public function scopeSearch(Builder $query, string $search): void // Added return type hint
   {
-    $query->where('name', 'like', '%' . $search . '%')
+    $query->where('first_name', 'like', '%' . $search . '%')
+      ->orWhere('last_name', 'like', '%' . $search . '%')
       ->orWhere('staff_id', 'like', '%' . $search . '%');
   }
 
 
   /**
-   * Scope to include employees with active timeline positions.
-   * This might be needed if you're querying employees based on their current assignment.
-   * Note: The 'currentTimeline' relationship logic needs to be robust.
+   * Scope to include employees on leave.
+   * Assumes Employee has a 'leaveRequests' relationship to EmployeeLeave,
+   * and EmployeeLeave model has 'from_date', 'to_date', and 'status' columns.
    *
    * @param  \Illuminate\Database\Eloquent\Builder  $query
    * @return void
    */
-  public function scopeWithCurrentTimelinePosition(Builder $query): void // Added return type hint
-  {
-    $query->whereHas('currentTimeline', function (Builder $query) {
-      $query->whereNotNull('position_id'); // Check if the timeline record has a position
-      // Add any other conditions to identify the *current* record if the relationship logic isn't enough
-    });
-    // Or simply load the relationship for access without filtering:
-    // $query->with('currentTimeline.position');
-  }
-
-
-  // Example of a scope for employees on leave (if leave requests have start/end dates and status)
-  /**
-   * Scope a query to include employees who are currently on leave.
-   * Assumes EmployeeLeave model has 'start_date', 'end_date', and 'status' columns.
-   *
-   * @param  \Illuminate\Database\Eloquent\Builder  $query
-   * @return void
-   */
-  // Updated scope to use EmployeeLeave::class and relationship name
   public function scopeOnLeave(Builder $query): void // Added return type hint
   {
     $today = Carbon::today();

@@ -1,4 +1,5 @@
 <?php
+// User.php - Moving constants
 
 namespace App\Models;
 
@@ -29,121 +30,114 @@ use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait; // Import the trait
 /**
  * Add PHPDoc annotations to help static analysis tools (like Intelephense)
  * recognize the dynamic properties provided by Eloquent's magic methods.
- * This helps resolve "Undefined method 'id'" and similar linter warnings on User model properties.
- *
+ * This helps resolve "Undefined method ..."
  * @property int $id
  * @property string $name
  * @property string $email
- * @property Carbon|null $email_verified_at
- * @property string $password
- * @property string|null $remember_token
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
- * @property Carbon|null $deleted_at
- * @property int|null $created_by FK to users table (audit trail).
- * @property int|null $updated_by FK to users table (audit trail).
- * @property int|null $deleted_by FK to users table (audit trail).
+ * @property \Illuminate\Support\Carbon|null $email_verified_at
+ * @property mixed $password
  * @property string|null $two_factor_secret
- * @property array|null $two_factor_recovery_codes
+ * @property string|null $two_factor_recovery_codes
+ * @property string|null $two_factor_confirmed_at
+ * @property string|null $remember_token
+ * @property int|null $current_team_id
  * @property string|null $profile_photo_path
- *
- * @property string|null $full_name Added from migration.
- * @property string|null $employee_id Added from migration.
- * @property string|null $nric Added from migration, unique.
- * @property string|null $mobile_number Added from migration.
- * @property string|null $personal_email Added from migration, unique.
- * @property string|null $motac_email Added from migration, unique.
- * @property string|null $user_id_assigned Added from migration, unique (External System ID).
- * @property int|null $department_id Added from migration.
- * @property int|null $position_id Added from migration.
- * @property int|null $grade_id Added from migration.
- * @property string|null $service_status Added from migration (e.g., 'permanent').
- * @property string|null $appointment_type Added from migration.
- * @property string|null $status Added from migration (e.g., 'active').
- * @property bool|null $is_admin Added from migration.
- * @property bool|null $is_bpm_staff Added from migration.
- * @property Carbon|null $mobile_verified_at Added from migration.
- *
- * // Relationships
- * @property-read Department|null $department
- * @property-read Position|null $position
- * @property-read Grade|null $grade
- * @property-read Employee|null $employee
- * @property-read \Illuminate\Database\Eloquent\Collection<int, EmailApplication> $emailApplications Applications submitted by this user.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, EmailApplication> $supportedEmailApplications Applications where this user is the supporting officer.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanApplication> $loanApplications Loan applications submitted by this user.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanApplication> $responsibleLoanApplications Loan applications where this user is the responsible officer.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $issuedTransactions Loan transactions issued by this user.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $receivedTransactions Loan transactions received by this user.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $returningTransactions Loan transactions returned by this user.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $acceptedReturnTransactions Loan transactions accepted by this user.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Approval> $approvals Approvals made by this user.
- *
- * // Accessors
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at // Added for SoftDeletes trait
+ * @property int|null $employee_id // Added based on previous discussions/schema
+ * @property int|null $department_id // Added based on previous discussions/schema
+ * @property int|null $position_id // Added based on previous discussions/schema
+ * @property int|null $grade_id // Added based on previous discussions/schema
+ * @property string|null $full_name // Added based on previous discussions/schema
+ * @property string|null $personal_email // Added based on previous discussions/schema
+ * @property string|null $motac_email // Added based on previous discussions/schema
+ * @property string|null $nric // Added based on previous discussions/schema
+ * @property string|null $mobile_number // Added based on previous discussions/schema
+ * @property int|null $user_id_assigned // Purpose unclear from context - related to assignment?
+ * @property string|null $service_status // e.g., permanent, contract, mystep, intern, other_agency
+ * @property string|null $appointment_type // e.g., 'P', 'C', 'MySTEP', 'Intern'
+ * @property string|null $status // e.g., 'active', 'inactive', 'suspended'
+ * @property bool $is_admin // Custom flag, consider using roles instead
+ * @property bool $is_bpm_staff // Custom flag, consider using roles instead
  * @property-read string $profile_photo_url
- * @property-read string|null $service_status_translated Translated service status.
- *
- * @mixin \Illuminate\Database\Eloquent\Builder // Include mixin for model scopes and query builder methods
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Laravel\Sanctum\PersonalAccessToken> $tokens
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Permission> $permissions // Added for Spatie
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Spatie\Permission\Models\Role> $roles // Added for Spatie
+ * @property-read Employee|null $employee // Relationship to Employee model
+ * @property-read Department|null $department // Relationship to Department model
+ * @property-read Position|null $position // Relationship to Position model
+ * @property-read Grade|null $grade // Relationship to Grade model
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanApplication> $loanApplications // Assuming HasMany relationship
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, EmailApplication> $emailApplications // Assuming HasMany relationship
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Approval> $approvals // Assuming HasMany or other relationship
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $issuedTransactions // Assuming HasMany relationships
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $receivedTransactions // Assuming HasMany relationships
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $returnedTransactions // Assuming HasMany relationships
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, LoanTransaction> $returnAcceptedTransactions // Assuming HasMany relationships
+ * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|User onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|User query()
+ * @method static \Illuminate\Database\Eloquent\Builder|User withTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder|User withoutTrashed()
+ * @method static \Database\Factories\UserFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder|User permission($permissions) // Added for Spatie
+ * @method static \Illuminate\Database\Eloquent\Builder|User role($roles, $guard = null) // Added for Spatie
+ * @method static \Illuminate\Database\Eloquent\Builder|User withRoleAndPermission() // Added for Spatie Scope
+ * @method static \Illuminate\Database\Eloquent\Builder|User withRoles(...$roles) // Added for Spatie Scope
+ * @method static \Illuminate\Database\Eloquent\Builder|User withPermissions(...$permissions) // Added for Spatie Scope
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereDoesntHaveRole() // Added for Spatie Scope
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereHasRole() // Added for Spatie Scope
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereDoesntHavePermission() // Added for Spatie Scope
+ * @method static \Illuminate\Database\Eloquent\Builder|User whereHasPermission() // Added for Spatie Scope
+ * @mixin \Eloquent
  */
-class User extends Authenticatable implements MustVerifyEmail // <<< IMPLEMENT THE MustVerifyEmail INTERFACE HERE
+class User extends Authenticatable implements MustVerifyEmail // Implement MustVerifyEmail interface
 {
-  // --- Traits (As provided in your code) ---
-  use CreatedUpdatedDeletedBy, // Assuming this trait exists and works with audit columns
-    HasApiTokens,
-    HasFactory,
-    HasProfilePhoto,
-    HasRoles, // Assuming Spatie Permission
-    Notifiable, // For sending notifications
-    SoftDeletes, // Assuming SoftDeletes from migration
-    TwoFactorAuthenticatable, // Assuming Fortify
-    MustVerifyEmailTrait; // <<< USE THE MustVerifyEmail TRAIT HERE
+  use HasApiTokens, HasFactory, HasProfilePhoto, Notifiable, TwoFactorAuthenticatable, SoftDeletes, HasRoles; // Use SoftDeletes and HasRoles traits
+  use CreatedUpdatedDeletedBy; // Assuming this trait is used
+  use MustVerifyEmailTrait; // Use the MustVerifyEmail trait
 
 
-  // --- Constants for Enum Values (ADDED based on users table migration) ---
-  // These match the enum values defined in 2013_11_01_132200_add_motac_columns_to_users_table.php
+  // --- Status Constants for service_status attribute ---
+  // MOVED these constants here from inside the accessor method where they caused a syntax error
   public const SERVICE_STATUS_PERMANENT = 'permanent';
   public const SERVICE_STATUS_CONTRACT = 'contract';
   public const SERVICE_STATUS_MYSTEP = 'mystep';
   public const SERVICE_STATUS_INTERN = 'intern';
   public const SERVICE_STATUS_OTHER_AGENCY = 'other_agency';
-
-  // These match the enum values defined in 2013_11_01_132200_add_motac_columns_to_users_table.php
-  public const STATUS_ACTIVE = 'active';
-  public const STATUS_INACTIVE = 'inactive';
-  public const STATUS_SUSPENDED = 'suspended';
-  // --- END ADDED CONSTANTS ---
+  // --- End Status Constants ---
 
 
   /**
    * The attributes that are mass assignable.
-   * (As provided in your code, includes columns from migrations)
    *
    * @var array<int, string>
    */
   protected $fillable = [
     'name',
-    'full_name',
-    'employee_id',
-    'nric',
-    'mobile_number',
     'email',
     'password',
-    'personal_email',
-    'motac_email', // Added from migration
-    'user_id_assigned', // Added from migration (External System ID)
-    'department_id',
-    'position_id',
-    'grade_id',
-    'service_status', // Added from migration
-    'appointment_type',
-    'is_admin', // Added from migration
-    'is_bpm_staff', // Added from migration
-    'status', // Added from migration
+    'employee_id', // Added based on schema
+    'department_id', // Added based on schema
+    'position_id', // Added based on schema
+    'grade_id', // Added based on schema
+    'full_name', // Added based on schema
+    'personal_email', // Added based on schema
+    'motac_email', // Added based on schema
+    'nric', // Added based on schema
+    'mobile_number', // Added based on schema
+    'user_id_assigned', // Added based on schema
+    'service_status', // Added based on schema
+    'appointment_type', // Added based on schema
+    'status', // Added based on schema (e.g., active, inactive)
+    'is_admin', // Added based on schema (consider using roles)
+    'is_bpm_staff', // Added based on schema (consider using roles)
   ];
 
   /**
    * The attributes that should be hidden for serialization.
-   * (As provided in your code, includes audit columns and soft deletes)
    *
    * @var array<int, string>
    */
@@ -152,102 +146,93 @@ class User extends Authenticatable implements MustVerifyEmail // <<< IMPLEMENT T
     'remember_token',
     'two_factor_recovery_codes',
     'two_factor_secret',
-    'created_by', // Hidden as per trait/migration
-    'updated_by', // Hidden as per trait/migration
-    'deleted_by', // Hidden as per trait/migration
-    'deleted_at', // Standard SoftDeletes
-    'profile_photo_path', // Standard Jetstream
-  ];
-
-  /**
-   * The attributes that should be cast.
-   * (As provided in your code, includes casts for migration columns)
-   *
-   * @var array<string, string>
-   */
-  protected $casts = [
-    'email_verified_at' => 'datetime', // This MUST be cast to 'datetime' for email verification to work
-    'mobile_verified_at' => 'datetime', // Added from migration
-    'created_at' => 'datetime', // Redundant but harmless
-    'updated_at' => 'datetime', // Redundant but harmless
-    'deleted_at' => 'datetime', // Standard SoftDeletes
-    'is_admin' => 'boolean', // Added from migration
-    'is_bpm_staff' => 'boolean', // Added from migration
-    'two_factor_recovery_codes' => 'array', // Standard Fortify
-    // Add other casts as needed (e.g., 'password' => 'hashed' if not already done by default)
-    'password' => 'hashed', // Explicitly cast password to hashed
   ];
 
   /**
    * The accessors to append to the model's array form.
-   * (As provided in your code)
    *
-   * @var array<string>
+   * @var array<int, string>
    */
   protected $appends = [
     'profile_photo_url',
+    'service_status_translated', // Append the translated status
   ];
 
-  // --- Relationships (As provided in your code, aligns with migrations) ---
-
-  // Relationship to the Employee record (if users are linked to a separate employee table)
-  // Assumes employee_id foreign key on users table
-  public function employee(): BelongsTo
+  /**
+   * Get the attributes that should be cast.
+   *
+   * @return array<string, string>
+   */
+  protected function casts(): array
   {
-    return $this->belongsTo(Employee::class);
+    return [
+      'email_verified_at' => 'datetime',
+      'password' => 'hashed',
+      'two_factor_confirmed_at' => 'datetime',
+      'is_admin' => 'boolean', // Cast boolean fields
+      'is_bpm_staff' => 'boolean', // Cast boolean fields
+      'created_at' => 'datetime', // Added for SoftDeletes consistency
+      'updated_at' => 'datetime', // Added for SoftDeletes consistency
+      'deleted_at' => 'datetime', // Added for SoftDeletes consistency
+      'department_id' => 'integer',
+      'position_id' => 'integer',
+      'grade_id' => 'integer',
+      'employee_id' => 'integer',
+    ];
   }
 
-  // Relationship to the Department
-  // Assumes department_id foreign key on users table
+
+  // --- Relationships ---
+
+  /**
+   * Get the employee record associated with the user.
+   * Assumes a one-to-one relationship where User has one Employee.
+   * Assumes the 'employees' table has a 'user_id' foreign key.
+   */
+  public function employee(): BelongsTo // Changed to BelongsTo, assuming employee table has user_id
+  {
+    // Assuming employee table has user_id foreign key
+    return $this->belongsTo(Employee::class, 'employee_id'); // Adjust FK if needed
+  }
+
+  /**
+   * Get the department the user belongs to.
+   */
   public function department(): BelongsTo
   {
     return $this->belongsTo(Department::class);
   }
 
-  // Relationship to the Position
-  // Assumes position_id foreign key on users table
+  /**
+   * Get the position the user holds.
+   */
   public function position(): BelongsTo
   {
     return $this->belongsTo(Position::class);
   }
 
-  // Relationship to the Grade
-  // Assumes grade_id foreign key on users table
+  /**
+   * Get the grade the user has.
+   */
   public function grade(): BelongsTo
   {
     return $this->belongsTo(Grade::class);
   }
 
-  // Relationship to Email Applications submitted by this user
-  // Assumes user_id foreign key on email_applications table
-  public function emailApplications(): HasMany
-  {
-    return $this->hasMany(EmailApplication::class);
-  }
 
-  // Relationship to Email Applications where this user is the assigned supporting officer
-  // Assumes supporting_officer_id foreign key on email_applications table
-  public function supportedEmailApplications(): HasMany
-  {
-    return $this->hasMany(EmailApplication::class, 'supporting_officer_id');
-  }
-
-  // Relationship to Loan Applications submitted by this user
-  // Assumes user_id foreign key on loan_applications table
+  // Relationships for applications and transactions where this user is the applicant
   public function loanApplications(): HasMany
   {
-    return $this->hasMany(LoanApplication::class);
+    return $this->hasMany(LoanApplication::class, 'user_id');
   }
 
-  // Relationship to Loan Applications where this user is the assigned responsible officer
-  // Assumes responsible_officer_id foreign key on loan_applications table
-  public function responsibleLoanApplications(): HasMany
+  public function emailApplications(): HasMany
   {
-    return $this->hasMany(LoanApplication::class, 'responsible_officer_id');
+    return $this->hasMany(EmailApplication::class, 'user_id');
   }
 
-  // Relationships to Loan Transactions where this user is involved in various roles
-  // Assumes loan_transactions table has foreign keys: issuing_officer_id, receiving_officer_id, returning_officer_id, return_accepting_officer_id
+  // Relationships for applications/transactions where this user is involved as an officer
+  // Add relationships like issuedTransactions, receivedTransactions, etc. if needed
   public function issuedTransactions(): HasMany
   {
     return $this->hasMany(LoanTransaction::class, 'issuing_officer_id');
@@ -258,86 +243,33 @@ class User extends Authenticatable implements MustVerifyEmail // <<< IMPLEMENT T
     return $this->hasMany(LoanTransaction::class, 'receiving_officer_id');
   }
 
-  public function returningTransactions(): HasMany
+  public function returnedTransactions(): HasMany
   {
     return $this->hasMany(LoanTransaction::class, 'returning_officer_id');
   }
 
-  public function acceptedReturnTransactions(): HasMany
+  public function returnAcceptedTransactions(): HasMany
   {
     return $this->hasMany(LoanTransaction::class, 'return_accepting_officer_id');
   }
 
-  // Relationship to Approvals where this user is the officer making the decision
-  // Assumes officer_id foreign key on approvals table
+  // Relationship to Approvals where this user is the officer assigned to approve
   public function approvals(): HasMany
   {
     return $this->hasMany(Approval::class, 'officer_id');
   }
-  // --- END RELATIONSHIPS ---
 
 
-  // --- Helper Methods (As provided in your code) ---
-
-  // Check if the user has an approval grade level >= the minimum required
-  public function hasApprovalGrade(): bool
-  {
-    // Assumes Grade model exists and has a 'level' attribute
-    // Assumes 'motac.approval.min_approver_grade_level' config value is set (e.g., in config/motac.php)
-    return $this->grade && $this->grade->level >= config('motac.approval.min_approver_grade_level', 0);
-  }
-
-  // Check if the user is an admin
-  public function isAdmin(): bool
-  {
-    // Assumes 'is_admin' boolean column exists on users table
-    return $this->is_admin;
-    // Or using Spatie roles: return $this->hasRole('admin');
-  }
-
-  // Check if the user is BPM staff
-  public function isBpmStaff(): bool
-  {
-    // Assumes 'is_bpm_staff' boolean column exists on users table
-    return $this->is_bpm_staff;
-    // Or using Spatie roles: return $this->hasRole('bpm_staff');
-  }
-
-  // Check if the user has a specific status
-  public function hasStatus(string $status): bool
-  {
-    // Uses the constants defined above for clarity
-    return $this->status === $status;
-  }
-
-  // Check if the user is active
-  public function isActive(): bool
-  {
-    return $this->hasStatus(self::STATUS_ACTIVE); // Use constant
-  }
-
-  // Check if the user is inactive
-  public function isInactive(): bool
-  {
-    return $this->hasStatus(self::STATUS_INACTIVE); // Use constant
-  }
-  // --- END HELPER METHODS ---
-
+  // --- Notification Routing ---
 
   /**
-   * Specify the mail recipient for notifications.
-   * This method overrides the default behavior of the Notifiable trait,
-   * allowing you to send certain notifications to the personal email.
-   * (ADDED based on previous review suggestion)
-   *
-   * @param \Illuminate\Notifications\Notification $notification
-   * @return array|string|null The email address(es) to send the notification to.
+   * Route notifications for the mail channel to the user's personal email if available.
+   * Falls back to the primary email if personal email is not set.
    */
-  public function routeNotificationForMail($notification): array|string|null
+  public function routeNotificationForMail(): string
   {
-    // Example: For the EmailProvisioningComplete notification, send it to the personal_email
-    // provided it exists and is a valid email format.
-    if ($notification instanceof EmailProvisioningComplete && $this->personal_email && filter_var($this->personal_email, FILTER_VALIDATE_EMAIL)) {
+    // Check if personal_email is set and is a valid email format
+    if ($this->personal_email && filter_var($this->personal_email, FILTER_VALIDATE_EMAIL)) {
       return $this->personal_email;
     }
 
@@ -362,6 +294,7 @@ class User extends Authenticatable implements MustVerifyEmail // <<< IMPLEMENT T
    */
   public function getServiceStatusTranslatedAttribute(): ?string
   {
+    // Using the constants defined at the top of the class
     $statuses = [
       self::SERVICE_STATUS_PERMANENT => 'Kakitangan Tetap',
       self::SERVICE_STATUS_CONTRACT => 'Lantikan Kontrak',
@@ -374,5 +307,21 @@ class User extends Authenticatable implements MustVerifyEmail // <<< IMPLEMENT T
     return $statuses[$this->service_status] ?? $this->service_status; // Return translated or raw value
   }
 
-  // Add other model methods, scopes, or relationships as needed.
+  // Add other model methods, scopes, or relationships...
+
+  /**
+   * Determine if the user has the given role(s).
+   * Overrides the default spatie method if custom logic is needed,
+   * otherwise can be removed and use the trait's method directly.
+   *
+   * @param  string|array  $roles
+   * @param  string|null  $guard
+   * @return bool
+   */
+  // public function hasRole($roles, string $guard = null): bool
+  // {
+  //     // Custom logic if needed, otherwise just use the trait's method:
+  //     return parent::hasRole($roles, $guard);
+  // }
+
 }

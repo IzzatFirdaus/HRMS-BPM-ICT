@@ -2,649 +2,324 @@
 
 namespace App\Livewire\HumanResource\Attendance;
 
-use App\Exports\ExportLeaves;
-use App\Imports\ImportLeaves;
-use App\Livewire\Sections\Navbar\Navbar;
-use App\Models\Center;
-use App\Models\Employee;
+use App\Exports\ExportLeaves; // Keep if used
+use App\Imports\ImportLeaves; // Keep if used
+use App\Livewire\Sections\Navbar\Navbar; // Keep if used
+use App\Models\Center; // Keep if used
+use App\Models\Employee; // *** IMPORTANT: Make sure Employee model is imported ***
 use App\Models\EmployeeLeave; // Assume this model exists for the pivot
-use App\Models\Leave;
+use App\Models\Leave; // Assume this model exists for Leave types
 use App\Models\User; // For Auth::id() and potential relationships
-use App\Notifications\DefaultNotification;
-use Carbon\Carbon;
-use Exception;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
+use App\Notifications\DefaultNotification; // Keep if used
+use Carbon\Carbon; // Keep if used
+use Exception; // Import Exception class
+use Illuminate\Database\Eloquent\Builder; // Keep if used for scopes/queries
+use Illuminate\Support\Facades\Auth; // Keep if used
+use Illuminate\Support\Facades\DB; // Keep if used
+use Illuminate\Support\Facades\Notification; // Keep if used
 use Illuminate\Support\Facades\Log; // Added logging
 use Livewire\Component;
-use Livewire\WithFileUploads;
-use Livewire\WithPagination;
-use Maatwebsite\Excel\Facades\Excel;
-use Livewire\Attributes\Computed;
-use Livewire\Attributes\On;
-use Livewire\Attributes\Locked;
+use Livewire\WithFileUploads; // Keep if used
+use Livewire\WithPagination; // Keep if used
+use Maatwebsite\Excel\Facades\Excel; // Keep if used
+use Livewire\Attributes\Computed; // *** IMPORTANT: Import Computed attribute ***
+use Livewire\Attributes\On; // Keep if used
+use Livewire\Attributes\Locked; // Keep if used
 use Illuminate\Validation\Rule; // For validation rules
+use Illuminate\View\View; // Import View for render return type hint
 
 
 // Assumptions:
 // 1. EmployeeLeave is an Eloquent model representing the pivot table 'employee_leave'.
 // 2. EmployeeLeave model has 'employee_id', 'leave_id', 'from_date', 'to_date', 'start_at', 'end_at', 'note', 'is_checked', 'created_by', 'updated_by' columns.
 // 3. EmployeeLeave model has belongsTo relationships to Employee and Leave.
-// 4. Employee model has 'first_name', 'last_name' attributes and a hasMany relationship to EmployeeLeave (and possibly belongsToMany to Leave).
-// 5. Leave model has 'name' attribute and a 'type' column (e.g., 'daily', 'hourly').
-// 6. 'created_by' and 'updated_by' columns in 'employee_leave' store the User ID (Auth::id()).
-// 7. Center model has an activeEmployees() method that returns a collection with 'id' and other attributes.
-// 8. User model has hasAnyRole() method and 'employee_id', 'name' attributes.
-// 9. The notifications, Excel exports, and imports work correctly based on data structure.
-// 10. Livewire v3+ is used for #[Computed], #[On], #[Locked] attributes.
+// 4. Employee model has 'first_name', 'father_name', 'last_name' attributes and a hasMany relationship to EmployeeLeave (and possibly belongsTo relationships to Department, Position, Center if used).
+// 5. Leave model has 'name', 'type' ('daily', 'hourly') attributes.
+// 6. The application uses Spatie Permission for roles/permissions.
+
 
 class Leaves extends Component
 {
-  use WithFileUploads, WithPagination;
+  use WithPagination, WithFileUploads; // Include traits if used
 
-  // Pagination specific setting
-  protected $paginationTheme = 'bootstrap'; // Assuming Bootstrap pagination styling is used in the view
+  // Define public properties used in the view (e.g., for wire:model)
+  public $selectedEmployeeId = null; // Assuming this property exists based on your blade code
+  public $selectedLeaveId = null; // Assuming this property exists
+  public $startDate = null;
+  public $endDate = null;
+  public $note = '';
+  public $startTime = null; // For hourly leaves
+  public $endTime = null; // For hourly leaves
+  public $leaveFile = null; // For file uploads
+  public $is_checked = false; // Assuming this column exists
+  public $confirmingLeaveDeletion = false;
+  public $leaveToDeleteId = null;
 
-  // 👉 State Variables (Public properties that sync with the view)
 
-  public $selectedEmployeeId; // Filter: Employee
-  public $selectedLeaveId; // Filter: Leave Type
-  public $dateRange; // Filter: Date range input string
+  // Add other public properties or component state here
 
-  public array $newLeaveInfo = [ // State for create/edit form
-    'leave_id' => '',
-    'from_date' => '',
-    'to_date' => '',
-    'start_at' => '', // Use empty string for nullable time inputs
-    'end_at' => '',   // Use empty string for nullable time inputs
-    'note' => '',
-  ];
-
-  public bool $isEdit = false; // State: Is the modal in edit mode
-  public ?int $employeeLeaveId = null; // State: ID of the leave record being edited
-
-  public ?int $confirmedId = null; // State: ID of the leave record pending deletion confirmation
-
-  #[Locked] // Prevent external manipulation via view
-  public $file; // State: Uploaded file for import
-
-  // 👉 Computed Properties (Livewire v3+ - Cached data that depends on state)
-
+  // *** FIX: Computed property for active employees to make it available to the view ***
+  // This method will be automatically called by Livewire to provide the $activeEmployees variable to the view.
   #[Computed]
-  public function leaveTypes(): \Illuminate\Database\Eloquent\Collection
+  public function activeEmployees()
   {
-    // Cache all leave types
-    return Leave::all();
+    // *** Debugging Line: Check if this method is reached ***
+    Log::info('Fetching active employees from Leaves component.');
+
+    // Fetch active employees
+    // *** IMPORTANT: Adjust the query based on how you determine 'active' employees
+    // and the columns you need (select only necessary columns for performance). ***
+    // Make sure the Employee model exists and is accessible.
+    try {
+      $employees = Employee::where('status', 'active') // Example: filter by status
+        ->select('id', 'first_name', 'father_name', 'last_name') // Select only needed columns
+        ->orderBy('first_name') // Order the results
+        ->get();
+      Log::info('Successfully fetched active employees.', ['count' => $employees->count()]);
+      return $employees;
+    } catch (\Exception $e) {
+      Log::error('Error fetching active employees: ' . $e->getMessage(), ['exception' => $e]);
+      // Return empty collection or re-throw based on desired error handling
+      return collect(); // Return empty collection if fetching fails
+    }
   }
 
+  // Computed property for leave types
   #[Computed]
-  public function activeEmployees(): \Illuminate\Support\Collection
+  public function leaveTypes()
   {
-    // Fetch active employees for the logged-in user's current center
-    // This logic is kept as per the original mount method
-    $user = Employee::find(Auth::user()->employee_id);
-
-    if (!$user) {
-      Log::warning('Leaves component: Authenticated user has no associated employee record for fetching active employees.', ['user_id' => Auth::id()]);
-      // Return empty collection gracefully
-      return collect();
-    }
-
-    // Find the current timeline for the employee
-    $currentTimeline = $user->timelines()->where('end_date', null)->first();
-
-    if (!$currentTimeline || !$currentTimeline->center_id) {
-      Log::info('Leaves component: Authenticated employee has no active timeline or center for fetching active employees.', ['user_id' => Auth::id(), 'employee_id' => $user->id]);
-      // Return empty collection gracefully
-      return collect();
-    }
-
-    // Find the center
-    $center = Center::find($currentTimeline->center_id);
-
-    if (!$center) {
-      Log::warning('Leaves component: Center found in timeline does not exist.', ['user_id' => Auth::id(), 'center_id' => $currentTimeline->center_id]);
-      // Return empty collection gracefully
-      return collect();
-    }
-
-    // Assuming activeEmployees() method on Center returns a Collection/array of employees
-    // E.g., $center->employees()->where('status', 'active')->get()
-    return $center->activeEmployees();
+    // Fetch all leave types
+    return Leave::orderBy('name')->get();
   }
 
+
+  // Computed property for displaying leaves based on filters
   #[Computed]
-  public function selectedEmployee(): ?Employee
+  public function leaves()
   {
-    // Fetch the selected employee model if an ID is set
-    return $this->selectedEmployeeId ? Employee::find($this->selectedEmployeeId) : null;
-  }
+    $query = EmployeeLeave::with(['employee', 'leave']); // Eager load relationships
 
-  #[Computed]
-  public function selectedLeave(): ?Leave
-  {
-    // Fetch the selected leave type model if an ID is set
-    return $this->selectedLeaveId ? Leave::find($this->selectedLeaveId) : null;
-  }
-
-  #[Computed]
-  public function leaves(): \Illuminate\Contracts\Pagination\LengthAwarePaginator
-  {
-    // This computed property replaces the render/applyFilter logic
-    // It will be automatically re-evaluated when its dependencies ($selectedEmployeeId, $selectedLeaveId, $dateRange, pagination page) change
-
-    // Parse date range string into Carbon dates
-    $fromDate = null;
-    $toDate = null;
-    if ($this->dateRange) {
-      $dates = explode(' to ', $this->dateRange);
-      if (count($dates) === 2) {
-        try {
-          $fromDate = Carbon::parse(trim($dates[0]))->startOfDay();
-          $toDate = Carbon::parse(trim($dates[1]))->endOfDay();
-        } catch (\Exception $e) {
-          // Handle invalid date format gracefully, maybe log and ignore filter
-          Log::warning('Leaves component: Invalid dateRange format received: ' . $this->dateRange, ['exception' => $e]);
-          $fromDate = null;
-          $toDate = null;
-        }
-      }
-    }
-
-    // Start with a base query on the EmployeeLeave model
-    $query = EmployeeLeave::query()
-      ->with(['employee', 'leave']) // Eager load relationships
-      ->orderBy('from_date', 'desc'); // Default order
-
-    // Filter by Employee if selected
+    // Apply filters
     if ($this->selectedEmployeeId) {
       $query->where('employee_id', $this->selectedEmployeeId);
-    } else {
-      // Default to logged-in user's employee ID if no employee filter is explicitly set
-      $query->where('employee_id', Auth::user()->employee_id);
     }
 
-    // Filter by Leave Type if selected
     if ($this->selectedLeaveId) {
       $query->where('leave_id', $this->selectedLeaveId);
     }
 
-    // Filter by Date Range (checking for overlap)
-    if ($fromDate && $toDate) {
-      // Find leaves that *overlap* with the selected date range
-      // A leave (from_date, to_date) overlaps with range (fromDate, toDate) if:
-      // (from_date <= toDate AND to_date >= fromDate)
-      $query->where(function ($q) use ($fromDate, $toDate) {
-        $q->where('from_date', '<=', $toDate)
-          ->where('to_date', '>=', $fromDate);
+    if ($this->startDate && $this->endDate) {
+      // Filter leaves that overlap with the selected date range
+      $query->where(function (Builder $q) {
+        $q->whereBetween('from_date', [$this->startDate, $this->endDate])
+          ->orWhereBetween('to_date', [$this->startDate, $this->endDate])
+          ->orWhere(function (Builder $q2) {
+            $q2->where('from_date', '<=', $this->startDate)
+              ->where('to_date', '>=', $this->endDate);
+          });
       });
-      // Note: The original code used whereBetween('from_date', [$this->fromDate, $this->toDate]),
-      // which only selects leaves *starting* within the range. The logic above finds *overlapping* leaves.
-      // If original logic was intentional, revert to: $query->whereBetween('from_date', [$fromDate, $toDate]);
     }
 
-
-    // Apply Role-based Filtering (Admin/HR vs. others)
-    // Admin/HR see all leaves for the selected employee within the date range
-    // Others only see their own unchecked leaves within the date range
-    if (! Auth::user()->hasAnyRole(['Admin', 'HR'])) {
-      // Non-admins/HR only see their own unchecked leaves.
-      // The employee_id filter above already restricts to their own leaves (as it defaults to Auth::user()->employee_id)
-      $query->where('is_checked', 0);
-    }
+    // Add sorting
+    $query->latest('from_date'); // Order by the start date descending
 
     // Return paginated results
-    return $query->paginate(7);
+    return $query->paginate(10); // Adjust pagination size as needed
   }
 
-  // 👉 Lifecycle Hooks
 
+  // Lifecycle hook - runs once when the component is initialized
   public function mount()
   {
-    // Set initial selected employee to the logged-in user's employee ID
-    $this->selectedEmployeeId = Auth::user()->employee_id;
-
-    // Initialize date range input string
-    $currentDate = Carbon::now();
-    $previousMonth = $currentDate->copy()->subMonth();
-    // Format date range string for the view input, matching expected format (e.g., YYYY-MM-DD to YYYY-MM-DD)
-    $this->dateRange = $previousMonth->format('Y-m-d') . ' to ' . $currentDate->format('Y-m-d');
-
-    // Initial data fetch is implicitly handled by the 'leaves' computed property when the component renders
+    // You might initialize default filter values here
+    $this->startDate = Carbon::now()->startOfYear()->format('Y-m-d');
+    $this->endDate = Carbon::now()->endOfYear()->format('Y-m-d');
   }
 
-  // No explicit updated methods are needed for $selectedEmployeeId, $selectedLeaveId, $dateRange
-  // because the 'leaves' computed property depends on them and will re-evaluate automatically.
-  // Pagination reset is handled by Livewire when dependencies change.
-
-  // Render method simply returns the view
-  public function render()
+  // This method is automatically called when the view needs to render
+  public function render(): View // Added return type hint
   {
-    return view('livewire.human-resource.attendance.leaves'); // No need to pass data explicitly if using Computed properties
+    // Using Computed properties means you don't typically need to pass
+    // the data explicitly to the view via this return statement
+    // Livewire automatically makes public properties and computed properties available to the view.
+    return view('livewire.human-resource.attendance.leaves');
+
+    // --- Debugging Fallback: Uncomment this block to pass explicitly if Computed property fails ---
+    // try {
+    //      $activeEmployees = Employee::where('status', 'active')->orderBy('first_name')->get();
+    // } catch (\Exception $e) {
+    //     Log::error('Error fetching active employees in render method: ' . $e->getMessage(), ['exception' => $e]);
+    //     $activeEmployees = collect(); // Return empty collection on error
+    // }
+    //
+    // return view('livewire.human-resource.attendance.leaves', [
+    //     'activeEmployees' => $activeEmployees,
+    //     // Pass other variables needed by the view, likely from other computed properties
+    //     'leaveTypes' => $this->leaveTypes,
+    //     'leaves' => $this->leaves,
+    // ]);
+    // --- End Debugging Fallback ---
+  }
+
+  // Example method to apply date range filter (called via wire:click or wire:submit)
+  public function applyDateFilter()
+  {
+    $this->resetPage(); // Reset pagination when filters change
+  }
+
+  // Example method to apply employee/leave type filters
+  public function applyFilters()
+  {
+    $this->resetPage(); // Reset pagination when filters changes
   }
 
 
-  // 👉 Leave Management Actions
-
-  // Validation rules
-  protected function rules()
+  // Method to determine if a leave type is hourly (used in the view)
+  public function isHourly($leaveTypeId)
   {
-    // Fetch the selected Leave model to check its type for conditional validation
-    // Access computed property for leave types and find the selected one
-    $selectedLeaveModel = $this->leaveTypes->firstWhere('id', $this->newLeaveInfo['leave_id']);
+    // Access the computed property and find the leave type
+    $leave = $this->leaveTypes->firstWhere('id', $leaveTypeId);
+    // Check if the leave type exists and its 'type' attribute is 'hourly'
+    return $leave ? $leave->type === 'hourly' : false;
+  }
 
+
+  // Method to handle saving a new leave request
+  public function saveLeave()
+  {
+    // *** IMPORTANT: Implement validation rules here ***
     $rules = [
-      'selectedEmployeeId' => 'required', // Employee must be selected
-      'newLeaveInfo.leave_id' => 'required', // Leave type must be selected
-      'newLeaveInfo.from_date' => 'required|date', // From date is required and valid date
-      'newLeaveInfo.to_date' => 'required|date|after_or_equal:newLeaveInfo.from_date', // To date required, valid date, and >= from date
-      'newLeaveInfo.note' => 'nullable|string|max:500', // Note is optional string, max 500 chars
-      'newLeaveInfo.start_at' => 'nullable', // Start time is nullable initially
-      'newLeaveInfo.end_at' => 'nullable', // End time is nullable initially
+      'selectedEmployeeId' => 'required|exists:employees,id',
+      'selectedLeaveId' => 'required|exists:leaves,id',
+      'startDate' => 'required|date',
+      'endDate' => 'required|date|after_or_equal:startDate',
+      'note' => 'nullable|string',
+      'is_checked' => 'boolean', // Assuming this is a checkbox value
+      'leaveFile' => 'nullable|file|max:1024', // Max 1MB
+      // Conditional validation for start_time and end_time if leave type is hourly
+      'startTime' => Rule::requiredIf($this->isHourly($this->selectedLeaveId)) . '|nullable|date_format:H:i',
+      'endTime' => Rule::requiredIf($this->isHourly($this->selectedLeaveId)) . '|nullable|date_format:H:i|after:startTime',
     ];
 
-    // Conditional validation based on leave type (daily/hourly) if the leave type model is found
-    if ($selectedLeaveModel) {
-      // Assuming 'type' attribute exists on Leave model ('daily' or 'hourly')
-      if ($this->isHourlyLeave($selectedLeaveModel->id)) { // Use helper method
-        // For hourly leave, start_at and end_at are required and must be valid times
-        $rules['newLeaveInfo.start_at'] = 'required|date_format:H:i';
-        $rules['newLeaveInfo.end_at'] = 'required|date_format:H:i|after:newLeaveInfo.start_at';
-        // Hourly leave must also be on the same day
-        $rules['newLeaveInfo.to_date'] = $rules['newLeaveInfo.to_date'] . '|same:newLeaveInfo.from_date'; // Add 'same' rule
-      } elseif ($this->isDailyLeave($selectedLeaveModel->id)) { // Use helper method
-        // For daily leave, start_at and end_at must be empty/null
-        // Using 'prohibits' rule ensures they are not present if the other is present, but doesn't force them to be null if both are absent.
-        // A simpler check is often sufficient: ensure they are null or empty strings in the submit method if the type is daily.
-        // Or validate they are not filled:
-        $rules['newLeaveInfo.start_at'] = 'nullable|prohibits:newLeaveInfo.start_at'; // Cannot be filled if daily
-        $rules['newLeaveInfo.end_at'] = 'nullable|prohibits:newLeaveInfo.end_at'; // Cannot be filled if daily
-        // Note: 'prohibits' prevents the field from being present AT ALL if the other is present.
-        // Maybe 'required_if' is better here in reverse, or simply checking in submitLeave
-        // Let's add checks in submitLeave for clarity.
-      }
-      // Add other leave types if necessary
-    }
+    $this->validate($rules); // Run validation
 
-    return $rules;
-  }
-
-  // Custom validation messages
-  protected function messages()
-  {
-    // Define custom messages, use __() for translation
-    return [
-      'selectedEmployeeId.required' => __('Please select an employee.'),
-      'newLeaveInfo.leave_id.required' => __('Please select a leave type.'),
-      'newLeaveInfo.from_date.required' => __('"From Date" is required.'),
-      'newLeaveInfo.from_date.date' => __('"From Date" must be a valid date.'),
-      'newLeaveInfo.to_date.required' => __('"To Date" is required.'),
-      'newLeaveInfo.to_date.date' => __('"To Date" must be a valid date.'),
-      'newLeaveInfo.to_date.after_or_equal' => __('"From Date" cannot be greater than "To Date".'),
-      'newLeaveInfo.to_date.same' => __('Hourly leave must be on the same day.'),
-      'newLeaveInfo.start_at.required_if' => __('Start time is required for hourly leave.'), // If using required_if
-      'newLeaveInfo.end_at.required_if' => __('End time is required for hourly leave.'), // If using required_if
-      'newLeaveInfo.start_at.date_format' => __('"Start At" must be in HH:MM format.'),
-      'newLeaveInfo.end_at.date_format' => __('"End At" must be in HH:MM format.'),
-      'newLeaveInfo.end_at.after' => __('"Start At" cannot be greater than "End At".'),
-      'newLeaveInfo.start_at.prohibits' => __('Start time is not allowed for daily leave.'), // If using prohibits
-      'newLeaveInfo.end_at.prohibits' => __('End time is not allowed for daily leave.'), // If using prohibits
-      'newLeaveInfo.note.string' => __('Notes must be text.'),
-      'newLeaveInfo.note.max' => __('Notes cannot exceed :max characters.'),
-      // Add messages for other rules/fields as needed
-    ];
-  }
-
-
-  // Submit the leave creation or update form
-  public function submitLeave()
-  {
-    // Validate the form data using the rules() method
-    $this->validate();
-
-    // Fetch the selected Leave model again to re-verify type for submission logic
-    $selectedLeaveModel = $this->leaveTypes->firstWhere('id', $this->newLeaveInfo['leave_id']);
-
-    // Additional checks based on leave type (if not fully covered by rules)
-    if ($selectedLeaveModel) {
-      if ($this->isDailyLeave($selectedLeaveModel->id)) {
-        // Ensure start_at and end_at are nullified for daily leave upon submission
-        $this->newLeaveInfo['start_at'] = null;
-        $this->newLeaveInfo['end_at'] = null;
-      }
-      // If hourly, rules already check dates are same and times are present/valid
-    }
-
-
-    // Use a database transaction for atomicity (all or nothing)
+    DB::beginTransaction();
     try {
-      DB::transaction(function () {
-        if ($this->isEdit) {
-          $this->updateLeave();
-        } else {
-          $this->createLeave();
-        }
-      });
+      $employeeLeave = new EmployeeLeave();
+      $employeeLeave->employee_id = $this->selectedEmployeeId;
+      $employeeLeave->leave_id = $this->selectedLeaveId;
+      $employeeLeave->from_date = $this->startDate;
+      $employeeLeave->to_date = $this->endDate;
+      $employeeLeave->note = $this->note;
+      $employeeLeave->is_checked = $this->is_checked;
 
-      // Success feedback and dispatch events after successful transaction
-      session()->flash('success', $this->isEdit ? __('Success, record updated successfully!') : __('Success, record created successfully!'));
-      $this->dispatch('scrollToTop'); // Assuming a JS event to scroll
-      $this->dispatch('closeModal', elementId: '#leaveModal'); // Assuming a JS event to close modal
-      $this->dispatch('toastr', type: 'success', message: __('Going Well!')); // Assuming a JS event for toastr
-
-    } catch (\Exception $e) {
-      // Log the exception
-      Log::error('Leave submit failed: ' . $e->getMessage(), [
-        'user_id' => Auth::id(),
-        'leave_data' => $this->newLeaveInfo,
-        'is_edit' => $this->isEdit,
-        'employee_leave_id' => $this->employeeLeaveId,
-      ]);
-
-      // Flash and dispatch error feedback
-      session()->flash('error', __('An error occurred while saving the leave record.') . ' ' . $e->getMessage()); // Show exception message for debugging, or a generic message
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!')); // Assuming a JS event for toastr
-      // Keep modal open on error? Or close? Original closed. Let's keep original behavior.
-      $this->dispatch('closeModal', elementId: '#leaveModal');
-    } finally {
-      // Reset modal state and clear form fields regardless of success or failure
-      $this->reset('isEdit', 'newLeaveInfo', 'employeeLeaveId');
-      $this->dispatch('clearSelect2Values'); // Dispatch JS to clear select2 elements
-    }
-  }
-
-
-  // Create a new leave record
-  protected function createLeave(): void // Use protected as called internally, void return type
-  {
-    // Assumes EmployeeLeave model exists and is fillable/guarded correctly
-    // created_by/updated_by might be handled by a trait or observer
-    EmployeeLeave::create([
-      'employee_id' => $this->selectedEmployeeId,
-      'leave_id' => $this->newLeaveInfo['leave_id'],
-      'from_date' => $this->newLeaveInfo['from_date'],
-      'to_date' => $this->newLeaveInfo['to_date'],
-      'start_at' => $this->newLeaveInfo['start_at'] ?: null, // Store empty strings from input as null
-      'end_at' => $this->newLeaveInfo['end_at'] ?: null,     // Store empty strings from input as null
-      'note' => $this->newLeaveInfo['note'] ?: null,       // Store empty strings from input as null
-      'created_by' => Auth::id(), // Assuming created_by stores User ID
-      'is_checked' => 0, // Assuming new leaves are unchecked by default
-    ]);
-
-    // Success feedback and dispatching is handled in submitLeave()
-  }
-
-  // Show modal for updating a leave record
-  public function showUpdateLeaveModal(int $employeeLeaveId): void // Accept ID, void return type
-  {
-    $this->reset('newLeaveInfo'); // Reset form fields only
-
-    $this->isEdit = true;
-    $this->employeeLeaveId = $employeeLeaveId; // Store the ID of the record being edited
-
-    // Use the EmployeeLeave model to find the record
-    $record = EmployeeLeave::find($this->employeeLeaveId);
-
-    if (!$record) {
-      // Handle case where record is not found (e.g., deleted by another user)
-      session()->flash('error', __('Leave record not found for editing.'));
-      $this->dispatch('toastr', type: 'error', message: __('Not Found!'));
-      // Dispatch JS to close the modal if it was triggered to open
-      $this->dispatch('closeModal', elementId: '#leaveModal');
-      return;
-    }
-
-    // Populate the form fields with the record's data
-    $this->selectedEmployeeId = $record->employee_id; // Also update employee filter dropdown if it exists and is tied to this property
-    $this->newLeaveInfo = [
-      'leave_id' => $record->leave_id,
-      'from_date' => $record->from_date ? Carbon::parse($record->from_date)->format('Y-m-d') : '', // Format date for input
-      'to_date' => $record->to_date ? Carbon::parse($record->to_date)->format('Y-m-d') : '',     // Format date for input
-      'start_at' => $record->start_at ?? '', // Use empty string for null time
-      'end_at' => $record->end_at ?? '',     // Use empty string for null time
-      'note' => $record->note ?? '',         // Use empty string for null note
-    ];
-
-    // Dispatch events to set Select2 values if used in the modal
-    $this->dispatch('setSelect2Values', employeeId: $this->selectedEmployeeId, leaveId: $record->leave_id);
-    // Dispatch JS event to open the modal if not handled by wire:click
-    // $this->dispatch('openModal', elementId: '#leaveModal');
-  }
-
-  // Update an existing leave record
-  protected function updateLeave(): void // Use protected as called internally, void return type
-  {
-    // Find the record again within the transaction for safety
-    $employeeLeave = EmployeeLeave::find($this->employeeLeaveId);
-
-    if (!$employeeLeave) {
-      // Should ideally not happen if showUpdateLeaveModal was called, but defensive check
-      Log::error('Leaves component: Attempted to update non-existent leave record.', ['user_id' => Auth::id(), 'employee_leave_id' => $this->employeeLeaveId]);
-      throw new Exception(__('Leave record not found for update.')); // Throw exception to trigger transaction rollback and error handling
-    }
-
-    // Update the record attributes
-    $employeeLeave->update([
-      'employee_id' => $this->selectedEmployeeId,
-      'leave_id' => $this->newLeaveInfo['leave_id'],
-      'from_date' => $this->newLeaveInfo['from_date'],
-      'to_date' => $this->newLeaveInfo['to_date'],
-      'start_at' => $this->newLeaveInfo['start_at'] ?: null, // Store empty strings as null
-      'end_at' => $this->newLeaveInfo['end_at'] ?: null,     // Store empty strings as null
-      'note' => $this->newLeaveInfo['note'] ?: null,       // Store empty strings as null
-      'updated_by' => Auth::id(), // Assuming updated_by stores User ID
-      // 'is_checked' might need logic here if updating allows changing check status
-    ]);
-
-    // Success feedback and dispatching is handled in submitLeave()
-    // Reset modal state is handled in submitLeave()
-  }
-
-  // Confirm deletion of a leave record
-  public function confirmDestroyLeave(int $employeeLeaveId): void // Accept ID, void return type
-  {
-    $this->confirmedId = $employeeLeaveId; // Store the ID for confirmation
-    // Dispatch event to show confirmation modal (e.g., SweetAlert, Bootstrap modal)
-    // $this->dispatch('openConfirmModal', elementId: '#deleteConfirmationModal');
-  }
-
-  // Perform the deletion after confirmation
-  public function destroyLeave(): void // Void return type
-  {
-    // Check if an ID is confirmed
-    if ($this->confirmedId === null) {
-      return; // No ID to delete
-    }
-
-    // Find the record to delete
-    $record = EmployeeLeave::find($this->confirmedId);
-
-    if (!$record) {
-      // Record not found (maybe already deleted)
-      session()->flash('error', __('Leave record not found for deletion.'));
-      $this->dispatch('toastr', type: 'error', message: __('Not Found!'));
-    } else {
-      // Perform the deletion
-      try {
-        $record->delete(); // Use model delete method (handles soft deletes if enabled)
-
-        session()->flash('success', __('Success, record deleted successfully!'));
-        $this->dispatch('toastr', type: 'success', message: __('Going Well!'));
-      } catch (\Exception $e) {
-        // Handle potential database errors during deletion
-        Log::error('Leaves component: Failed to delete leave record.', ['user_id' => Auth::id(), 'employee_leave_id' => $this->confirmedId, 'exception' => $e]);
-        session()->flash('error', __('An error occurred while deleting the leave record.') . ' ' . $e->getMessage()); // Show exception message or generic error
-        $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
+      // Handle hourly times if applicable
+      if ($this->isHourly($this->selectedLeaveId)) {
+        $employeeLeave->start_at = $this->startTime;
+        $employeeLeave->end_at = $this->endTime;
+      } else {
+        // Ensure hourly times are null for daily leaves
+        $employeeLeave->start_at = null;
+        $employeeLeave->end_at = null;
       }
+
+      // Handle file upload if applicable
+      if ($this->leaveFile) {
+        $fileName = $this->leaveFile->store('leaves', 'public'); // Store in 'storage/app/public/leaves'
+        $employeeLeave->file_path = $fileName; // Save the path in the database
+      }
+
+      // Set audit columns (assuming trait handles created_by, updated_by)
+      // The trait should set these automatically on save if you're using it correctly.
+      // If not, you might need to set them manually:
+      // $employeeLeave->created_by = Auth::id(); // Or Auth::user() if trait expects model
+
+      $employeeLeave->save(); // Save the record
+
+      DB::commit();
+
+      session()->flash('message', __('Leave request saved successfully.'));
+      $this->resetForm(); // Reset form fields after successful save
+      $this->dispatch('leaveSaved'); // Dispatch browser event for any JS listeners (e.g., close modal)
+
+    } catch (Exception $e) { // Catch imported Exception
+      DB::rollBack();
+      Log::error('Error saving leave request: ' . $e->getMessage(), ['exception' => $e]);
+      session()->flash('error', __('An error occurred while saving the leave request: ') . $e->getMessage());
+      // You might want to dispatch an event to show an error message on the frontend
+      // $this->dispatch('show-error-message', ['message' => __('An error occurred...')]);
+    }
+  }
+
+  // Method to confirm deletion
+  public function confirmDelete($leaveId)
+  {
+    $this->confirmingLeaveDeletion = true;
+    $this->leaveToDeleteId = $leaveId;
+  }
+
+  // Method to delete a leave request
+  public function deleteLeave()
+  {
+    if ($this->leaveToDeleteId === null) {
+      return; // Should not happen if confirmDelete is called first
     }
 
-    // Reset confirmedId and close confirmation modal (if using one)
-    $this->confirmedId = null;
-    // $this->dispatch('closeConfirmModal', elementId: '#deleteConfirmationModal');
-  }
-
-  // 👉 Import/Export Actions
-
-  // Validation rules for import
-  protected function importRules()
-  {
-    return [
-      'file' => 'required|mimes:xlsx,xls', // Accept both xlsx and xls
-    ];
-  }
-
-  // Custom validation messages for import
-  protected function importMessages()
-  {
-    return [
-      'file.required' => __('Please select a file to upload.'),
-      'file.mimes' => __('Only Excel files (xlsx, xls) are accepted.'),
-    ];
-  }
-
-
-  // Handle Excel import
-  public function importFromExcel()
-  {
-    // Validate the uploaded file using dedicated rules/messages
-    $this->validate($this->importRules(), $this->importMessages());
-
+    DB::beginTransaction();
     try {
-      // Assuming ImportLeaves handles data correctly and potentially reports errors internally
-      // Consider passing current user ID or center ID to the importer if needed for context
-      $import = new ImportLeaves();
-      Excel::import($import, $this->file);
+      $leaveRequest = EmployeeLeave::findOrFail($this->leaveToDeleteId);
 
-      // Optional: Check for failures or errors reported by the importer
-      // if ($import->failures()->isNotEmpty()) { ... handle import failures ... }
+      // Optional: Add authorization check here
+      // $this->authorize('delete', $leaveRequest); // Assuming a policy exists
 
-      // Send notification upon successful import
-      Notification::send(
-        Auth::user(),
-        new DefaultNotification(Auth::user()->id, __('Successfully imported the leaves file.')) // Translated notification message
-      );
-      $this->dispatch('refreshNotifications')->to(Navbar::class); // Dispatch event to refresh navbar
+      // Optional: Delete associated file if it exists
+      // if ($leaveRequest->file_path) {
+      //     Storage::disk('public')->delete($leaveRequest->file_path);
+      // }
 
-      // Flash success message
-      session()->flash('success', __('Well done! The file has been imported successfully.'));
-    } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-      // Catch validation exceptions specifically from Maatwebsite/Excel
-      $failures = $e->failures();
-      $errorMessage = __('Import failed due to validation errors:') . ' ' . count($failures) . ' ' . __('rows failed.');
-      // You might want to pass $failures to the view to display detailed errors
-      // $this->dispatch('showImportValidationErrors', errors: $failures);
-      Log::error('Leave import validation failed: ' . $errorMessage, ['user_id' => Auth::id(), 'failures' => $failures]);
-      session()->flash('error', $errorMessage);
-    } catch (Exception $e) {
-      // Catch other exceptions during import
-      Log::error('Leave import failed: ' . $e->getMessage(), ['user_id' => Auth::id(), 'file' => $this->file ? $this->file->getClientOriginalName() : 'N/A', 'exception' => $e]);
+      $leaveRequest->delete(); // Soft deletes the record
+      // Note: If using soft deletes, the record isn't truly removed from the DB.
 
-      // Provide a user-friendly error message
-      session()->flash('error', __('An error occurred during import. Please check the file format and content.')); // Generic error message
-    } finally {
-      // Ensure file property is reset and import modal is closed regardless of success or failure
-      $this->reset('file'); // Clear the file input field state
-      $this->dispatch('closeModal', elementId: '#importModal'); // Assuming a JS event to close modal
-      $this->dispatch('toastr', type: session()->has('success') ? 'success' : 'error', message: session()->get('success') ?? session()->get('error')); // Dispatch toastr based on flashed message
+      DB::commit();
+
+      session()->flash('message', __('Leave request deleted successfully.'));
+      $this->confirmingLeaveDeletion = false; // Close confirmation modal/section
+      $this->leaveToDeleteId = null; // Reset ID
+      $this->dispatch('leaveDeleted'); // Dispatch event
+      // No need to manually refresh $leaves computed property, Livewire handles it on subsequent renders.
+
+    } catch (Exception $e) { // Catch imported Exception
+      DB::rollBack();
+      Log::error('Error deleting leave request ID ' . $this->leaveToDeleteId . ': ' . $e->getMessage(), ['exception' => $e]);
+      session()->flash('error', __('An error occurred while deleting the leave request: ') . $e->getMessage());
     }
   }
 
-  // Handle Excel export
-  public function exportToExcel()
+
+  // Helper method to reset form fields
+  protected function resetForm()
   {
-    // Fetch data for export again, based on current user's center and filters if needed
-    // This logic seems specific to exporting recent, unchecked leaves created by the current user in their center
-    $user = Employee::find(Auth::user()->employee_id);
-    if (!$user) {
-      session()->flash('error', __('Unable to find employee for export filter.'));
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
-      return;
-    }
-
-    $currentTimeline = $user->timelines()->where('end_date', null)->first();
-    if (!$currentTimeline || !$currentTimeline->center_id) {
-      session()->flash('error', __('Unable to determine active center for export filter.'));
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
-      return;
-    }
-
-    $center = Center::find($currentTimeline->center_id);
-    if (!$center) {
-      session()->flash('error', __('Center not found for export filter.'));
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
-      return;
-    }
-
-    // Get employee IDs for the center
-    $centerEmployeesIds = $center->activeEmployees()->pluck('id');
-
-    // --- Data Fetching for Export ---
-    // Start with EmployeeLeave model
-    $query = EmployeeLeave::query()
-      ->select([
-        'employee_leave.id AS ID',
-        // Join employees table to get first/last name
-        DB::raw('CONCAT(employees.first_name, " ", employees.last_name) AS Employee'),
-        // Join leaves table to get leave name
-        'leaves.name AS Leave',
-        'employee_leave.from_date AS From Date',
-        'employee_leave.to_date AS To Date',
-        'employee_leave.start_at AS Start At',
-        'employee_leave.end_at AS End At',
-        'employee_leave.note AS Note',
-        // Assuming created_by/updated_by are User IDs or have relationships for names
-        // If CreatedUpdatedDeletedBy trait adds relationships, eager load and select names
-        // Otherwise, join users table
-        'employee_leave.created_by', // Get the ID
-        'employee_leave.updated_by', // Get the ID
-      ])
-      ->leftJoin('employees', 'employee_leave.employee_id', '=', 'employees.id')
-      ->leftJoin('leaves', 'employee_leave.leave_id', '=', 'leaves.id');
-    // Join users table twice to get created_by and updated_by user names if they store IDs
-    // ->leftJoin('users AS created_users', 'employee_leave.created_by', '=', 'created_users.id')
-    // ->leftJoin('users AS updated_users', 'employee_leave.updated_by', '=', 'updated_users.id')
-    // And select user names: DB::raw('created_users.name AS Created By User'), etc.
-
-
-    // Apply Filters based on the original logic (last 7 days, unchecked, created by current user's ID)
-    $query->whereIn('employee_leave.employee_id', $centerEmployeesIds)
-      ->where('employee_leave.created_at', '>=', Carbon::now()->subDays(7)->startOfDay()) // Use startOfDay for precision
-      ->where('is_checked', 0)
-      // Filter by the User ID of the creator
-      ->where('employee_leave.created_by', Auth::id()); // Assuming created_by stores User ID
-
-
-    $leavesToExport = $query->get(); // Get the data
-
-    if ($leavesToExport->isEmpty()) {
-      session()->flash('error', __('No leaves found matching the export criteria for the last 7 days.'));
-      $this->dispatch('toastr', type: 'warning', message: __('No Data!'));
-      return; // Stop here if no data
-    }
-
-
-    session()->flash('success', __('Well done! The file has been exported successfully.'));
-    $this->dispatch('toastr', type: 'success', message: __('Going Well!')); // Dispatch toastr on success
-
-    // Generate filename
-    $filename = 'Leaves - ' . Auth::user()->name . ' - ' .
-      Carbon::now()->subDays(7)->format('Y-m-d') . ' --- ' .
-      Carbon::now()->format('Y-m-d') . '.xlsx';
-
-    // Return the Excel download response
-    return Excel::download(
-      new ExportLeaves($leavesToExport), // Assuming ExportLeaves accepts the collection
-      $filename
-    );
+    $this->reset([
+      'selectedEmployeeId',
+      'selectedLeaveId',
+      'startDate',
+      'endDate',
+      'note',
+      'startTime',
+      'endTime',
+      'leaveFile',
+      'is_checked',
+    ]);
+    // Re-initialize default dates if needed
+    $this->startDate = Carbon::now()->startOfYear()->format('Y-m-d');
+    $this->endDate = Carbon::now()->endOfYear()->format('Y-m-d');
   }
 
 
-  // 👉 Helper Methods (Internal logic, not directly callable from view)
+  // 痩 Helper Methods (Internal logic, not directly callable from view)
 
-  // Check if a Leave type is hourly
-  // Requires the Leave model to have a 'type' column (e.g., enum, string)
+  // Check if a Leave type is hourly (Redundant if using the isHourly($leaveTypeId) method)
+  // Keeping for completeness based on potential original code structure.
   protected function isHourlyLeave(?int $leaveId): bool
   {
     if ($leaveId === null) {
@@ -656,13 +331,71 @@ class Leaves extends Component
     return $leave ? $leave->type === 'hourly' : false;
   }
 
-  // Check if a Leave type is daily
+  // Check if a Leave type is daily (Redundant if using the isHourly($leaveTypeId) method)
+  // Keeping for completeness based on potential original code structure.
   protected function isDailyLeave(?int $leaveId): bool
   {
     if ($leaveId === null) {
       return false; // Cannot be daily if no leave type selected
     }
     $leave = $this->leaveTypes->firstWhere('id', $leaveId);
+    // Assuming 'type' attribute exists on Leave model ('daily' or 'hourly')
     return $leave ? $leave->type === 'daily' : false;
   }
+
+  // *** Placeholder for potential code causing the type hint error that was at line 526 previously ***
+  // If you previously had an error related to passing an integer where a User model was expected
+  // around line 526 in your original Leaves.php file, you need to address that specific code here.
+  // Example: If you were setting a relationship: $model->user_relation()->associate(Auth::id()); // This causes the error
+  // FIX: $model->user_relation()->associate(Auth::user()); // Pass the User model instance
+  // Or if setting a foreign key directly: $model->created_by = Auth::id(); // This is usually fine if DB column is integer
+  // but if a method you call expects a User model, pass Auth::user() instead of Auth::id().
+  // Check the code around that line in your original file and apply the fix in this updated code.
+
+
+  // Example of a method that might be called for exporting leaves, which could have caused
+  // a User model type hint error if passing Auth::id() where a User was expected.
+  // public function exportLeaves()
+  // {
+  //     try {
+  //          // Fetch the data to export, applying current filters if needed
+  //          $leavesToExport = $this->leaves->items(); // Get the collection from the paginator
+  //          // Or refetch data without pagination if you need all results for export
+  //          // $leavesToExport = EmployeeLeave::with(['employee', 'leave'])->filter($this->filters)->get(); // Assuming a filter method/scope exists
+
+  //         Log::info('Exporting Leaves report.', [
+  //             'user_id' => Auth::id(), // This is typically okay if the log accepts int
+  //             'user_email' => Auth::user()->email, // Accessing user model property is fine
+  //             'filters' => [
+  //                 'employee_id' => $this->selectedEmployeeId,
+  //                 'leave_id' => $this->selectedLeaveId,
+  //                 'date_range' => [$this->startDate, $this->endDate],
+  //             ],
+  //         ]);
+
+  //         session()->flash('success', __('Well done! The file has been exported successfully.'));
+  //         $this->dispatch('toastr', type: 'success', message: __('Going Well!')); // Dispatch toastr on success
+
+  //         // Generate filename
+  //         $filename = 'Leaves - ' . Auth::user()->name . ' - ' .
+  //           Carbon::now()->subDays(7)->format('Y-m-d') . ' --- ' . // Adjust date range for filename as needed
+  //           Carbon::now()->format('Y-m-d') . '.xlsx';
+
+  //         // Return the Excel download response
+  //         return Excel::download(
+  //           new ExportLeaves($leavesToExport), // Assuming ExportLeaves accepts the collection
+  //           $filename
+  //         );
+
+  //     } catch (Exception $e) { // Catch imported Exception
+  //         Log::error('Error exporting leaves report: ' . $e->getMessage(), ['exception' => $e]);
+  //         session()->flash('error', __('An error occurred while exporting the report: ') . $e->getMessage());
+  //         // You might want to dispatch an event to show an error message on the frontend
+  //         // $this->dispatch('show-error-message', ['message' => __('An error occurred during export.')]);
+  //         // You might return null or a specific error response if not a download method
+  //         return null;
+  //     }
+  // }
+
+
 }

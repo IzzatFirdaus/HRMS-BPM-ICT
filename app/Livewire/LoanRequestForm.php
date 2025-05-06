@@ -16,12 +16,16 @@ use Illuminate\Validation\ValidationException; // Import ValidationException for
 use App\Models\Position; // Used in mount for applicant details
 use App\Models\Department; // Used in mount for applicant details
 use App\Models\Grade; // Used in mount for applicant details and for filtering responsible officers
+use App\Models\Unit; // Used in mount for applicant details
 use Illuminate\View\View; // For render return type hint
-use Illuminate\Http\RedirectResponse; // For redirect return type hint
+// Removed: use Illuminate\Http\RedirectResponse; // <-- Removed this import
 use Illuminate\Support\Collection; // Import Collection
 use Illuminate\Support\Facades\Log; // Import Log facade for error logging
-use Illuminate\Support\Facades\DB; // Ensure DB facade is imported for transactions
+// Removed unnecessary DB facade import if no manual transactions are used in this method
+// use Illuminate\Support\Facades\DB;
 use Carbon\Carbon; // For date handling
+use Exception; // Import generic Exception
+use Illuminate\Http\RedirectResponse; // <-- Re-added the import for the return value of redirect()
 
 
 class LoanRequestForm extends Component
@@ -31,695 +35,311 @@ class LoanRequestForm extends Component
   // Properties for Loan Details (Bahagian 1 & 2)
   public string $purpose = ''; // Tujuan Permohonan
   public string $location = ''; // Lokasi
-  public ?string $loan_start_date = null; // Tarikh Pinjaman
-  public ?string $loan_end_date = null; // Tarikh Dijangka Pulang
+  public ?string $loanStartDate = null; // Tarikh Pinjaman
+  public ?string $loanEndDate = null; // Tarikh Dijangka Pulang
+
+  // Properties for Applicant Details (auto-populated from User/Employee)
+  public string $fullName = ''; // Nama Penuh
+  public string $positionGrade = ''; // Jawatan & Gred
+  public string $departmentUnit = ''; // Bahagian/Unit
+  public string $phoneNumber = ''; // No. Telefon
 
   // Properties for Responsible Officer (Bahagian 2)
-  public bool $is_applicant_responsible = true; // Sila tandakan jika Pemohon adalah Pegawai Bertanggungjawab
-  public ?int $responsible_officer_id = null; // Pegawai Bertanggungjawab (if different from applicant)
-  public Collection $responsibleOfficers; // For dropdown (list of potential responsible officers)
+  public bool $isApplicantResponsible = true; // Checkbox state
+  public ?string $responsibleOfficerName = null;
+  public ?string $responsibleOfficerPositionGrade = null;
+  public ?string $responsibleOfficerPhoneNumber = null;
 
   // Properties for Equipment Items (Bahagian 3)
-  // Each item in the array will be an associative array with keys like 'equipment_type', 'quantity_requested', 'notes', 'id' (for existing items)
-  public array $items = [
-    ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''],
-  ]; // Array to hold multiple item requests (Jenis Peralatan, Kuantiti, Catatan)
+  // Use an array of arrays or a Collection of objects for multiple items
+  public array $loanItems = [
+    [
+      'equipmentType' => '',
+      'quantityRequested' => 1, // Default quantity
+      'notes' => '',
+    ]
+  ];
 
-  // Properties for Confirmation (Bahagian 4)
-  public bool $applicant_confirmation = false; // Pengesahan Pemohon checkbox
+  // Property for Applicant Confirmation (Bahagian 4)
+  public bool $applicantConfirmation = false;
 
-  // Optional: If updating an existing draft application
-  public ?int $applicationId = null; // Property for application ID
-  protected ?LoanApplication $loanApplication = null; // Type hint and initialize as nullable, protected as it's internal
+  // Property to hold the Loan Application model instance (for editing if implemented)
+  public ?LoanApplication $loanApplication = null;
 
+  // Dependency Injection for the Service
+  protected LoanApplicationService $loanApplicationService;
 
-  // Applicant's details displayed from User model (Bahagian 1 - Not form fields, fetched in mount)
-  public ?string $applicantName = null; // Nama Penuh
-  public ?string $applicantJobTitleGrade = null; // Jawatan & Gred (Combined for display)
-  public ?string $applicantDivisionUnit = null; // Bahagian/Unit
-  public ?string $applicantPhone = null; // No. Telefon
-
-
-  /**
-   * Real-time validation rules.
-   * Only validates properties touched by the user or necessary for basic UI state.
-   * Full validation happens on save/submit.
-   *
-   * @return array<string, array<mixed>|string|Rule>
-   */
-  protected function realtimeRules(): array
+  public function boot(LoanApplicationService $loanApplicationService)
   {
-    return [
-      'purpose' => 'nullable|string|max:500',
-      'location' => 'nullable|string|max:255',
-      'loan_start_date' => 'nullable|date|after_or_equal:today',
-      'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
-      'is_applicant_responsible' => 'boolean',
-      // Conditional required based on checkbox for real-time validation
-      // Only validate exists if a value is present and applicant is not responsible
-      'responsible_officer_id' => [Rule::requiredIf(!$this->is_applicant_responsible && !is_null($this->responsible_officer_id)), 'nullable', 'exists:users,id'],
-      'items' => 'nullable|array', // Validate the array structure itself
-      'items.*.equipment_type' => 'nullable|string|max:255',
-      // Quantity only needs basic real-time validation; min:1 check is more critical on submit
-      'items.*.quantity_requested' => 'nullable|integer|min:1', // Still check minimum if value is entered
-      'items.*.notes' => 'nullable|string|max:500',
-      // Confirmation is typically validated on submit, not real-time
-    ];
+    $this->loanApplicationService = $loanApplicationService;
   }
 
 
   /**
-   * Get validation rules for saving a draft.
-   * Fields are generally nullable, allowing partial completion.
-   *
-   * @return array<string, array<mixed>|string|Rule>
+   * Mount the component, typically used to load data for editing.
+   * @param  LoanApplication|null  $loanApplication Optional application to load for editing.
    */
-  protected function getDraftRules(): array
+  public function mount(?LoanApplication $loanApplication = null)
   {
-    return [
-      'purpose' => 'nullable|string|max:500',
-      'location' => 'nullable|string|max:255',
-      'loan_start_date' => 'nullable|date|after_or_equal:today',
-      'loan_end_date' => 'nullable|date|after_or_equal:loan_start_date',
-      'is_applicant_responsible' => 'boolean',
-      // Conditional required based on checkbox for draft save
-      // Only validate exists if checkbox is false AND a value has been selected
-      'responsible_officer_id' => [Rule::requiredIf(!$this->is_applicant_responsible && !is_null($this->responsible_officer_id)), 'nullable', 'exists:users,id'],
-      'items' => 'nullable|array',
-      'items.*.id' => 'nullable|integer|exists:loan_application_items,id', // Include validation for existing item IDs
-      'items.*.equipment_type' => 'nullable|string|max:255',
-      // For draft, quantity can be nullable if type is empty, but if a number is entered, it must be >= 1
-      'items.*.quantity_requested' => 'nullable|integer|min:1',
-      'items.*.notes' => 'nullable|string|max:500',
-      'applicant_confirmation' => 'boolean', // Optional for draft
-    ];
-  }
-
-  /**
-   * Get validation rules for final submission.
-   * Fields required for processing are mandatory.
-   *
-   * @return array<string, array<mixed>|string|Rule>
-   */
-  protected function getSubmitRules(): array
-  {
-    // Define base rules for submitted items
-    $itemRules = [
-      'equipment_type' => 'required|string|max:255', // Equipment type required on submit
-      'quantity_requested' => 'required|integer|min:1', // Quantity required and min 1 on submit
-      'notes' => 'nullable|string|max:500',
-    ];
-
-    return [
-      'purpose' => 'required|string|max:500', // Purpose required for submission
-      'location' => 'required|string|max:255', // Location required for submission
-      'loan_start_date' => 'required|date|after_or_equal:today',
-      'loan_end_date' => 'required|date|after_or_equal:loan_start_date',
-      'is_applicant_responsible' => 'boolean',
-      // Conditional required based on checkbox for submission
-      'responsible_officer_id' => [Rule::requiredIf(!$this->is_applicant_responsible), 'nullable', 'exists:users,id'], // Required if checkbox is false
-      'items' => 'required|array|min:1', // At least one item row required
-      'items.*.id' => 'nullable|integer|exists:loan_application_items,id', // Include validation for existing item IDs
-      // Apply the base item rules to each item in the array
-      'items.*.equipment_type' => $itemRules['equipment_type'],
-      'items.*.quantity_requested' => $itemRules['quantity_requested'],
-      'items.*.notes' => $itemRules['notes'],
-      'applicant_confirmation' => 'accepted', // Confirmation checkbox must be ticked
-    ];
-  }
-
-
-  /**
-   * Real-time validation.
-   *
-   * @param string $propertyName The name of the property being updated.
-   * @return void
-   */
-  public function updated(string $propertyName): void
-  {
-    // Use the defined realtime rules
-    try {
-      $this->validateOnly($propertyName, $this->realtimeRules());
-    } catch (ValidationException $e) {
-      // Keep existing errors for other properties and merge new ones
-      $this->setErrorBag($this->getErrorBag()->merge($e->errors()));
-      // Do not re-throw to prevent halting real-time updates
-      Log::debug('LoanRequestForm: Real-time validation failed', ['property' => $propertyName, 'errors' => $e->errors()]);
-    }
-  }
-
-
-  /**
-   * Mount the component.
-   * Fetches initial data and populates the form if editing an existing draft.
-   *
-   * @param LoanApplication|null $loanApplication Optional existing application for editing.
-   * @return \Illuminate\Http\RedirectResponse|null
-   */
-  public function mount(?LoanApplication $loanApplication = null): RedirectResponse|null
-  {
-    // Ensure user is authenticated to access the form
-    if (!Auth::check()) {
-      Log::warning('LoanRequestForm mounted for unauthenticated user.');
-      session()->flash('error', __('You must be logged in to access the loan request form.'));
-      // *** FIX: Changed to global redirect() helper ***
-      return redirect()->route('login'); // Redirect to login if not authenticated
-    }
-
-    $user = Auth::user(); // The authenticated user is the applicant
-
-    // Log whether mounting for new application or editing draft
+    // Load existing application data if provided (for editing)
     if ($loanApplication) {
-      Log::info('LoanRequestForm mounted for editing draft.', ['user_id' => $user->id, 'application_id' => $loanApplication->id]);
-    } else {
-      Log::info('LoanRequestForm mounted for new application.', ['user_id' => $user->id]);
-    }
-
-
-    // Initialize properties for a new form
-    $this->responsibleOfficers = collect(); // Default empty collection
-    $this->items = [['equipment_type' => '', 'quantity_requested' => 1, 'notes' => '']]; // Default one item row
-    $this->applicant_confirmation = false; // Default checkbox unchecked
-    $this->applicationId = null; // Default no application ID
-    $this->loanApplication = null; // Default no application model instance
-    $this->purpose = ''; // Default empty purpose
-    $this->location = ''; // Default empty location
-    $this->loan_start_date = now()->format('Y-m-d'); // Default start date to today
-    $this->loan_end_date = now()->addWeek()->format('Y-m-d'); // Default end date to one week from today
-    $this->is_applicant_responsible = true; // Default responsible officer to applicant
-    $this->responsible_officer_id = null; // Applicant is responsible, so ID is null
-
-    // Load users eligible to be responsible officers
-    try {
-      // Consider scoping this query if not all users should be selectable (e.g., by grade, role)
-      // Example: Only users Grade 41 and above can be responsible officers
-      // $this->responsibleOfficers = User::whereHas('grade', fn($query) => $query->where('level', '>=', 41))->orderBy('name')->get();
-      $this->responsibleOfficers = User::orderBy('name')->get(); // Fetch all users, ordered by name
-    } catch (\Exception $e) {
-      Log::error('LoanRequestForm: Error fetching responsible officers.', ['user_id' => $user->id, 'exception' => $e]);
-      session()->flash('error', __('Could not load responsible officers. Please try again later.')); // Malay error message
-      $this->responsibleOfficers = collect(); // Set to empty collection on error
-    }
-
-
-    // Populate applicant's details from the authenticated user model for display (Bahagian 1)
-    // Use null-safe operator '?->' and nullish coalescing '??' for robustness
-    $this->applicantName = $user->full_name ?? $user->name ?? __('N/A');
-    // Assuming User model has position and grade relationships
-    $this->applicantJobTitleGrade = ($user->position?->name ?? __('N/A')) . ' & ' . ($user->grade?->name ?? __('N/A'));
-    // Assuming User model has a department relationship
-    $this->applicantDivisionUnit = $user->department?->name ?? __('N/A');
-    // Assuming User model has a mobile_number field
-    $this->applicantPhone = $user->mobile_number ?? __('N/A');
-
-
-    // If editing an existing application, populate form fields
-    if ($loanApplication) {
-      // Ensure the application exists and is a draft owned by the user before populating
-      if ($loanApplication->user_id !== $user->id || $loanApplication->status !== 'draft') {
-        Log::warning('LoanRequestForm: Attempted to mount non-owned or non-draft application for editing.', [
-          'user_id' => $user->id,
-          'application_id' => $loanApplication->id,
-          'status' => $loanApplication->status,
-        ]);
-        // You might choose a different message depending on desired behavior
-        session()->flash('error', __('Anda tidak dibenarkan untuk mengedit permohonan ini.')); // Malay error message
-        // Redirect away if not allowed to edit
-        // *** FIX: Changed to global redirect() helper ***
-        return redirect()->route('loan-applications.show', $loanApplication);
-      }
-
-      // Authorize viewing/updating (policy check is still good practice even after manual check)
-      try {
-        // 'view' policy checks if user can see the application (applicant, approver, BPM, admin)
-        $this->authorize('view', $loanApplication);
-        // 'update' policy should specifically enforce draft status and ownership for editing the form
-        $this->authorize('update', $loanApplication);
-      } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
-        Log::warning('LoanRequestForm: User not authorized to edit application via policy.', ['user_id' => $user->id, 'application_id' => $loanApplication->id, 'exception' => $e]);
-        session()->flash('error', __('Anda tidak mempunyai kebenaran untuk mengedit permohonan ini.')); // Malay error message
-        // *** FIX: Changed to global redirect() helper ***
-        return redirect()->route('loan-applications.show', $loanApplication);
-      }
+      $this->loanApplication = $loanApplication;
 
       // Populate properties from the existing application
-      $this->applicationId = $loanApplication->id;
-      $this->loanApplication = $loanApplication; // Store the model instance
-      $this->purpose = $loanApplication->purpose ?? '';
-      $this->location = $loanApplication->location ?? '';
-      // Format dates for form fields (assuming Y-m-d format is expected by input type="date")
-      $this->loan_start_date = $loanApplication->loan_start_date ? Carbon::parse($loanApplication->loan_start_date)->format('Y-m-d') : null;
-      $this->loan_end_date = $loanApplication->loan_end_date ? Carbon::parse($loanApplication->loan_end_date)->format('Y-m-d') : null;
+      $this->purpose = $loanApplication->purpose;
+      $this->location = $loanApplication->location;
+      // Use null-safe operator and optional formatting for date casts
+      $this->loanStartDate = $loanApplication->loan_start_date?->format('Y-m-d');
+      $this->loanEndDate = $loanApplication->loan_end_date?->format('Y-m-d');
 
-      $this->responsible_officer_id = $loanApplication->responsible_officer_id;
-      // Determine is_applicant_responsible checkbox state based on responsible_officer_id
-      $this->is_applicant_responsible = is_null($loanApplication->responsible_officer_id);
+      // Applicant details (should ideally come from the user relationship)
+      // Safely access relationships using null-safe operator
+      $this->fullName = $loanApplication->user?->name ?? ''; // Assuming user name is the full name
+      // *** FIX: Use null-safe operators for safer access to employee and related properties ***
+      $this->positionGrade = ($loanApplication->user?->employee?->position?->name ?? '') . ' ' . ($loanApplication->user?->employee?->grade?->name ?? ''); // Combine position and grade safely, handle nulls
+      $this->departmentUnit = ($loanApplication->user?->employee?->department?->name ?? '') . ' / ' . ($loanApplication->user?->employee?->unit?->name ?? ''); // Combine department and unit safely, handle nulls
+      $this->phoneNumber = $loanApplication->user?->employee?->phone_number ?? '';
 
 
-      // Load existing items from the application's items relationship
-      $this->items = $loanApplication->items->map(function ($item) {
+      // Responsible Officer details
+      // Check if responsible officer ID is set and is NOT the applicant's user ID
+      $this->isApplicantResponsible = ($loanApplication->responsible_officer_id === null || $loanApplication->responsible_officer_id === $loanApplication->user_id);
+
+      if (!$this->isApplicantResponsible && $loanApplication->responsibleOfficer) {
+        // Safely access responsible officer details using null-safe operator
+        $this->responsibleOfficerName = $loanApplication->responsibleOfficer->name ?? null;
+        // *** FIX: Use null-safe operators for safer access to employee and related properties ***
+        $this->responsibleOfficerPositionGrade = ($loanApplication->responsibleOfficer->employee?->position?->name ?? '') . ' ' . ($loanApplication->responsibleOfficer->employee?->grade?->name ?? ''); // Combine safely, handle nulls
+        $this->responsibleOfficerPhoneNumber = $loanApplication->responsibleOfficer->employee?->phone_number ?? null;
+      } else {
+        // If applicant is responsible or responsible officer is null/not found, ensure these are null
+        $this->responsibleOfficerName = null;
+        $this->responsibleOfficerPositionGrade = null;
+        $this->responsibleOfficerPhoneNumber = null;
+      }
+
+
+      // Load loan items from the existing application
+      $this->loanItems = $loanApplication->items->map(function ($item) {
         return [
-          'id' => $item->id, // Include item ID for updates/deletions
-          'equipment_type' => $item->equipment_type ?? '',
-          'quantity_requested' => $item->quantity_requested ?? 1,
-          'notes' => $item->notes ?? '',
+          'equipmentType' => $item->equipment_type,
+          'quantityRequested' => $item->quantity_requested,
+          'notes' => $item->notes,
+          // Do not load quantity_approved/issued/returned into the form for creation/basic edit
         ];
       })->toArray();
 
-      // If no items were loaded from the existing draft (e.g., saved with zero items), add a default empty row
-      if (empty($this->items)) {
-        $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
+      // Ensure at least one item if the loaded application had none (shouldn't happen normally unless data is inconsistent)
+      if (empty($this->loanItems)) {
+        $this->loanItems[] = [
+          'equipmentType' => '',
+          'quantityRequested' => 1,
+          'notes' => '',
+        ];
       }
 
-      // Confirmation state is typically NOT loaded from timestamp for drafting, user needs to confirm again on submit
-      // The checkbox state from a draft is not usually saved, only the timestamp upon submission.
-      // $this->applicant_confirmation = $loanApplication->applicant_confirmation_timestamp !== null; // Removed this line as confirmation is for submission
-    }
+      // Applicant Confirmation (if the application has already been submitted/confirmed)
+      $this->applicantConfirmation = ($loanApplication->applicant_confirmation_timestamp !== null);
+    } else {
+      // Populating properties for a new application
+      $user = Auth::user(); // Get the authenticated user
 
-    // If we reached this point and didn't redirect, return null
-    return null; // Explicitly return null if no redirect happens
-  }
+      // Safely access employee details using null-safe operator
+      $this->fullName = $user?->name ?? ''; // Assuming user name is the full name
+      // *** FIX: Use null-safe operators for safer access to employee and related properties ***
+      $this->positionGrade = ($user?->employee?->position?->name ?? '') . ' ' . ($user?->employee?->grade?->name ?? ''); // Combine position and grade safely, handle nulls
+      $this->departmentUnit = ($user?->employee?->department?->name ?? '') . ' / ' . ($user?->employee?->unit?->name ?? ''); // Combine department and unit safely, handle nulls
+      $this->phoneNumber = $user?->employee?->phone_number ?? '';
 
-  /**
-   * Render the component view.
-   *
-   * @return \Illuminate\View\View
-   */
-  public function render(): View
-  {
-    // Pass dropdown data and the application instance (if editing) to the view
-    return view('livewire.loan-request-form', [
-      'responsibleOfficers' => $this->responsibleOfficers,
-      'loanApplication' => $this->loanApplication, // Pass the application instance if editing
-      // Pass applicant details for display in the view
-      'applicantName' => $this->applicantName,
-      'applicantJobTitleGrade' => $this->applicantJobTitleGrade,
-      'applicantDivisionUnit' => $this->applicantDivisionUnit,
-      'applicantPhone' => $this->applicantPhone,
-    ]);
-  }
-
-
-  /**
-   * Method to add a new equipment item row to the items array.
-   * Called when the "Tambah Peralatan Lain" button is clicked.
-   *
-   * @return void
-   */
-  public function addItem(): void
-  {
-    // Add a new default item row to the items array
-    $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
-  }
-
-  /**
-   * Method to remove an equipment item row from the items array.
-   * Called when the "Buang" button next to an item row is clicked.
-   *
-   * @param int $index The index of the item row to remove.
-   * @return void
-   */
-  public function removeItem(int $index): void
-  {
-    // Check if the item exists at the given index
-    if (isset($this->items[$index])) {
-      // If the item has an ID, it means it's an existing item from a saved draft.
-      // Mark it for deletion from the database when the draft is saved/updated.
-      // A better approach would be to manage item deletions explicitly in the service.
-      // For this version, we'll just remove it from the Livewire array. The service
-      // update method will need to handle syncing items (deleting items in DB that
-      // are not in the updated $itemsData array).
-
-      unset($this->items[$index]); // Remove the item from the array
-      $this->items = array_values($this->items); // Re-index the array
-
-      // Ensure there's always at least one item row visible in the UI
-      if (empty($this->items)) {
-        $this->items[] = ['equipment_type' => '', 'quantity_requested' => 1, 'notes' => ''];
-      }
-
-      // Clear validation errors specific to the removed item if any
-      $this->resetErrorBag('items.' . $index . '.equipment_type');
-      $this->resetErrorBag('items.' . $index . '.quantity_requested');
-      $this->resetErrorBag('items.' . $index . '.notes');
+      // Default: applicant is responsible
+      $this->isApplicantResponsible = true;
     }
   }
 
+  /**
+   * Validation rules for the form.
+   * Use conditional rules based on isApplicantResponsible.
+   */
+  protected function rules(): array
+  {
+    return [
+      'purpose' => 'required|string|max:255',
+      'location' => 'required|string|max:255',
+      'loanStartDate' => 'required|date',
+      'loanEndDate' => 'required|date|after_or_equal:loanStartDate',
+      'isApplicantResponsible' => 'boolean',
+      'responsibleOfficerName' => Rule::requiredIf(!$this->isApplicantResponsible) . '|nullable|string|max:255',
+      'responsibleOfficerPositionGrade' => Rule::requiredIf(!$this->isApplicantResponsible) . '|nullable|string|max:255',
+      'responsibleOfficerPhoneNumber' => Rule::requiredIf(!$this->isApplicantResponsible) . '|nullable|string|max:20', // Adjust max length as needed
+      'loanItems' => 'required|array|min:1', // Must have at least one item
+      'loanItems.*.equipmentType' => 'required|string|max:255',
+      'loanItems.*.quantityRequested' => 'required|integer|min:1',
+      'loanItems.*.notes' => 'nullable|string|max:500',
+      'applicantConfirmation' => 'accepted', // Requires the checkbox to be ticked
+    ];
+  }
 
   /**
-   * Save the application form data as a draft.
-   * This method saves or updates an application record with status 'draft'.
-   * It does NOT submit the application for approval.
-   *
-   * @param LoanApplicationService $loanApplicationService The service to handle application logic.
-   * @return void // This method does not return a RedirectResponse
+   * Custom validation messages.
    */
-  public function saveAsDraft(LoanApplicationService $loanApplicationService): void
+  protected function messages(): array
   {
-    // Ensure user is authenticated
-    if (!Auth::check()) {
-      Log::warning('LoanRequestForm: Attempted to save draft for unauthenticated user.');
-      session()->flash('error', __('You must be logged in to save a draft.')); // Malay error message
-      return; // Return null implicitly (void) - No redirect from a void method
+    return [
+      'purpose.required' => 'Tujuan Permohonan wajib diisi.',
+      'location.required' => 'Lokasi wajib diisi.',
+      'loanStartDate.required' => 'Tarikh Pinjaman wajib diisi.',
+      'loanEndDate.required' => 'Tarikh Dijangka Pulang wajib diisi.',
+      'loanEndDate.after_or_equal' => 'Tarikh Dijangka Pulang mestilah pada atau selepas Tarikh Pinjaman.',
+      'responsibleOfficerName.required_if' => 'Nama Penuh Pegawai Bertanggungjawab wajib diisi jika Pemohon bukan Pegawai Bertanggungjawab.',
+      'responsibleOfficerPositionGrade.required_if' => 'Jawatan & Gred Pegawai Bertanggungjawab wajib diisi jika Pemohon bukan Pegawai Bertanggungjawab.',
+      'responsibleOfficerPhoneNumber.required_if' => 'No. Telefon Pegawai Bertanggungjawab wajib diisi jika Pemohon bukan Pegawai Bertanggungjawab.',
+      'loanItems.required' => 'Sekurang-kurangnya satu Peralatan wajib ditambah.',
+      'loanItems.min' => 'Sekurang-kurangnya satu Peralatan wajib ditambah.',
+      'loanItems.*.equipmentType.required' => 'Jenis Peralatan untuk setiap item wajib diisi.',
+      'loanItems.*.quantityRequested.required' => 'Kuantiti untuk setiap item wajib diisi.',
+      'loanItems.*.quantityRequested.integer' => 'Kuantiti mestilah nombor bulat.',
+      'loanItems.*.quantityRequested.min' => 'Kuantiti mestilah sekurang-kurangnya 1.',
+      'applicantConfirmation.accepted' => 'Pengesahan Pemohon wajib ditanda.',
+    ];
+  }
+
+
+  /**
+   * Add a new empty item row to the loan items list.
+   */
+  public function addLoanItem()
+  {
+    $this->loanItems[] = [
+      'equipmentType' => '',
+      'quantityRequested' => 1,
+      'notes' => '',
+    ];
+  }
+
+  /**
+   * Remove an item row from the loan items list by index.
+   * @param int $index The index of the item to remove.
+   */
+  public function removeLoanItem(int $index)
+  {
+    // Prevent removing the last item
+    if (count($this->loanItems) > 1) {
+      unset($this->loanItems[$index]);
+      // Re-index the array to prevent Livewire issues with keys
+      $this->loanItems = array_values($this->loanItems);
+    } else {
+      session()->flash('error', 'Sekurang-kurangnya satu item peralatan diperlukan.'); // Malay message
     }
-    $user = Auth::user();
+  }
 
 
-    // 1. Validate the form data against draft rules
+  /**
+   * Handle the form submission (Create or Update).
+   * Creates a new loan application record and its associated items via the service.
+   *
+   * @return void|\Illuminate\Http\RedirectResponse Returns a RedirectResponse on success, otherwise null.
+   */
+  public function submitApplication() // <-- Removed ": RedirectResponse" return type hint here
+  {
+    // Authorize the action (e.g., create loan application policy)
+    // $this->authorize('create', LoanApplication::class); // Assuming a policy exists
+
+    // Validate the form data
     try {
-      // Use the dedicated draft rules method
-      $validatedData = $this->validate($this->getDraftRules());
+      $this->validate();
+      Log::debug('Loan application form validated successfully.');
     } catch (ValidationException $e) {
-      $this->setErrorBag($e->errors());
-      Log::info('LoanRequestForm: Draft validation failed.', ['user_id' => $user->id, 'errors' => $e->errors()]);
-      session()->flash('error', __('Sila betulkan ralat pada borang sebelum menyimpan draf.')); // Malay error message
-      return; // Stop execution if validation fails (return null implicitly)
+      Log::warning('Loan application form validation failed in component submit method.', ['user_id' => Auth::id(), 'errors' => $e->errors()]);
+      session()->flash('error', 'Sila semak semula borang permohonan. Terdapat ralat.'); // Malay message
+      // Re-throw the exception so Livewire handles displaying errors in the view
+      throw $e;
     }
 
-    // Determine responsible officer ID based on checkbox state
-    // If is_applicant_responsible is true, responsible_officer_id is null
-    // Otherwise, use the selected responsible_officer_id (which is validated as required if checkbox is false)
-    $responsibleOfficerId = $validatedData['is_applicant_responsible'] ? null : ($validatedData['responsible_officer_id'] ?? null);
 
-
-    // Prepare application data for saving
-    $applicationData = [
-      'user_id' => $user->id, // Set the applicant's user ID
-      'responsible_officer_id' => $responsibleOfficerId, // Save responsible officer ID (null if applicant is responsible)
-      'purpose' => $validatedData['purpose'] ?? null, // Save purpose (nullable for draft)
-      'location' => $validatedData['location'] ?? null, // Save location (nullable for draft)
-      // Save dates, ensure they are null if not provided
-      'loan_start_date' => $validatedData['loan_start_date'] ?? null,
-      'loan_end_date' => $validatedData['loan_end_date'] ?? null,
-      'status' => 'draft', // Ensure status is always 'draft' for saveAsDraft
-      // applicant_confirmation_timestamp is NOT set when saving draft
+    // Prepare data for the service
+    // $this->all() gets all public properties, but we need to structure it
+    // according to what the service's createApplication method expects.
+    $dataForApplication = [
+      'purpose' => $this->purpose,
+      'location' => $this->location,
+      'loan_start_date' => $this->loanStartDate,
+      'loan_end_date' => $this->loanEndDate,
+      // Responsible officer ID - derive from name/position or search in User model
+      // This requires finding the responsible officer in the database if not the applicant
+      'responsible_officer_id' => $this->isApplicantResponsible ? Auth::id() : null, // Default to applicant ID if applicant is responsible
+      'applicant_confirmation_timestamp' => $this->applicantConfirmation ? now() : null, // Record timestamp if confirmed
+      // The service will set the initial status to PENDING_SUPPORT
     ];
 
-    // Prepare items data for saving (include 'id' for existing items)
-    // Filter out item rows that are completely empty for draft
-    // You might adjust this filter based on whether you want to save rows with only notes/quantity
-    $itemsData = collect($validatedData['items'] ?? [])
-      ->filter(
-        // *** FIX: Corrected array access syntax ***
-        fn($item) =>
-        !empty($item['equipment_type']) || // Keep if equipment type is filled
-          !empty($item['notes']) || // Keep if notes are filled
-          ($item['quantity_requested'] ?? 0) > 0 || // Keep if quantity > 0
-          isset($item['id']) // Keep if it's an existing item (has an ID)
-      )
-      ->values() // Re-index the array after filtering
-      ->toArray();
-
-
-    // Use a transaction for atomicity in saving/updating the application and its items
-    try {
-      DB::beginTransaction();
-
-      if ($this->applicationId) {
-        // --- Updating an existing draft ---
-        Log::info('LoanRequestForm: Attempting to update draft application.', ['user_id' => $user->id, 'application_id' => $this->applicationId]);
-
-        // Find the application instance (already checked in mount, but good to be safe)
-        // Use findOrFail to throw exception if not found
-        $application = $this->loanApplication ?? LoanApplication::where('id', $this->applicationId)->firstOrFail();
-
-        // Policy check should ensure it's the user's draft they are authorized to update
-        $this->authorize('update', $application);
-
-        // Double-check draft status before updating (redundant if policy checks, but safe)
-        if ($application->status !== 'draft') {
-          DB::rollBack();
-          Log::warning('LoanRequestForm: Attempted to update non-draft application via saveAsDraft.', ['user_id' => $user->id, 'application_id' => $application->id, 'status' => $application->status]);
-          session()->flash('error', __('Tidak dapat menyimpan draf kerana status permohonan bukan draf.')); // Malay error
-          // No redirect from a void method
-          return;
-        }
-
-        // Use service method to update the draft application and its items
-        // The service's update method should handle syncing items (creating new, updating existing, deleting removed)
-        $application = $loanApplicationService->updateApplication($application, $applicationData, $itemsData);
-
-        Log::info('Loan request draft updated successfully via service.', ['user_id' => $user->id, 'application_id' => $application->id]);
-        session()->flash('success', __('Draf permohonan pinjaman berjaya dikemaskini!')); // Malay success message
-
-
-      } else {
-        // --- Creating a new draft ---
-        Log::info('LoanRequestForm: Attempting to create new draft application.', ['user_id' => $user->id]);
-
-        // Authorize if the user can create a loan application
-        $this->authorize('create', LoanApplication::class);
-
-
-        // Use service method to create the application and its items
-        // The service's create method should set the initial status to 'draft'
-        $application = $loanApplicationService->createApplication($user, $applicationData, $itemsData);
-
-        // Store the new application ID and instance to allow future updates/submission
-        $this->applicationId = $application->id;
-        $this->loanApplication = $application; // Store the created model instance
-
-        Log::info('Loan request draft created successfully via service.', ['user_id' => $user->id, 'application_id' => $application->id]);
-        session()->flash('success', __('Draf permohonan pinjaman berjaya disimpan!')); // Malay success message
-      }
-
-      DB::commit(); // Commit the transaction
-
-    } catch (ModelNotFoundException $e) {
-      DB::rollBack(); // Rollback the transaction on error
-      Log::error('LoanRequestForm: Draft application not found during save/update.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
-      session()->flash('error', __('Draf permohonan tidak ditemui.')); // Malay error message
-    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
-      DB::rollBack(); // Rollback the transaction on error
-      Log::warning('LoanRequestForm: User not authorized during saveAsDraft.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
-      session()->flash('error', __('Anda tidak mempunyai kebenaran untuk melakukan tindakan ini.')); // Malay error message
-    } catch (ValidationException $e) {
-      // This catch block is primarily for exceptions thrown by the service's validation
-      // Livewire's $this->validate() is caught earlier.
-      DB::rollBack(); // Rollback the transaction on error
-      Log::error('LoanRequestForm: Validation error during saveAsDraft service call.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'errors' => $e->errors(), 'exception' => $e]);
-      // Re-throw the exception so Livewire can display validation errors if needed
-      // However, since we already validate with $this->validate() at the start,
-      // catching ValidationException here might indicate validation logic in the service,
-      // or it could be safely removed if service doesn't throw ValidationException.
-      // For now, we re-throw, but consider removing this specific catch if validation is only done via $this->validate().
-      throw $e; // Re-throw the exception
-    } catch (\Exception $e) {
-      DB::rollBack(); // Rollback the transaction on error
-      Log::error('LoanRequestForm: An unexpected error occurred while saving the draft.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
-      session()->flash('error', __('Ralat berlaku semasa menyimpan draf. Sila cuba sebentar lagi.')); // Malay error message
+    // Find the responsible officer user if different from applicant
+    // This is a placeholder and needs robust implementation if you need to link to a specific User/Employee
+    // If linking by Employee ID:
+    // $responsibleOfficerEmployee = Employee::where('name', $this->responsibleOfficerName)->first();
+    // if ($responsibleOfficerEmployee && $responsibleOfficerEmployee->user_id) {
+    //      $dataForApplication['responsible_officer_id'] = $responsibleOfficerEmployee->user_id; // Link to their user ID
+    // } else {
+    //     // Handle case where responsible officer employee is not found or has no linked user
+    //     Log::warning('Responsible officer not found by name or has no linked user.', ['responsible_officer_name' => $this->responsibleOfficerName, 'user_id' => Auth::id()]);
+    //     // The responsible_officer_id will remain null as initialized if not found.
+    //     // You might want to add validation or feedback to the user if the responsible officer is required but not found.
+    // }
+    // Or if linking directly by User name (less reliable):
+    // $responsibleOfficerUser = User::where('name', $this->responsibleOfficerName)->first();
+    // if ($responsibleOfficerUser) {
+    //     $dataForApplication['responsible_officer_id'] = $responsibleOfficerUser->id;
+    // } else {
+    //      Log::warning('Responsible officer User model not found by name.', ['responsible_officer_name' => $this->responsibleOfficerName, 'user_id' => Auth::id()]);
+    // }
+    if (!$this->isApplicantResponsible && $this->responsibleOfficerName) {
+      Log::warning('Logic to find responsible officer by name is not yet implemented. responsible_officer_id may be null.', ['responsible_officer_name' => $this->responsibleOfficerName, 'user_id' => Auth::id()]);
     }
 
-    // Explicitly return for clarity in a void method
-    return;
+
+    try {
+      Log::debug('Calling service to create loan application.', ['user_id' => Auth::id(), 'items_count' => count($this->loanItems)]);
+
+      // Pass $this->loanItems as the third argument to the service method
+      $loanApplication = $this->loanApplicationService->createApplication(
+        $dataForApplication, // Arg 1: Data for the LoanApplication model
+        Auth::user(), // Arg 2: The applicant User model
+        $this->loanItems // Arg 3: The array of loan items data
+      );
+
+      Log::info('Loan application created successfully by service.', ['application_id' => $loanApplication->id, 'user_id' => Auth::id()]);
+
+      // Redirect to the show page of the newly created application
+      // Changed route name to 'my-applications.loan.show' based on updated web.php
+      session()->flash('success', 'Permohonan pinjaman peralatan ICT berjaya dihantar!'); // Malay success message
+      // Use the global redirect() helper which returns a RedirectResponse
+      return redirect()->route('my-applications.loan.show', $loanApplication);
+    } catch (ValidationException $e) {
+      // Livewire's default error handling will display validation errors
+      Log::warning('Loan application submission validation failed in component submit method.', ['user_id' => Auth::id(), 'errors' => $e->errors()]);
+      session()->flash('error', 'Sila semak semula borang permohonan. Terdapat ralat.'); // Malay message
+      // Re-throw the exception so Livewire handles displaying errors in the view
+      throw $e; // Keep throwing the validation exception
+    } catch (Exception $e) {
+      // Handle other exceptions from the service or database
+      Log::error('Error submitting loan application via service.', ['user_id' => Auth::id(), 'error' => $e->getMessage(), 'exception' => $e]);
+      session()->flash('error', 'Gagal menghantar permohonan pinjaman peralatan disebabkan ralat: ' . $e->getMessage()); // Malay message
+      // In Livewire, you typically update the component's state to show an error message
+      // and prevent redirect on error. Returning null is appropriate here.
+      return null; // <-- Returns null on generic failure
+    }
   }
 
 
   /**
-   * Submit the application form for approval.
-   * This transitions a draft application to 'pending_support' status.
-   *
-   * @param LoanApplicationService $loanApplicationService The service to handle application logic.
-   * @return \Illuminate\Http\RedirectResponse|null
+   * Render the component's view.
    */
-  public function submitApplication(LoanApplicationService $loanApplicationService): RedirectResponse|null
+  public function render(): View // Added return type hint
   {
-    // Ensure user is authenticated
-    if (!Auth::check()) {
-      Log::warning('LoanRequestForm: Attempted to submit application for unauthenticated user.');
-      session()->flash('error', __('You must be logged in to submit an application.')); // Malay error message
-      return null; // Stop execution (return null) - No redirect from here
-    }
-    $user = Auth::user();
-
-    Log::info('LoanRequestForm: Attempting to submit application.', ['user_id' => $user->id, 'application_id' => $this->applicationId]);
-
-
-    // 1. Validate the form data against submission rules
-    try {
-      // Use the dedicated submit rules method
-      $validatedData = $this->validate($this->getSubmitRules());
-    } catch (ValidationException $e) {
-      $this->setErrorBag($e->errors());
-      Log::info('LoanRequestForm: Submission validation failed.', ['user_id' => $user->id, 'errors' => $e->errors()]);
-      session()->flash('error', __('Sila betulkan ralat pada borang sebelum menghantar permohonan.')); // Malay error message
-      return null; // Stop execution if validation fails (return null)
-    }
-
-
-    // Ensure we have an application ID (submission requires a saved draft)
-    if (!$this->applicationId) {
-      Log::error('LoanRequestForm: Attempted to submit application without existing draft ID.', ['user_id' => $user->id]);
-      session()->flash('error', __('Tidak dapat menghantar. Sila simpan draf terlebih dahulu.')); // Malay error message
-      return null; // Stop submission (return null)
-    }
-
-    // Find the existing draft application
-    try {
-      // Use findOrFail to throw exception if not found
-      $application = $this->loanApplication ?? LoanApplication::where('id', $this->applicationId)->firstOrFail();
-    } catch (ModelNotFoundException $e) {
-      Log::error('LoanRequestForm: Draft application not found for submission.', ['user_id' => $user->id, 'application_id' => $this->applicationId, 'exception' => $e]);
-      session()->flash('error', __('Draf permohonan tidak ditemui.')); // Malay error message
-      return null; // Stop execution (return null)
-    }
-
-
-    // Authorize submission (should check policy for updating/submitting)
-    try {
-      // 'update' policy should enforce draft status and ownership for submission
-      $this->authorize('update', $application);
-      // You might also need a separate policy action like 'submit' that checks status and possibly role (if only certain users can initiate)
-      // $this->authorize('submit', $application); // Assuming a 'submit' policy action on LoanApplicationPolicy
-    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
-      Log::warning('LoanRequestForm: User not authorized to submit application.', ['user_id' => $user->id, 'application_id' => $application->id, 'exception' => $e]);
-      session()->flash('error', __('Anda tidak mempunyai kebenaran untuk menghantar permohonan ini.')); // Malay error message
-      // *** FIX: Changed to global redirect() helper ***
-      return redirect()->route('loan-applications.show', $application); // Redirect if not authorized
-    }
-
-    // Double-check that the application is indeed in 'draft' status before submitting
-    if ($application->status !== 'draft') {
-      Log::warning('LoanRequestForm: Attempted to submit non-draft application.', ['user_id' => $user->id, 'application_id' => $application->id, 'status' => $application->status]);
-      session()->flash('error', __('Permohonan bukan dalam status draf dan tidak dapat dihantar.')); // Malay error message
-      // *** FIX: Changed to global redirect() helper ***
-      return redirect()->route('loan-applications.show', $application); // Redirect to the show page
-    }
-
-    // Determine responsible officer ID based on checkbox state
-    $responsibleOfficerId = $validatedData['is_applicant_responsible'] ? null : $validatedData['responsible_officer_id'];
-
-    // Prepare application data for updating and submitting
-    $applicationData = [
-      'responsible_officer_id' => $responsibleOfficerId,
-      'purpose' => $validatedData['purpose'],
-      'location' => $validatedData['location'],
-      'loan_start_date' => $validatedData['loan_start_date'],
-      'loan_end_date' => $validatedData['loan_end_date'],
-      // applicant_confirmation_timestamp and 'status' will be set by the service method initiateApprovalWorkflow
-    ];
-
-    // Prepare items data for saving/submitting (include 'id' for existing items)
-    // Filter out items without equipment type as they are required for submission based on getSubmitRules()
-    $itemsData = collect($validatedData['items'])
-      // *** FIX: Corrected array access syntax ***
-      ->filter(fn($item) => !empty($item['equipment_type']))
-      ->values() // Re-index the array
-      ->toArray();
-
-    // Ensure items data is not empty after filtering (already validated by 'items.min:1' and 'items.*.equipment_type' required, but defensive check)
-    if (empty($itemsData)) {
-      Log::warning('LoanRequestForm: Attempted to submit application with no items after filtering by equipment_type.', ['user_id' => $user->id, 'application_id' => $application->id]);
-      session()->flash('error', __('Sila tambah sekurang-kurangnya satu item peralatan pada permohonan.')); // Malay error message
-      $this->addError('items', __('Sekurang-kurangnya satu item peralatan diperlukan.')); // Add a general error to the items property
-      return null;
-    }
-
-
-    // Use service methods to update the application data and initiate the workflow
-    try {
-      DB::beginTransaction(); // Start transaction for atomicity
-
-      // Update the application with the submitted data (including setting responsible officer, dates, etc.)
-      // The service's update method should handle syncing items (creating new, updating existing, deleting removed)
-      $application = $loanApplicationService->updateApplication($application, $applicationData, $itemsData);
-
-      // Initiate the approval workflow (sets status to pending_support, sets confirmation timestamp)
-      // Assumes initiateApprovalWorkflow method exists in your LoanApplicationService.
-      // *** FIX: Removed $user parameter if service method expects only application ***
-      $application = $loanApplicationService->initiateApprovalWorkflow($application); // Or keep $user if your service method signature includes it
-
-
-      DB::commit(); // Commit the transaction
-
-      Log::info('Loan request submitted successfully via service and workflow initiated.', ['user_id' => $user->id, 'application_id' => $application->id, 'new_status' => $application->status]);
-
-      // Redirect to the application's show page with a success message
-      session()->flash('success', __('Permohonan pinjaman berjaya dihantar!')); // Malay success message
-
-      // *** FIX: Changed to global redirect() helper ***
-      return redirect()->route('loan-applications.show', $application); // Redirect to the show page
-
-    } catch (ModelNotFoundException $e) {
-      DB::rollBack(); // Rollback transaction on error
-      Log::error('LoanRequestForm: Model not found during submission process.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
-      session()->flash('error', __('Ralat: Permohonan tidak ditemui semasa proses penghantaran.')); // Malay error message
-      return null;
-    } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
-      DB::rollBack(); // Rollback transaction on error
-      Log::warning('LoanRequestForm: User not authorized during submission process.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
-      session()->flash('error', __('Anda tidak mempunyai kebenaran untuk menghantar permohonan ini.')); // Malay error message
-      // *** FIX: Changed to global redirect() helper ***
-      return redirect()->route('loan-applications.show', $application); // Redirect if not authorized
-    } catch (ValidationException $e) {
-      // This catch block is primarily for exceptions thrown by the service's validation
-      // Livewire's $this->validate() is caught earlier.
-      DB::rollBack(); // Rollback transaction on error
-      Log::error('LoanRequestForm: Validation error during submitApplication service call.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'errors' => $e->errors(), 'exception' => $e]);
-      // Re-throw the exception so Livewire can display validation errors if needed
-      // However, since we already validate with $this->validate() at the start,
-      // catching ValidationException here might indicate validation logic in the service,
-      // or it could be safely removed if service doesn't throw ValidationException.
-      // For now, we re-throw, but consider removing this specific catch if validation is only done via $this->validate().
-      throw $e; // Re-throw the exception
-    } catch (\Exception $e) {
-      DB::rollBack(); // Rollback transaction on error
-      Log::error('LoanRequestForm: An unexpected error occurred while submitting the application.', ['user_id' => $user->id, 'application_id' => $this->applicationId ?? 'N/A', 'exception' => $e]);
-      session()->flash('error', __('Ralat berlaku semasa menghantar permohonan. Sila cuba sebentar lagi.')); // Malay error message
-      return null; // Do not redirect on error
-    }
+    // This assumes the view file is located at:
+    // resources/views/livewire/loan-request-form/loan-request-form.blade.php
+    // or resources/views/livewire/loan-request-form.blade.php depending on naming conventions
+    return view('livewire.loan-request-form'); // Ensure this matches your view file name
   }
 
-  // Optional: Method to delete a draft application (if allowed) - Keep commented out as example
-  // public function deleteDraft(LoanApplicationService $loanApplicationService): RedirectResponse|null
-  // {
-  //     if (!Auth::check()) {
-  //         session()->flash('error', __('You must be logged in to delete a draft.'));
-  //         return null;
-  //     }
-  //     $user = Auth::user();
-  //
-  //     if (!$this->applicationId) {
-  //         session()->flash('error', __('No draft to delete.'));
-  //         return null;
-  //     }
-  //
-  //     try {
-  //         $application = LoanApplication::findOrFail($this->applicationId);
-  //     } catch (ModelNotFoundException $e) {
-  //         session()->flash('error', __('Draft application not found.'));
-  //         return null;
-  //     }
-  //
-  //     try {
-  //         $this->authorize('delete', $application); // Policy 'delete' should handle draft deletion authorization
-  //     } catch (\Illuminate\Auth\Access\AuthorizationException $e) {
-  //         session()->flash('error', __('You are not authorized to delete this draft.'));
-  //         // *** FIX: Changed to global redirect() helper ***
-  //         return redirect()->route('loan-applications.show', $application);
-  //     }
-  //
-  //      if ($application->status !== 'draft') {
-  //           session()->flash('error', __('Application is not in draft status and cannot be deleted.'));
-  //           // *** FIX: Changed to global redirect() helper ***
-  //           return redirect()->route('loan-applications.show', $application);
-  //      }
-  //
-  //     try {
-  //         $deleted = $loanApplicationService->deleteApplication($application); // Assumes deleteApplication method exists in service
-  //
-  //         if ($deleted) {
-  //             session()->flash('success', __('Loan application draft deleted successfully!'));
-  //             // *** FIX: Changed to global redirect() helper ***
-  //             return redirect()->route('loan-applications.index');
-  //         } else {
-  //             session()->flash('error', __('Failed to delete loan application draft.'));
-  //             return null;
-  //         }
-  //
-  //     } catch (\Exception $e) {
-  //         session()->flash('error', __('An error occurred while deleting the draft: ' . $e->getMessage()));
-  //         return null;
-  //     }
-  // }
+
+  // Add other methods as needed (e.g., updateApplication for editing)
 }

@@ -151,19 +151,63 @@ Route::middleware([
 
   // User-facing Application Forms (Accessible to all authenticated users)
   Route::prefix('resource-management')->name('resource-management.')->group(function () {
+
+    // Email Application Routes (Livewire Components for user)
     // UPDATED: Added optional {emailApplication} parameter for editing functionality
+    // Note: If EmailApplicationForm component handles create and edit via optional parameter:
     Route::get('/email-application/create/{emailApplication?}', EmailApplicationForm::class)->name('email-applications.create');
+    // If show/edit are separate:
+    // Route::get('/email-application/{emailApplication}', [EmailApplicationController::class, 'show'])->name('email-applications.show'); // Example show route
+    // Route::get('/email-application/{emailApplication}/edit', EmailApplicationForm::class)->name('email-applications.edit'); // Example edit route
+
+    // Loan Application Routes
+    // The create route points directly to the Livewire component (no model needed)
     Route::get('/loan-application/create', LoanRequestForm::class)->name('loan-applications.create');
-    // ... other resource-management routes
-  });
+
+    // Assuming index is a controller for listing
+    // Route::get('/loan-applications', [LoanApplicationController::class, 'index'])->name('loan-applications.index');
+
+    // Show and Edit routes use a Controller to load the model and pass it to the Livewire component
+    // Route Model Binding {loanApplication} handles finding the model and injecting it into the controller method
+    Route::get('/loan-application/{loanApplication}', [LoanApplicationController::class, 'show'])->name('loan-applications.show');
+    Route::get('/loan-application/{loanApplication}/edit', [LoanApplicationController::class, 'edit'])->name('loan-applications.edit');
+
+    // Store, Update, Destroy actions would also typically be controller methods or Livewire actions
+    // If your Livewire form handles submission/update internally, you might not need store/update routes here,
+    // but store is generally used for initial POST request if not using Livewire's initial page load for create.
+    // Route::post('/loan-application', [LoanApplicationController::class, 'store'])->name('loan-applications.store'); // Store action (handled by Livewire submitApplication)
+    // Route::put('/loan-application/{loanApplication}', [LoanApplicationController::class, 'update'])->name('loan-applications.update'); // Update action (if not handled by Livewire component submitting to itself)
+    // Route::delete('/loan-application/{loanApplication}', [LoanApplicationController::class, 'destroy'])->name('loan-applications.destroy'); // Delete action (if not handled by Livewire)
+
+
+    // ... Email Application Routes (already adjusted above) ...
+
+
+    // Loan Transaction Routes (Controller)
+    // Note: These routes are typically admin/BPM staff actions, might need middleware
+    // These routes seem to duplicate BPM routes below. Review and consolidate.
+    // Route::prefix('loan-transactions')->name('loan-transactions.')->group(function () {
+    //   Route::get('/', [LoanTransactionController::class, 'index'])->name('index'); // List all transactions
+    //   Route::get('/issue/{loanApplication}', [LoanTransactionController::class, 'issueEquipmentForm'])->name('issue.form'); // Form to issue equipment for an application
+    //   Route::post('/issue/{loanApplication}', [LoanTransactionController::class, 'issueEquipment'])->name('issue'); // Process equipment issuance
+    //   Route::get('/issued', [LoanTransactionController::class, 'issuedLoansList'])->name('issued-loans'); // List currently issued loans
+    //   Route::get('/return/{loanTransaction}', [LoanTransactionController::class, 'returnEquipmentForm'])->name('return.form'); // Form to return equipment
+    //   Route::post('/return/{loanTransaction}', [LoanTransactionController::class, 'processReturn'])->name('return'); // Process equipment return
+    //   Route::get('/transactions/{loanTransaction}', [LoanTransactionController::class, 'show'])->name('transactions.show'); // Show a single transaction detail (maybe redundant with return.form/issue.form?)
+    // });
+
+    // Reporting routes for users/approvers (if needed, e.g., user history)
+    // Route::get('/reports/my-loans', [ReportController::class, 'userLoanHistory'])->name('reports.my-loans'); // Example user-specific report
+
+  }); // ☝️ End User-facing Resource Management Routes ☝️
 
 
   // Routes for users to view their own applications
   Route::prefix('my-applications')->name('my-applications.')->group(function () {
     Route::get('/email', [EmailApplicationController::class, 'index'])->name('email.index');
     Route::get('/loan', [LoanApplicationController::class, 'index'])->name('loan.index');
-    Route::get('/email/{emailApplication}', [EmailApplicationController::class, 'show'])->name('email.show');
-    Route::get('/loan/{loanApplication}', [LoanApplicationController::class, 'show'])->name('loan.show');
+    Route::get('/email/{emailApplication}', [EmailApplicationController::class, 'show'])->name('email.show'); // Ensure this show method exists and is distinct if needed
+    Route::get('/loan/{loanApplication}', [LoanApplicationController::class, 'show'])->name('loan.show'); // Ensure this show method exists and is distinct if needed
   });
 
 
@@ -176,6 +220,7 @@ Route::middleware([
   // Routes for Approvers to view and act on applications
   Route::prefix('approvals')->name('approvals.')->group(function () {
     // Show methods for approvals (can be handled by controllers or Livewire, check implementation)
+    // These might use different views or logic than my-applications.show
     Route::get('/email/{emailApplication}', [EmailApplicationController::class, 'showForApproval'])->name('email.show');
     Route::get('/loan/{loanApplication}', [LoanApplicationController::class, 'showForApproval'])->name('loan.show');
 
@@ -205,28 +250,43 @@ Route::middleware([
 
 
   // Admin and BPM Staff Routes for Resource Management
+  // This group is prefixed with 'resource-management/admin' and has 'admin.' as the name prefix
   Route::group(['prefix' => 'resource-management/admin', 'as' => 'admin.', 'middleware' => ['role:Admin|BPM']], function () {
 
-    Route::resource('users', AdminUserController::class)->middleware('role:Admin');
-    Route::resource('equipment', EquipmentController::class);
+    Route::resource('users', AdminUserController::class)->middleware('role:Admin'); // Only Admin can manage users
+    Route::resource('equipment', EquipmentController::class); // Both Admin and BPM might manage equipment
+
+    // Assuming grades are managed only by Admin
     Route::resource('grades', GradeController::class)->middleware('role:Admin');
 
-    // BPM specific routes (subset of admin tasks)
+
+    // BPM specific routes (subset of admin tasks related to processing loans)
     Route::prefix('bpm')->name('bpm.')->middleware('role:BPM')->group(function () {
+      // BPM staff list outstanding loans (likely using a controller index method)
       Route::get('/outstanding-loans', [LoanApplicationController::class, 'outstandingLoansList'])->name('outstanding-loans');
+      // BPM staff issue form and process
+      // Note: These routes seem to duplicate the loan-transactions routes defined earlier.
+      // It's better to consolidate them under one logical prefix/group.
+      // Keeping them here based on the provided structure, but note the potential duplication.
       Route::get('/issue/{loanApplication}', [LoanApplicationController::class, 'issueEquipmentForm'])->name('issue.form');
-      Route::post('/issue/{loanApplication}', [LoanTransactionController::class, 'issue'])->name('issue');
-      Route::get('/issued-loans', [LoanTransactionController::class, 'issuedLoansList'])->name('issued-loans');
-      Route::get('/return/{loanTransaction}', [LoanTransactionController::class, 'returnEquipmentForm'])->name('return.form');
-      Route::post('/return/{loanTransaction}', [LoanTransactionController::class, 'processReturn'])->name('return');
-      Route::get('/transactions/{loanTransaction}', [LoanTransactionController::class, 'show'])->name('transactions.show');
+      Route::post('/issue/{loanApplication}', [LoanTransactionController::class, 'issue'])->name('issue'); // Points to LoanTransactionController
+
+      // BPM staff list issued loans
+      Route::get('/issued-loans', [LoanTransactionController::class, 'issuedLoansList'])->name('issued-loans'); // Points to LoanTransactionController
+
+      // BPM staff return form and process
+      Route::get('/return/{loanTransaction}', [LoanTransactionController::class, 'returnEquipmentForm'])->name('return.form'); // Points to LoanTransactionController
+      Route::post('/return/{loanTransaction}', [LoanTransactionController::class, 'processReturn'])->name('return'); // Points to LoanTransactionController
+
+      // BPM staff show specific transaction
+      Route::get('/transactions/{loanTransaction}', [LoanTransactionController::class, 'show'])->name('transactions.show'); // Points to LoanTransactionController
     });
 
-    // Reporting routes for admins (Admin only)
+    // Reporting routes for admins (Admin only) - Duplicates the reports group under resource-management, review and consolidate
     Route::prefix('reports')->name('reports.')->middleware('role:Admin')->group(function () {
       Route::get('/equipment', [ReportController::class, 'equipment'])->name('equipment');
       Route::get('/email-accounts', [ReportController::class, 'emailAccounts'])->name('email-accounts');
-      Route::get('/loan-applications', [ReportController::class, 'loanApplications'])->name('loan-applications');
+      Route::get('/loan-applications', [ReportController::class, 'loanApplications'])->name('loan-applications'); // Likely the admin list view
       Route::get('/user-activity', [ReportController::class, 'userActivity'])->name('user-activity');
       // Loan History Report (Admin Report) - Uses loanHistory method
       Route::get('/loan-history', [ReportController::class, 'loanHistory'])->name('loan-history');
@@ -238,7 +298,24 @@ Route::middleware([
 
   // ☝️ End New MOTAC Integrated Resource Management (IRM) Routes ☝️
 
-});
+
+  // Routes for other HRMS features like Assets (already covered under assets prefix)
+  // and Reports (already covered under assets prefix).
+
+
+  // Example of a catch-all for /resource-management/admin if no specific route matched
+  // Route::get('/resource-management/admin/{any}', ComingSoon::class)->where('any', '.*');
+
+
+}); // End Auth middleware group
+
 
 // Ensure that unauthenticated users trying to access 'auth' middleware routes are redirected to login
 // This is handled by the Authenticate middleware (part of default auth scaffolding)
+
+// Catch-all or fallback routes could be defined here if needed
+
+// Fallback for 404 errors (optional, can be handled by exception handler)
+// Route::fallback(function() {
+//     return response()->view('errors.404', [], 404);
+// });
