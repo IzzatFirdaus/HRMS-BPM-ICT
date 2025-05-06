@@ -5,19 +5,19 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\EmailApplication;
 use App\Models\LoanApplication; // Import LoanApplication model
-use App\Models\LoanTransaction;
+use App\Models\LoanTransaction; // Import LoanTransaction model
 use App\Models\Equipment;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Gate; // Keep if used for policies/gates
 use Illuminate\View\View;
-use Spatie\Activitylog\Models\Activity;
+use Spatie\Activitylog\Models\Activity; // Keep if Activity model is used
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\Request;
+use Illuminate\Http\Request; // Keep if Request is used in methods
 // Import necessary models for eager loading in the new method
-use App\Models\Department;
-use App\Models\Position;
-use App\Models\Grade;
+use App\Models\Department; // Keep if used for relationships
+use App\Models\Position; // Keep if used for relationships
+use App\Models\Grade; // Keep if used for relationships
 
 
 class ReportController extends Controller
@@ -28,6 +28,10 @@ class ReportController extends Controller
   public function __construct()
   {
     $this->middleware('auth');
+    // Optionally, add other middleware like authorization checks here,
+    // or handle authorization within each method using $this->authorize().
+    // $this->middleware('role:Admin|AM|HR')->only(['index']); // Example
+    // $this->middleware('role:Admin|AM')->only(['equipment']); // Example
   }
 
   /**
@@ -38,6 +42,7 @@ class ReportController extends Controller
   public function index(): View
   {
     // Authorize if the user can view the report index page.
+    // Assumes a 'viewIndex' policy exists for ReportController.
     $this->authorize('viewIndex', ReportController::class);
 
     Log::info('User accessing report index page.', [
@@ -45,6 +50,8 @@ class ReportController extends Controller
       'ip_address' => request()->ip(),
     ]);
 
+    // This view should contain links to the specific report methods.
+    // The links in the view should use the correct route names (e.g., admin.reports.equipment).
     return view('reports.index');
   }
 
@@ -56,21 +63,28 @@ class ReportController extends Controller
    */
   public function equipment(): View
   {
+    // Authorize if the user can view the equipment report.
+    // Assumes a 'viewEquipment' policy exists for ReportController.
     $this->authorize('viewEquipment', ReportController::class);
 
-    Log::info('Generating ICT Equipment Report.', [
+    Log::info('Generating Equipment Report.', [
       'user_id' => Auth::id(),
       'ip_address' => request()->ip(),
     ]);
 
-    // Fetch equipment with pagination
-    $equipment = Equipment::query()
-      ->with(['activeLoanTransaction.user', 'department', 'position'])
-      ->orderBy('tag_id')
-      ->paginate(15);
+    // Fetch equipment with pagination.
+    // Eager load relationships needed for the report (e.g., current borrower, location).
+    $equipment = Equipment::with([
+      'currentLoanItem.loanApplication.user', // Example: assuming Equipment -> LoanApplicationItem -> LoanApplication -> User
+      'location', // Assuming an equipment has a location relationship
+    ])
+      ->latest() // Order by latest equipment (e.g., added to inventory)
+      ->paginate(15); // Add pagination
 
+    // Return the view located at resources/views/reports/equipment.blade.php
     return view('reports.equipment', compact('equipment'));
   }
+
 
   /**
    * Generate the Email Accounts Report.
@@ -80,6 +94,8 @@ class ReportController extends Controller
    */
   public function emailAccounts(): View
   {
+    // Authorize if the user can view the email accounts report.
+    // Assumes a 'viewEmailAccounts' policy exists for ReportController.
     $this->authorize('viewEmailAccounts', ReportController::class);
 
     Log::info('Generating Email Accounts Report.', [
@@ -87,44 +103,19 @@ class ReportController extends Controller
       'ip_address' => request()->ip(),
     ]);
 
-    // Fetch email applications with pagination
-    $applications = EmailApplication::with('user')
+    // Fetch email applications with pagination.
+    // Eager load relationships needed for the report (e.g., user who applied).
+    $emailApplications = EmailApplication::with([
+      'user', // Assuming EmailApplication has a user relationship
+      'approvals.user', // Assuming approvals relationship and user on approval
+    ])
       ->latest()
       ->paginate(15);
 
-    return view('reports.email-accounts', compact('applications'));
+    // Return the view located at resources/views/reports/email_accounts.blade.php
+    return view('reports.email_accounts', compact('emailApplications'));
   }
 
-  /**
-   * Generate the ICT Loan History Report.
-   * Fetches loan transaction data with pagination.
-   *
-   * @return View
-   */
-  public function loanHistory(): View
-  {
-    $this->authorize('viewLoanHistory', ReportController::class);
-
-    Log::info('Generating ICT Loan History Report.', [
-      'user_id' => Auth::id(),
-      'ip_address' => request()->ip(),
-    ]);
-
-    // Fetch loan transactions with pagination
-    $transactions = LoanTransaction::query()
-      ->with([
-        'loanApplication.user',
-        'equipment',
-        'issuingOfficer',
-        'receivingOfficer',
-        'returningOfficer',
-        'returnAcceptingOfficer',
-      ])
-      ->orderBy('issued_at', 'desc')
-      ->paginate(15);
-
-    return view('reports.loan_history', compact('transactions'));
-  }
 
   /**
    * Generate the Loan Applications Report.
@@ -132,12 +123,12 @@ class ReportController extends Controller
    *
    * @return View
    */
-  public function loanApplications(): View // <-- This method was missing
+  public function loanApplications(): View
   {
-    // Authorize if the user can view the Loan Applications Report.
+    // Authorize if the user can view the loan applications report.
+    // Assumes a 'viewLoanApplications' policy exists for ReportController.
     $this->authorize('viewLoanApplications', ReportController::class);
 
-    // Log report generation
     Log::info('Generating Loan Applications Report.', [
       'user_id' => Auth::id(),
       'ip_address' => request()->ip(),
@@ -150,12 +141,54 @@ class ReportController extends Controller
       'user.position',
       'user.grade',
       'items', // Include items to potentially list them in the report
+      'approvals.user', // Include approvals and the user who approved
     ])
       ->latest()
       ->paginate(15);
 
     // Return the view located at resources/views/reports/loan_applications.blade.php
     return view('reports.loan_applications', compact('applications'));
+  }
+
+
+  /**
+   * Generate the Loan History Report.
+   * Fetches loan transaction data with pagination.
+   * This method serves both the admin report and approvals history route.
+   *
+   * @return View
+   */
+  public function loanHistory(): View
+  {
+    // Authorize if the user can view the loan history report.
+    // Assumes a 'viewLoanHistory' policy exists for ReportController.
+    // Note: Authorization logic might need to differentiate between admin vs approver access
+    // if their permissions or data visibility differ for the same report data.
+    $this->authorize('viewLoanHistory', ReportController::class);
+
+    Log::info('Generating Loan History Report.', [
+      'user_id' => Auth::id(),
+      'ip_address' => request()->ip(),
+      'route_name' => request()->route()->getName(), // Log the route name to see which one was accessed (approvals.history or admin.reports.loan-history)
+    ]);
+
+    // Fetch loan transactions with pagination.
+    // Eager load relationships needed for the report (e.g., equipment, borrower, officers).
+    $transactions = LoanTransaction::with([
+      'loanApplication.user', // Borrower via loan application
+      'equipment', // The equipment item involved
+      'issuingOfficer', // Officer who issued
+      'receivingOfficer', // Person who received on behalf of applicant (if different)
+      'returningOfficer', // Person who returned on behalf of applicant (if different)
+      'returnAcceptingOfficer', // BPM staff who accepted the return
+    ])
+      // CORRECTED: Changed 'issued_at' to the correct column name 'issue_timestamp'
+      ->orderBy('issue_timestamp', 'desc') // Order by issue timestamp, latest first
+      ->paginate(15); // Add pagination
+
+    // Return the view located at resources/views/reports/loan_history.blade.php
+    // This view should display loan transaction details.
+    return view('reports.loan_history', compact('transactions'));
   }
 
 
@@ -167,6 +200,8 @@ class ReportController extends Controller
    */
   public function userActivity(): View
   {
+    // Authorize if the user can view the user activity report.
+    // Assumes a 'viewUserActivity' policy exists for ReportController.
     $this->authorize('viewUserActivity', ReportController::class);
 
     Log::info('Generating User Activity Report.', [
@@ -175,7 +210,8 @@ class ReportController extends Controller
     ]);
 
     // Fetch users with counts, with pagination
-    $users = User::withCount(['emailApplications', 'loanApplications', 'approvals'])
+    // Assuming user has relationships like emailApplications, loanApplications, approvals (either directly or via employee)
+    $users = User::withCount(['emailApplications', 'loanApplications', 'approvals']) // Assuming these relationships exist on the User model
       ->paginate(15);
 
     // If you were fetching activity logs with pagination, it might look like:
@@ -188,5 +224,12 @@ class ReportController extends Controller
     return view('reports.user_activity', compact('users'));
   }
 
-  // Add other report methods here as needed.
+  // The approvals.history route is now pointing to loanHistory().
+  // If a separate approvalHistory method with different logic is needed,
+  // you would define it here and update the route in web.php accordingly.
+  // public function approvalHistory(): View
+  // {
+  //    // ... specific logic for approvals history ...
+  // }
+
 }
