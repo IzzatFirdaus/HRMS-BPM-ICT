@@ -23,17 +23,9 @@ use App\Models\LoanTransaction; // For deriving issued quantity in accessor
 
 /**
  * App\Models\LoanApplicationItem
-<<<<<<< HEAD
  *
- * Represents a single equipment item requested within a loan application.
- * Linked to a specific parent LoanApplication and a specific Equipment asset.
- * Stores the quantity requested, quantity approved, and any specific notes for this item.
- * Includes audit trails and soft deletion.
-=======
- * 
  * Represents a single item requested within a loan application.
  * Linked to a specific LoanApplication and a specific Equipment asset.
->>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  *
  * @property int $id
  * @property int $loan_application_id The loan application this item belongs to (Foreign key to 'loan_applications' table).

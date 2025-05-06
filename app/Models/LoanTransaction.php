@@ -2,34 +2,24 @@
 
 namespace App\Models;
 
-use Illuminate\Support\Carbon;
 use App\Traits\CreatedUpdatedDeletedBy;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\User; // Import User model
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Equipment; // Import Equipment model
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\LoanApplication; // Import LoanApplication model
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon; // Import for PHPDoc
 
 /**
- * App\Models\LoanTransaction
- *
- * Represents a specific transaction record for an equipment loan,
- * tracking issuance, return, and associated details.
- *
  * @property int $id
- * @property int $loan_application_id // The application this transaction is part of
- * @property int|null $equipment_id // The specific equipment item involved
- * @property int|null $user_id // The user who is the borrower (if linked directly to transaction) - Added based on ReportController needs
- * @property int|null $issuing_officer_id // BPM staff who issued
- * @property int|null $receiving_officer_id // The person receiving the equipment
+ * @property int $loan_application_id
+ * @property int|null $equipment_id // nullable if equipment was lost
+ * @property int|null $issuing_officer_id
+ * @property int|null $receiving_officer_id // The person receiving on behalf of the applicant (if different)
  * @property array|null $accessories_checklist_on_issue // JSON column
  * @property Carbon|null $issue_timestamp
- * @property int|null $returning_officer_id // The person returning the equipment
+ * @property int|null $returning_officer_id // The person returning on behalf of the applicant (if different)
  * @property int|null $return_accepting_officer_id // BPM staff who accepted the return
  * @property array|null $accessories_checklist_on_return // JSON column
- * @property string|null $equipment_condition_on_return // e.g., 'Good', 'Damaged', 'Lost', 'Needs Maintenance'
+ * @property string|null $equipment_condition_on_return // e.g., 'Good', 'Damaged', 'Lost'
  * @property string|null $return_notes
  * @property Carbon|null $return_timestamp
  * @property string $status // e.g., 'issued', 'returned', 'under_maintenance_on_loan', 'damaged_on_return', 'lost_on_return', 'cancelled', 'overdue', 'under_maintenance_on_return'
@@ -40,22 +30,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  *
- * @property-read LoanApplication $loanApplication
- * @property-read Equipment $equipment
- * @property-read User|null $user // Relationship to the borrower - Added based on ReportController needs
- * @property-read User|null $issuingOfficer // Relationship to the issuing BPM officer
- * @property-read User|null $receivingOfficer // Relationship to the receiving person
- * @property-read User|null $returningOfficer // Relationship to the returning person
- * @property-read User|null $returnAcceptingOfficer // Relationship to the return accepting BPM officer
+ * // Relationships (for static analysis)
+ * @property-read \App\Models\LoanApplication $loanApplication
+ * @property-read \App\Models\Equipment|null $equipment
+ * @property-read \App\Models\User|null $issuingOfficer
+ * @property-read \App\Models\User|null $receivingOfficer
+ * @property-read \App\Models\User|null $returningOfficer
+ * @property-read \App\Models\User|null $returnAcceptingOfficer
  */
 class LoanTransaction extends Model
 {
-  use HasFactory, SoftDeletes, CreatedUpdatedDeletedBy; // Added CreatedUpdatedDeletedBy trait
+  use CreatedUpdatedDeletedBy, SoftDeletes;
+
+  protected $table = 'loan_transactions'; // Explicitly define table name if it deviates from convention
 
   protected $fillable = [
     'loan_application_id',
     'equipment_id',
-    'user_id', // Added user_id to fillable
     'issuing_officer_id',
     'receiving_officer_id',
     'accessories_checklist_on_issue',
@@ -67,30 +58,30 @@ class LoanTransaction extends Model
     'return_notes',
     'return_timestamp',
     'status',
+    // created_by, updated_by, deleted_by are handled by the trait
   ];
 
   protected $casts = [
-    'accessories_checklist_on_issue' => 'array',
-    'accessories_checklist_on_return' => 'array',
-    'issue_timestamp' => 'datetime',
-    'return_timestamp' => 'datetime',
-    'created_at' => 'datetime',
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime',
+    'accessories_checklist_on_issue' => 'array', // Cast JSON columns
+    'accessories_checklist_on_return' => 'array', // Cast JSON columns
+    'issue_timestamp' => 'datetime', // Cast timestamp columns
+    'return_timestamp' => 'datetime', // Cast timestamp columns
   ];
 
-  // Define status constants
-  const STATUS_PENDING_ISSUE = 'pending_issue'; // Transaction created but not issued yet
-  const STATUS_ISSUED = 'issued';
-  const STATUS_RETURNED = 'returned';
-  const STATUS_UNDER_MAINTENANCE_ON_LOAN = 'under_maintenance_on_loan';
-  const STATUS_DAMAGED_ON_RETURN = 'damaged_on_return';
-  const STATUS_LOST_ON_RETURN = 'lost_on_return';
-  const STATUS_CANCELLED = 'cancelled'; // Transaction cancelled before issuance
-  const STATUS_OVERDUE = 'overdue';
-  const STATUS_UNDER_MAINTENANCE_ON_RETURN = 'under_maintenance_on_return';
 
-  // Removed the STATUS_ON_LOAN constant as it belongs to Equipment availability status
+  // --- Status Constants ---
+  public const STATUS_ISSUED = 'issued'; // Equipment has been issued
+  public const STATUS_RETURNED = 'returned'; // All issued equipment has been returned
+  public const STATUS_ON_LOAN = 'on_loan'; // Equipment is currently on loan (distinct status)
+  // *** FIX 1: Added the missing constant for LoanApplicationService ***
+  public const STATUS_UNDER_MAINTENANCE_ON_LOAN = 'under_maintenance_on_loan'; // Equipment is on loan but reported under maintenance
+  public const STATUS_UNDER_MAINTENANCE_ON_RETURN = 'under_maintenance_on_return'; // *** FIX 2: Added constant *** Equipment returned needs maintenance
+  public const STATUS_DAMAGED_ON_RETURN = 'damaged_on_return'; // Equipment returned damaged
+  public const STATUS_LOST_ON_RETURN = 'lost_on_return'; // Equipment returned as lost
+  public const STATUS_CANCELLED = 'cancelled'; // Transaction was cancelled
+  public const STATUS_OVERDUE = 'overdue'; // Transaction is overdue for return
+  // --- End Status Constants ---\
+
 
   /**
    * Get the loan application that this transaction belongs to.
@@ -105,19 +96,7 @@ class LoanTransaction extends Model
    */
   public function equipment(): BelongsTo
   {
-    return $this->belongsTo(Equipment::class);
-  }
-
-  /**
-   * Get the user (borrower) associated with this loan transaction.
-   * Assumes 'user_id' foreign key in loan_transactions table.
-   * This relationship is needed for the ReportController eager loading.
-   */
-  public function user(): BelongsTo
-  {
-    // If your foreign key is something other than 'user_id',
-    // specify it as the second argument: ->belongsTo(User::class, 'your_foreign_key_name')
-    return $this->belongsTo(User::class);
+    return $this->belongsTo(Equipment::class, 'equipment_id');
   }
 
   /**
@@ -129,7 +108,7 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the person who received the equipment.
+   * Get the officer who received the equipment on behalf of the applicant (if applicable).
    */
   public function receivingOfficer(): BelongsTo
   {
@@ -137,7 +116,7 @@ class LoanTransaction extends Model
   }
 
   /**
-   * Get the officer who returned the equipment.
+   * Get the officer who returned the equipment on behalf of the applicant (if applicable).\
    */
   public function returningOfficer(): BelongsTo
   {
@@ -155,41 +134,71 @@ class LoanTransaction extends Model
   // Add helper methods for status checks
   public function isIssued(): bool
   {
-    return $this->status === self::STATUS_ISSUED; // Use constant
+    return $this->status === self::STATUS_ISSUED;
   }
 
   public function isReturned(): bool
   {
-    return $this->status === self::STATUS_RETURNED; // Use constant
+    return $this->status === self::STATUS_RETURNED;
+  }
+
+  public function isOnLoan(): bool
+  {
+    return $this->status === self::STATUS_ON_LOAN;
   }
 
   public function isUnderMaintenanceOnLoan(): bool
   {
-    return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_LOAN; // Use constant
+    return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_LOAN;
   }
 
   public function isDamagedOnReturn(): bool
   {
-    return $this->status === self::STATUS_DAMAGED_ON_RETURN; // Use constant
+    return $this->status === self::STATUS_DAMAGED_ON_RETURN;
   }
 
   public function isLostOnReturn(): bool
   {
-    return $this->status === self::STATUS_LOST_ON_RETURN; // Use constant
+    return $this->status === self::STATUS_LOST_ON_RETURN;
   }
 
   public function isCancelled(): bool
   {
-    return $this->status === self::STATUS_CANCELLED; // Use constant
+    return $this->status === self::STATUS_CANCELLED;
   }
 
   public function isOverdue(): bool
   {
-    return $this->status === self::STATUS_OVERDUE; // Use constant
+    return $this->status === self::STATUS_OVERDUE;
   }
 
+  // *** FIX 3: Added helper method for the new constant ***
   public function isUnderMaintenanceOnReturn(): bool
   {
-    return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_RETURN; // Use constant
+    return $this->status === self::STATUS_UNDER_MAINTENANCE_ON_RETURN;
+  }
+
+
+  // Define which statuses indicate the equipment is currently out on loan
+  public function isCurrentlyOnLoan(): bool
+  {
+    // An item is on loan if its status is ISSUED, ON_LOAN, or UNDER_MAINTENANCE_ON_LOAN
+    return in_array($this->status, [
+      self::STATUS_ISSUED,
+      self::STATUS_ON_LOAN,
+      self::STATUS_UNDER_MAINTENANCE_ON_LOAN,
+    ]);
+  }
+
+
+  /**
+   * Determine if the transaction can be returned.
+   *
+   * @return bool
+   */
+  public function canBeReturned(): bool
+  {
+    // Equipment can be returned if it's currently issued or under maintenance on loan
+    return $this->isCurrentlyOnLoan();
   }
 }

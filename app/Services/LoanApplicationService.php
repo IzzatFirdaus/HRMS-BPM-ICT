@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\LoanApplication;
-use App\Models\LoanTransaction;
-use App\Models\Equipment;
+use App\Models\LoanTransaction; // Import LoanTransaction model
+use App\Models\Equipment; // Import Equipment model
 use App\Models\User;
 use App\Models\Approval;
 use App\Services\ApprovalService;
@@ -37,7 +37,7 @@ class LoanApplicationService
    */
   public function createApplication(array $validatedData, User $applicant): LoanApplication // Add return type hint
   {
-    Log::debug('Creating new loan application draft', ['user_id' => $applicant->id ?? 'N/A']);
+    Log::debug('Creating new loan application draft', ['user_id' => $applicant->id]);
 
     DB::beginTransaction();
     try {
@@ -50,7 +50,7 @@ class LoanApplicationService
       Log::info('Draft loan application created', ['application_id' => $app->id]);
       DB::commit();
 
-      return $app->fresh(); // Return fresh instance
+      return $app->fresh(); // Return fresh
     } catch (Exception $e) {
       DB::rollBack();
       Log::error('Failed to create draft loan application', ['user_id' => $applicant->id ?? 'N/A', 'error' => $e->getMessage()]);
@@ -67,11 +67,11 @@ class LoanApplicationService
    * @return LoanApplication
    * @throws Exception
    */
-  public function updateApplication(LoanApplication $application, array $validatedData, User $user): LoanApplication // Add return type hint
+  public function updateApplication(LoanApplication $application, array $validatedData, User $user): LoanApplication
   {
     Log::debug('Updating loan application draft', ['application_id' => $application->id ?? 'N/A']);
 
-    if (!$application->isDraft() || $application->user_id !== $user->id) { // Use isDraft() helper
+    if (!$application->isDraft() || $application->user_id !== $user->id) {
       throw new Exception('Permohonan tidak sah untuk dikemaskini.'); // Malay message
     }
 
@@ -83,7 +83,7 @@ class LoanApplicationService
       Log::info('Draft loan application updated', ['application_id' => $application->id ?? 'N/A']);
       DB::commit();
 
-      return $application->fresh(); // Return fresh instance
+      return $application->fresh();
     } catch (Exception $e) {
       DB::rollBack();
       Log::error('Failed to update draft loan application', ['application_id' => $application->id ?? 'N/A', 'error' => $e->getMessage()]);
@@ -99,17 +99,17 @@ class LoanApplicationService
    * @return LoanApplication
    * @throws Exception
    */
-  public function submitApplication(LoanApplication $application, User $applicant): LoanApplication // Add return type hint
+  public function submitApplication(LoanApplication $application, User $applicant): LoanApplication
   {
     Log::debug('Submitting loan application', ['application_id' => $application->id ?? 'N/A']);
 
-    if (!$application->isDraft() || $application->user_id !== $applicant->id) { // Use isDraft() helper
+    if (!$application->isDraft() || $application->user_id !== $applicant->id) {
       throw new Exception('Permohonan tidak sah untuk dihantar.'); // Malay message
     }
 
     DB::beginTransaction();
     try {
-      $application->status = LoanApplication::STATUS_PENDING_SUPPORT; // Use constant
+      $application->status = LoanApplication::STATUS_PENDING_SUPPORT;
       $application->submission_timestamp = now();
       $application->save();
 
@@ -118,7 +118,7 @@ class LoanApplicationService
       // $this->approvalService->startApprovalProcess($application, Approval::STAGE_SUPPORT_REVIEW); // Example call
 
       // Example: Find first user with 'support officer' role and notify
-      $supportOfficer = User::role('support officer')->first(); // Assuming Spatie Roles
+      $supportOfficer = User::role('support officer')->first();
 
       if ($supportOfficer) {
         // Assuming a notification exists
@@ -152,11 +152,11 @@ class LoanApplicationService
    * @return bool
    * @throws Exception
    */
-  public function deleteApplication(LoanApplication $application, User $user): bool // Add return type hint
+  public function deleteApplication(LoanApplication $application, User $user): bool
   {
     Log::debug('Deleting loan application draft', ['application_id' => $application->id ?? 'N/A']);
 
-    if (!$application->isDraft() || $application->user_id !== $user->id) { // Use isDraft() helper
+    if (!$application->isDraft() || $application->user_id !== $user->id) {
       throw new Exception('Permohonan tidak sah untuk dibuang.'); // Malay message
     }
 
@@ -191,15 +191,14 @@ class LoanApplicationService
     User $officer,
     ?string $comments,
     string $stage
-  ): LoanApplication // Add return type hint
-  {
+  ): LoanApplication {
     Log::debug('Handling approval decision for loan application ID: ' . ($application->id ?? 'N/A'), [
       'decision' => $decision,
       'officer_id' => $officer->id ?? 'N/A',
       'stage' => $stage
     ]);
     // Basic validation for decision
-    if (!in_array($decision, [Approval::STATUS_APPROVED, Approval::STATUS_REJECTED])) { // Use Approval constants
+    if (!in_array($decision, [Approval::STATUS_APPROVED, Approval::STATUS_REJECTED])) {
       throw new Exception('Keputusan kelulusan tidak sah.'); // Malay message
     }
 
@@ -207,10 +206,10 @@ class LoanApplicationService
     // Example: if stage is 'support', status should be 'pending_support'
     // This logic might be better handled within an ApprovalService
     // if ($stage === Approval::STAGE_SUPPORT_REVIEW && $application->status !== LoanApplication::STATUS_PENDING_SUPPORT) {
-    //     throw new Exception('Permohonan tidak dalam status menunggu sokongan.');
+    //     throw new Exception('Permohonan tidak dalam status menunggu sokongan.'); // Malay message
     // }
     // if ($stage === Approval::STAGE_HEAD_REVIEW && $application->status !== LoanApplication::STATUS_PENDING_HEAD) {
-    //     throw new Exception('Permohonan tidak dalam status menunggu kelulusan ketua.');
+    //     throw new Exception('Permohonan tidak dalam status menunggu kelulusan ketua.'); // Malay message
     // }
 
 
@@ -222,12 +221,12 @@ class LoanApplicationService
 
       // Update application status based on decision and stage
       // This logic can be complex depending on your workflow (sequential/parallel approvals)
-      if ($decision === Approval::STATUS_REJECTED) { // Use constant
-        $application->status = LoanApplication::STATUS_REJECTED; // Use constant
-        $application->rejection_reason = $comments ?? 'Ditolak oleh pegawai ' . ($officer->name ?? 'Tidak Dikenali'); // Store rejection reason
+      if ($decision === Approval::STATUS_REJECTED) {
+        $application->status = LoanApplication::STATUS_REJECTED;
+        $application->rejection_reason = $comments ?? 'Ditolak oleh pegawai ' . ($officer->name ?? 'Tidak Dikenali'); // Malay message
         $application->save();
         Log::info('Loan application rejected.', ['application_id' => $application->id ?? 'N/A', 'officer_id' => $officer->id ?? 'N/A', 'stage' => $stage]);
-      } elseif ($decision === Approval::STATUS_APPROVED) { // Use constant
+      } elseif ($decision === Approval::STATUS_APPROVED) {
         // If it's the final approval stage (e.g., 'head'), set status to APPROVED
         // If it's an intermediate stage, set status to the next pending stage
         // This requires workflow logic here or in ApprovalService
@@ -242,7 +241,7 @@ class LoanApplicationService
         // This step might also involve creating tasks for the IT team
         if ($application->status === LoanApplication::STATUS_APPROVED) {
           // Notify IT Admin team that an application is ready for issuance
-          $itAdmins = User::role('IT Admin')->get(); // Example: Get all IT Admins
+          $itAdmins = User::role('IT Admin')->get();
           if ($itAdmins->isNotEmpty()) {
             // Assuming a notification exists
             // Notification::send($itAdmins, new LoanApplicationApprovedForProcessing($application));
@@ -264,8 +263,7 @@ class LoanApplicationService
       // Trigger notification to applicant about the decision
       // Notification::send($application->user, new LoanApplicationDecision($application, $decision)); // Assuming a notification exists
 
-      return $application->fresh(); // Return updated application
-
+      return $application->fresh();
     } catch (Exception $e) {
       DB::rollBack();
       Log::error('Failed to process approval decision for loan application ID ' . ($application->id ?? 'N/A') . '.', ['error' => $e->getMessage()]);
@@ -288,18 +286,17 @@ class LoanApplicationService
   public function issueEquipment(
     LoanApplication $application,
     Equipment $equipmentToIssue,
-    ?User $receivingOfficer, // Make nullable explicit if it can be null
+    ?User $receivingOfficer,
     User $issuingOfficer,
     array $issueDetails = []
-  ): LoanTransaction // Add return type hint
-  {
+  ): LoanTransaction {
     Log::debug('Attempting to issue equipment ID ' . ($equipmentToIssue->id ?? 'N/A') . ' for application ID ' . ($application->id ?? 'N/A'), [
       'issuing_officer_id'  => $issuingOfficer->id ?? 'N/A',
       'receiving_officer_id' => $receivingOfficer->id ?? null,
     ]);
 
     // Basic check: Is the equipment available?
-    if (!($equipmentToIssue->availability_status === Equipment::AVAILABILITY_AVAILABLE)) { // Use constant
+    if (!($equipmentToIssue->availability_status === Equipment::AVAILABILITY_AVAILABLE)) {
       Log::warning('Attempted to issue unavailable equipment.', [
         'equipment_id' => $equipmentToIssue->id ?? 'N/A',
         'status'       => $equipmentToIssue->availability_status ?? 'N/A',
@@ -315,23 +312,21 @@ class LoanApplicationService
       $transaction->loan_application_id            = $application->id;
       $transaction->equipment_id                   = $equipmentToIssue->id;
       $transaction->issuing_officer_id             = $issuingOfficer->id;
-      $transaction->receiving_officer_id           = $receivingOfficer->id ?? null; // Use null coalescing operator
-      $transaction->accessories_checklist_on_issue = $issueDetails['accessories_checklist_on_issue'] ?? null; // Check for key existence
+      $transaction->receiving_officer_id           = $receivingOfficer->id ?? null;
+      $transaction->accessories_checklist_on_issue = $issueDetails['accessories_checklist_on_issue'] ?? null;
       $transaction->issue_timestamp                = now();
       $transaction->status                         = LoanTransaction::STATUS_ISSUED; // Use constant
       $transaction->save();
 
       // Update equipment status
-      $equipmentToIssue->availability_status = Equipment::AVAILABILITY_ON_LOAN; // Use constant
+      $equipmentToIssue->availability_status = Equipment::AVAILABILITY_ON_LOAN;
       $equipmentToIssue->save();
 
       // Update related LoanApplicationItem's quantity_issued
-      // Find the specific item for this equipment type in the application
-      // Ensure items relationship is loaded on application or load here
       $application->load('items');
       $applicationItem = $application->items
-        ->where('equipment_type_id', $equipmentToIssue->equipment_type_id) // Assumes equipment_type_id exists and matches
-        ->first(); // Get the first matching item (assuming one item per type in application)
+        ->where('equipment_type_id', $equipmentToIssue->equipment_type_id)
+        ->first();
 
       if ($applicationItem) {
         $applicationItem->quantity_issued++;
@@ -346,26 +341,21 @@ class LoanApplicationService
           'equipment_id'   => $equipmentToIssue->id ?? 'N/A',
           'equipment_type_id' => $equipmentToIssue->equipment_type_id ?? 'N/A',
         ]);
-        // Decide if this should throw an error or just log a warning.
-        // For now, just log and continue.
       }
 
 
       // Update application status (partial vs full issuance) based on total issued vs approved quantity across all items
-      // $application->load('items'); // Ensure items are loaded to sum quantities - already done above
+      $application->load('items'); // Ensure items relationship is loaded
       $totalApproved = $application->items->sum('quantity_approved');
-      $totalIssued   = $application->items->sum('quantity_issued'); // Sum issued quantity across all items
-
-      // $totalIssued   = $application->transactions() // Alternative: count issued transactions directly
-      //   ->where('status', LoanTransaction::STATUS_ISSUED)
-      //   ->count();
+      $totalIssued   = $application->transactions() // Use transactions relationship
+        ->whereIn('status', [LoanTransaction::STATUS_ISSUED, LoanTransaction::STATUS_UNDER_MAINTENANCE_ON_LOAN, LoanTransaction::STATUS_ON_LOAN]) // Check for statuses indicating it's currently out
+        ->count();
 
       if ($totalIssued > 0 && $totalIssued < $totalApproved) {
-        $application->status = LoanApplication::STATUS_PARTIALLY_ISSUED; // Use constant
-      } elseif ($totalIssued >= $totalApproved && $totalApproved > 0) { // Check totalApproved > 0 to avoid setting ISSUED for 0 approved items
-        $application->status = LoanApplication::STATUS_ISSUED; // Use constant
+        $application->status = LoanApplication::STATUS_PARTIALLY_ISSUED;
+      } elseif ($totalIssued >= $totalApproved && $totalApproved > 0) {
+        $application->status = LoanApplication::STATUS_ISSUED;
       }
-      // If $totalIssued is 0, status remains as APPROVED
 
       $application->save();
 
@@ -379,10 +369,9 @@ class LoanApplicationService
       ]);
 
       // Optionally send notification to applicant about issuance
-      // Notification::send($application->user, new EquipmentIssuedNotification($transaction)); // Assumes notification exists
+      // Notification::send($application->user, new EquipmentIssuedNotification($transaction));
 
-      return $transaction->fresh(); // Return the fresh transaction model
-
+      return $transaction->fresh();
     } catch (Exception $e) {
       DB::rollBack();
       Log::error('Failed to issue equipment.', [
@@ -411,8 +400,7 @@ class LoanApplicationService
     ]);
 
     // Ensure the transaction is in a state that can be returned
-    // Use isIssued() helper method or check against relevant constants
-    if (!$transaction->isIssued() && !$transaction->isUnderMaintenanceOnLoan()) { // Example check using helper methods/constants
+    if (!$transaction->isCurrentlyOnLoan()) { // Use helper method
       Log::warning('Attempted to return transaction not in valid return status.', [
         'transaction_id' => $transaction->id ?? 'N/A',
         'status' => $transaction->status ?? 'N/A',
@@ -420,11 +408,9 @@ class LoanApplicationService
       throw new Exception('Transaksi tidak dalam status yang boleh dipulangkan.'); // Malay message
     }
 
-    // Eager load equipment relationship if it's not already loaded, needed for status update
     $transaction->load('equipment');
     $equipment = $transaction->equipment;
 
-    // Critical check: Ensure equipment relationship exists
     if (!$equipment) {
       Log::critical('Equipment relationship missing for transaction ID: ' . ($transaction->id ?? 'N/A') . ' during return process.');
       throw new Exception('Ralat sistem: Peralatan tidak ditemui untuk transaksi ini.'); // Malay message
@@ -434,33 +420,30 @@ class LoanApplicationService
     DB::beginTransaction();
     try {
       // 1. Update the LoanTransaction record with return details
-      $transaction->returning_officer_id        = $returnDetails['returning_officer_id'] ?? null; // Get from $returnDetails array
-      $transaction->return_accepting_officer_id = $returnAcceptingOfficer->id; // The IT Admin user
+      $transaction->returning_officer_id        = $returnDetails['returning_officer_id'] ?? null;
+      $transaction->return_accepting_officer_id = $returnAcceptingOfficer->id;
       $transaction->accessories_checklist_on_return = $returnDetails['accessories_checklist_on_return'] ?? null;
-      $transaction->equipment_condition_on_return = $returnDetails['equipment_condition_on_return'] ?? null; // Condition reported on return
+      $transaction->equipment_condition_on_return = $returnDetails['equipment_condition_on_return'] ?? null;
       $transaction->return_notes                  = $returnDetails['return_notes'] ?? null;
-      $transaction->return_timestamp              = $returnDetails['return_timestamp'] ?? now(); // Use provided timestamp or now()
+      $transaction->return_timestamp              = $returnDetails['return_timestamp'] ?? now();
 
       // Determine final transaction status based on return condition
-      // Assumes constants like STATUS_RETURNED, STATUS_DAMAGED_ON_RETURN, STATUS_LOST_ON_RETURN, STATUS_UNDER_MAINTENANCE_ON_RETURN exist
-      switch ($transaction->equipment_condition_on_return) { // Base status on condition
-        case Equipment::CONDITION_DAMAGED: // Use constant from Equipment model? Or define in Transaction model?
-          $transaction->status = LoanTransaction::STATUS_DAMAGED_ON_RETURN; // Assumes this constant exists
-          // Potentially trigger process for damage assessment/repair
+      switch ($transaction->equipment_condition_on_return) {
+        case Equipment::CONDITION_DAMAGED:
+          $transaction->status = LoanTransaction::STATUS_DAMAGED_ON_RETURN; // Use the constant
           break;
-        case 'needs_maintenance': // Example condition value not necessarily in Equipment model constants
-        case Equipment::CONDITION_BAD: // Example
-          $transaction->status = LoanTransaction::STATUS_UNDER_MAINTENANCE_ON_RETURN; // Assumes this constant exists
-          // Potentially trigger process for maintenance
+        case 'needs_maintenance':
+        case Equipment::CONDITION_BAD:
+          // *** FIX 1: Use the constant from LoanTransaction model ***
+          $transaction->status = LoanTransaction::STATUS_UNDER_MAINTENANCE_ON_RETURN;
           break;
-        case 'lost': // Example
-          $transaction->status = LoanTransaction::STATUS_LOST_ON_RETURN; // Assumes this constant exists
-          // Potentially trigger process for reporting loss
+        case 'lost':
+          $transaction->status = LoanTransaction::STATUS_LOST_ON_RETURN; // Use the constant
           break;
-        case Equipment::CONDITION_GOOD: // Use constant
-        case Equipment::CONDITION_FINE: // Use constant
-        default: // Assume good condition if not specified or recognised
-          $transaction->status = LoanTransaction::STATUS_RETURNED; // Use constant
+        case Equipment::CONDITION_GOOD:
+        case Equipment::CONDITION_FINE:
+        default:
+          $transaction->status = LoanTransaction::STATUS_RETURNED; // Use the constant
           break;
       }
 
@@ -471,22 +454,19 @@ class LoanApplicationService
       // 2. Update the Equipment status based on the return outcome
       switch ($transaction->status) {
         case LoanTransaction::STATUS_RETURNED:
-          $equipment->availability_status = Equipment::AVAILABILITY_AVAILABLE; // Use constant
-          $equipment->condition_status    = $transaction->equipment_condition_on_return; // Update equipment condition
+          $equipment->availability_status = Equipment::AVAILABILITY_AVAILABLE;
+          $equipment->condition_status    = $transaction->equipment_condition_on_return;
           break;
         case LoanTransaction::STATUS_DAMAGED_ON_RETURN:
+          // *** FIX 2: Use the constant from LoanTransaction model ***
         case LoanTransaction::STATUS_UNDER_MAINTENANCE_ON_RETURN:
-          $equipment->availability_status = Equipment::AVAILABILITY_UNDER_MAINTENANCE; // Use constant
-          $equipment->condition_status    = $transaction->equipment_condition_on_return; // Update equipment condition
+          $equipment->availability_status = Equipment::AVAILABILITY_UNDER_MAINTENANCE;
+          $equipment->condition_status    = $transaction->equipment_condition_on_return;
           break;
         case LoanTransaction::STATUS_LOST_ON_RETURN:
-          $equipment->availability_status = Equipment::AVAILABILITY_LOST; // Use constant
-          // Condition status might remain as is or be set to null/unknown
+          $equipment->availability_status = Equipment::AVAILABILITY_LOST;
           break;
-        // If statuses like CANCELLED, OVERDUE are possible final states, handle them
         default:
-          // If the transaction status doesn't imply a change back to AVAILABLE,
-          // keep the equipment status as is (e.g., still ON_LOAN if transaction was cancelled mid-loan)
           Log::warning('Equipment status not updated after return due to unexpected transaction status.', [
             'transaction_id' => $transaction->id ?? 'N/A',
             'transaction_status' => $transaction->status ?? 'N/A',
@@ -499,11 +479,10 @@ class LoanApplicationService
 
 
       // 3. Update the related LoanApplicationItem's quantity_returned
-      // Ensure loanApplication relationship is loaded on transaction
       $transaction->load('loanApplication.items');
       $applicationItem = $transaction->loanApplication->items
-        ->where('equipment_type_id', $equipment->equipment_type_id) // Assumes equipment_type_id exists and matches
-        ->first(); // Get the first matching item (assuming one item per type in application)
+        ->where('equipment_type_id', $equipment->equipment_type_id)
+        ->first();
 
       if ($applicationItem) {
         $applicationItem->quantity_returned++;
@@ -519,23 +498,53 @@ class LoanApplicationService
           'equipment_id'   => $equipment->id ?? 'N/A',
           'equipment_type_id' => $equipment->equipment_type_id ?? 'N/A',
         ]);
-        // Log a warning, but don't necessarily throw an error as the transaction/equipment updates are key.
       }
 
 
       // 4. Update the parent LoanApplication's status based on quantities issued/returned across all items
-      $application = $transaction->loanApplication; // Get the parent application
-      $application->load('items'); // Ensure items are loaded for the application
+      $application = $transaction->loanApplication;
+      $application->load('items'); // Ensure items relationship is loaded
       $totalApproved  = $application->items->sum('quantity_approved');
-      $totalIssued    = $application->items->sum('quantity_issued');
-      $totalReturned  = $application->items->sum('quantity_returned');
+      $totalIssued    = $application->items->sum('quantity_issued'); // Use quantity issued from items
+      $totalReturned  = $application->items->sum('quantity_returned'); // Use quantity returned from items
 
-      if ($totalReturned >= $totalApproved && $totalApproved > 0) { // Check if all approved items are returned
-        $application->status = LoanApplication::STATUS_RETURNED; // Use constant
-      } elseif ($totalReturned > 0 && $totalReturned < $totalApproved) { // Check if some, but not all, approved items are returned
-        $application->status = LoanApplication::STATUS_PARTIALLY_RETURNED; // *** Use the newly added constant ***
+      // Use the quantities from the LoanApplicationItem model to determine application status
+      if ($totalReturned >= $totalApproved && $totalApproved > 0 && $totalIssued >= $totalApproved) {
+        $application->status = LoanApplication::STATUS_RETURNED;
+      } elseif ($totalReturned > 0 && $totalReturned < $totalApproved && $totalIssued >= $totalApproved) {
+        // Some returned, but not all approved quantity, and all approved quantity was issued
+        $application->status = LoanApplication::STATUS_PARTIALLY_RETURNED;
+      } elseif ($totalIssued > 0 && $totalIssued < $totalApproved && $totalReturned == 0) {
+        // Some issued, none returned yet
+        // The status should likely remain PARTIALLY_ISSUED or ISSUED depending on prior state.
+        // This logic is a bit more complex and depends on exact workflow.
+        // Let's assume for now that if any item is returned, and not all are returned, it's Partially Returned *if* all were issued.
+        // If only some were issued and some returned, the status logic needs careful review.
+        // Sticking to the simple logic based on totalReturned >= totalApproved:
+        // Keep current status unless fully returned.
       }
-      // If totalReturned is 0, status remains as ISSUED or PARTIALLY_ISSUED
+      // If $totalReturned is 0 and $totalIssued > 0, the status should likely be ISSUED or PARTIALLY_ISSUED already.
+      // No change needed unless it reaches full return.
+
+      // Re-evaluate status based on aggregate quantities on the application items:
+      $totalApprovedItems = $application->items()->sum('quantity_approved');
+      $totalReturnedItems = $application->items()->sum('quantity_returned');
+      $totalIssuedItems = $application->items()->sum('quantity_issued'); // Sum of issued quantities from items
+
+      // Determine if all approved items have been issued
+      $allApprovedIssued = $totalIssuedItems >= $totalApprovedItems && $totalApprovedItems > 0;
+
+      // Determine if all issued items have been returned
+      $allIssuedReturned = $totalIssuedItems > 0 && $totalReturnedItems >= $totalIssuedItems;
+
+      if ($allIssuedReturned && $allApprovedIssued) {
+        $application->status = LoanApplication::STATUS_RETURNED; // All issued items for all approved quantities are returned
+      } elseif ($totalReturnedItems > 0 && $totalReturnedItems < $totalIssuedItems) {
+        $application->status = LoanApplication::STATUS_PARTIALLY_RETURNED; // Some issued items returned, but not all
+      }
+      // If $totalReturnedItems is 0 but $totalIssuedItems > 0, status should be ISSUED or PARTIALLY_ISSUED (handled by issuance logic)
+
+
       $application->save();
       Log::info('LoanApplication status updated after return processing.', [
         'application_id' => $application->id ?? 'N/A',

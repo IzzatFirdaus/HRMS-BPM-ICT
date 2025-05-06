@@ -107,7 +107,7 @@ class EmailProvisioningController extends Controller
       // Use findOrFail to automatically throw ModelNotFoundException if not found
       $application = EmailApplication::findOrFail($validatedData['application_id']);
 
-      // *** FIX 2: Added debug log to check type before service call ***
+      // *** Debug log to check type before service call - Keep this line! ***
       \Log::debug('Type of $application before processProvisioning: ' . get_class($application));
 
 
@@ -153,7 +153,7 @@ class EmailProvisioningController extends Controller
         // If API is system-to-system, you might create a 'System' user or pass null.
         // If API is user-authenticated, pass Auth::user().
         // Let's pass null for now, assuming the service method can handle it or this API doesn't need it.
-        // Or, ideally, fetch the approving admin user from the application's history if the service needs THAT specific user.
+        // Or, ideally, fetch the approving admin user from the application's approval history if the service needs THAT specific user.
         // Example fetching approving user: $application->latestApproval?->officer // Requires relationships
         null // Passing null - adjust service signature if it requires a User and cannot be null
         // Or pass a placeholder system user: User::find(config('app.system_user_id'))
@@ -272,25 +272,18 @@ class EmailProvisioningController extends Controller
 
 
   //           // Log the successful update
-  //           Log::info("EmailApplication ID: " . $application->id . " status successfully updated to: " . $newStatus . " by external system.");
+  //           Log::info("EmailApplication ID: " . $application->id . " status successfully updated to: " . $application->status . " by external system.");
 
   //           // Return a success response
   //           return response()->json(['message' => 'Application status updated successfully.', 'application_status' => $application->status], 200);
 
 
   //      } catch (ModelNotFoundException $e) {
-  //           // Log and return 404 if application is not found
-  //           $applicationId = $validatedData['application_id'] ?? 'N/A';
   //           Log::warning("Status update received for non-existent EmailApplication ID: " . $applicationId . ".");
-  //           return response()->json(['message' => 'Email application not found.', 'code' => 'application_not_found'], 404); // 404 Not Found
-
+  //           return response()->json(['message' => 'Email application not found.', 'code' => 'application_not_found'], 404);
   //      } catch (Exception $e) {
-  //           // Log and return 500 for other errors
-  //           $applicationId = $validatedData['application_id'] ?? 'N/A';
   //           Log::error("An error occurred processing status update for EmailApplication ID: " . $applicationId . ": " . $e->getMessage());
-  //           // Return a generic error message in production, log details.
-  //           $errorMessage = config('app.debug') ? $e->getMessage() : 'An error occurred while updating application status.';
-  //           return response()->json(['message' => $errorMessage, 'code' => 'update_error', 'error' => config('app.debug') ? $e->getMessage() : 'Server Error'], 500); // Conditionally expose error
-  //      }
-  // }
-} // Ensure this closing brace is present.
+  //           return response()->json(['message' => 'An error occurred while updating application status.', 'code' => 'update_error', 'error' => config('app.debug') ? $e->getMessage() : 'Server Error'], 500); // Conditionally expose error
+  //      }\
+  // }\
+}
