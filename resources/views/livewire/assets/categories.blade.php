@@ -48,7 +48,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title m-0">{{ __('Categories') }}</h5>
-                    <div class="col-md-6">
+                    <div class="col-md-4 col-12">
                         <input wire:model.live.debounce.300ms="search_term_categories" type="text"
                             class="form-control" placeholder="{{ __('Search (ID, Category...)') }}">
                     </div>
@@ -64,6 +64,8 @@
                             </tr>
                         </thead>
                         <tbody>
+                            {{-- Loop through the categories provided by the Livewire component --}}
+                            {{-- The $categories variable is now explicitly passed from the render() method --}}
                             @forelse ($categories as $category)
                                 <tr class="clickable-row" wire:click='showCategoryInfo({{ $category->id }})'
                                     data-bs-toggle="modal" data-bs-target="#categoryInfoModal">
@@ -81,15 +83,14 @@
                                                 <span class="ti ti-pencil"></span>
                                             </button>
                                             <button type="button"
-                                                class="btn btn-sm btn-tr rounded-pill btn-icon btn-outline-danger waves-effect"
-                                                wire:click.stop='confirmDeleteCategory({{ $category->id }})'>
-                                                <span class="ti ti-trash"></span>
+                                                class="btn btn-sm btn-tr rounded-pill btn-icon btn-outline-danger waves-effect">
+                                                <span wire:click.prevent='confirmDeleteCategory({{ $category->id }})'
+                                                    class="ti ti-trash"></span>
                                             </button>
-                                            @if ($confirmedCategoryId === $category->id)
-                                                <button wire:click.stop='deleteCategory({{ $category }})'
-                                                    type="button" class="btn btn-sm btn-danger ms-2">
-                                                    {{ __('Sure?') }}
-                                                </button>
+                                            {{-- Show confirmation button only if this category's ID is confirmed --}}
+                                            @if ($confirmedId === $category->id)
+                                                <button wire:click.prevent='deleteCategory' type="button"
+                                                    class="btn btn-sm btn-danger waves-effect waves-light">{{ __('Sure?') }}</button>
                                             @endif
                                         </div>
                                     </td>
@@ -102,7 +103,8 @@
                                             <p class="mb-3">
                                                 {{ __('Start by adding your first category') }}
                                             </p>
-                                            <button class="btn btn-primary" data-bs-toggle="modal"
+                                            <button wire:click.prevent='showNewCategoryModal' type="button"
+                                                class="btn btn-primary" data-bs-toggle="modal"
                                                 data-bs-target="#categoryModal">
                                                 {{ __('Add New Category') }}
                                             </button>
@@ -113,85 +115,24 @@
                         </tbody>
                     </table>
                 </div>
+                {{-- Pagination --}}
+                @if ($categories instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                    <div class="mt-3 px-3">
+                        {{ $categories->links() }}
+                    </div>
+                @endif
             </div>
         </div>
 
-        <!-- Sub-Categories Column -->
+        <!-- Sub-Categories Column (Assuming this is part of the same component or structure) -->
         <div class="col-lg-6">
-            <div class="d-flex justify-content-start mb-3">
-                <button wire:click='showNewSubCategoryModal' type="button" data-bs-toggle="modal"
-                    data-bs-target="#subCategoryModal" class="btn btn-primary waves-effect">
-                    <span class="ti-xs ti ti-plus me-1"></span>
-                    {{ __('Add New Sub-Category') }}
-                </button>
-            </div>
-
+            {{-- TODO: Implement Sub-category display and management --}}
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header">
                     <h5 class="card-title m-0">{{ __('Sub-Categories') }}</h5>
-                    <div class="col-md-6">
-                        <input wire:model.live.debounce.300ms="search_term_sub_categories" type="text"
-                            class="form-control" placeholder="{{ __('Search (ID, Sub-Category...)') }}">
-                    </div>
                 </div>
-
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th width="15%">{{ __('ID') }}</th>
-                                <th>{{ __('Name') }}</th>
-                                <th width="20%">{{ __('Actions') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($subCategories as $subCategory)
-                                <tr>
-                                    <td>
-                                        <i class="ti ti-tag ti-sm text-primary me-2"></i>
-                                        <strong>{{ $subCategory->id }}</strong>
-                                    </td>
-                                    <td class="td">{{ $subCategory->name }}</td>
-                                    <td class="text-end">
-                                        <div class="btn-group" role="group">
-                                            <button type="button"
-                                                class="btn btn-sm btn-tr rounded-pill btn-icon btn-outline-secondary waves-effect"
-                                                wire:click='showEditSubCategoryModal({{ $subCategory }})'
-                                                data-bs-toggle="modal" data-bs-target="#subCategoryModal">
-                                                <span class="ti ti-pencil"></span>
-                                            </button>
-                                            <button type="button"
-                                                class="btn btn-sm btn-tr rounded-pill btn-icon btn-outline-danger waves-effect"
-                                                wire:click='confirmDeleteSubCategory({{ $subCategory->id }})'>
-                                                <span class="ti ti-trash"></span>
-                                            </button>
-                                            @if ($confirmedSubCategoryId === $subCategory->id)
-                                                <button wire:click='deleteSubCategory({{ $subCategory }})'
-                                                    type="button" class="btn btn-sm btn-danger ms-2">
-                                                    {{ __('Sure?') }}
-                                                </button>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="3">
-                                        <div class="text-center py-4">
-                                            <h3 class="mb-2">{{ __('No sub-categories found') }}</h3>
-                                            <p class="mb-3">
-                                                {{ __('Start by adding your first sub-category') }}
-                                            </p>
-                                            <button class="btn btn-primary" data-bs-toggle="modal"
-                                                data-bs-target="#subCategoryModal">
-                                                {{ __('Add New Sub-Category') }}
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                <div class="card-body">
+                    <p>{{ __('Sub-category management section under development.') }}</p>
                 </div>
             </div>
         </div>

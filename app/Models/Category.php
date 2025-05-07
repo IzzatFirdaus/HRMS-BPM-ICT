@@ -15,13 +15,7 @@ use App\Models\SubCategory; // Category has many SubCategories
 
 
 /**
-<<<<<<< HEAD
- * Class Category
  *
- * Represents a top-level category for items within the system (e.g., ICT Equipment Categories).
- * Has a one-to-many relationship with SubCategory models.
-=======
- * 
  *
  * @property int $id
  * @property string $name
@@ -48,7 +42,6 @@ use App\Models\SubCategory; // Category has many SubCategories
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Category withTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Category withoutTrashed()
  * @mixin \Eloquent
->>>>>>> cc6eb9f4f020325c04fee080d2466584ff27bb90
  */
 class Category extends Model
 {
