@@ -1,22 +1,22 @@
 <?php
 
-namespace App\Models; // Ensure the namespace is correct for your project
+namespace App\Models;
 
-use App\Traits\CreatedUpdatedDeletedBy; // Assuming this trait exists and adds audit FKs/methods
-use Carbon\Carbon; // Import Carbon if needed for date/time handling (used implicitly by 'datetime' cast)
-use Illuminate\Database\Eloquent\Casts\Attribute; // Import Attribute for modern accessors/mutators
-use Illuminate\Database\Eloquent\Factories\HasFactory; // Import HasFactory trait
-use Illuminate\Database\Eloquent\Model; // Import base Model class
-use Illuminate\Database\Eloquent\Relations\HasMany; // Import HasMany relationship type
-use Illuminate\Database\Eloquent\SoftDeletes; // Import SoftDeletes trait
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Import BelongsTo relationship type (for relationships potentially added by the trait)
-use Illuminate\Database\Eloquent\Builder; // Import Builder for scope type hinting
+use App\Traits\CreatedUpdatedDeletedBy;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
-
-// Import models for relationships (Eloquent needs to know about the related models for relationships)
-use App\Models\Timeline; // Department has many Timelines (assuming FK department_id on timelines table)
-use App\Models\User; // Department has many Users (assuming FK department_id on users table)
-use App\Models\Employee; // Department has many Employees (assuming FK department_id on employees table)
+// Import models for relationships
+use App\Models\Timeline;
+use App\Models\User;
+use App\Models\Employee;
 
 
 /**
@@ -28,21 +28,55 @@ use App\Models\Employee; // Department has many Employees (assuming FK departmen
  *
  * @property int $id
  * @property string $name
+ * @property string|null $branch_type Example: 'HQ', 'Branch'
+ * @property string|null $code Short code for the department
  * @property string|null $description
- * @property int|null $head_of_department_id Foreign key to User or Employee (optional).
  * @property bool $is_active
- * @property int|null $created_by
- * @property int|null $updated_by
- * @property int|null $deleted_by
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Timeline> $timelines The timelines associated with this department.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $users The users associated with this department.
- * @property-read \Illuminate\Database\Eloquent\Collection<int, Employee> $employees The employees associated with this department.
- * @property-read User|null $creator
- * @property-read User|null $editor
- * @property-read User|null $deleter
+ * @property int|null $head_of_department_id Foreign key to the User who is head of this department
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property string|null $deleted_at For soft deletion
+ * @property int|null $created_by Foreign key to the User who created the record
+ * @property int|null $updated_by Foreign key to the User who last updated the record
+ * @property int|null $deleted_by Foreign key to the User who soft-deleted the record
+ *
+ * @property-read Collection<int, Timeline> $timelines
+ * @property-read int|null $timelines_count
+ * @property-read Collection<int, User> $users
+ * @property-read int|null $users_count
+ * @property-read Collection<int, Employee> $employees
+ * @property-read int|null $employees_count
+ * @property-read User|null $headOfDepartment
+ *
+ * @method static Builder|Department newModelQuery()
+ * @method static Builder|Department newQuery()
+ * @method static Builder|Department onlyTrashed()
+ * @method static Builder|Department query()
+ * @method static Builder|Department whereBranchType($value)
+ * @method static Builder|Department whereCode($value)
+ * @method static Builder|Department whereContactEmail($value) // Assuming these exist in the migration
+ * @method static Builder|Department whereContactPerson($value) // Assuming these exist in the migration
+ * @method static Builder|Department whereContactPhone($value) // Assuming these exist in the migration
+ * @method static Builder|Department whereCreatedAt($value)
+ * @method static Builder|Department whereCreatedBy($value)
+ * @method static Builder|Department whereDeletedAt($value)
+ * @method static Builder|Department whereDeletedBy($value)
+ * @method static Builder|Department whereDescription($value)
+ * @method static Builder|Department whereHeadOfDepartmentId($value)
+ * @method static Builder|Department whereId($value)
+ * @method static Builder|Department whereIsActive($value)
+ * @method static Builder|Department whereLocation($value) // Assuming this exists in the migration
+ * @method static Builder|Department whereName($value)
+ * @method static Builder|Department whereStartWorkHour($value) // Assuming these exist in the migration
+ * @method static Builder|Department whereEndWorkHour($value) // Assuming these exist in the migration
+ * @method static Builder|Department whereUpdatedAt($value)
+ * @method static Builder|Department whereUpdatedBy($value)
+ * @method static Builder|Department whereWeekends($value) // Assuming this exists in the migration
+ * @method static Builder|Department withTrashed()
+ * @method static Builder|Department withoutTrashed()
+ * @method static Builder|Department active() // Scope defined below
+ *
+ * @mixin \Eloquent
  */
 class Department extends Model
 {
@@ -50,110 +84,69 @@ class Department extends Model
 
   protected $fillable = [
     'name',
+    'branch_type',
+    'code',
     'description',
-    'head_of_department_id', // Assuming this column exists
     'is_active',
-    // created_by, updated_by, deleted_by handled by trait
+    'head_of_department_id',
+    // 'location', 'start_work_hour', 'end_work_hour', 'weekends' - add if these are in fillable and migration
   ];
 
   protected $casts = [
     'is_active' => 'boolean',
-    'head_of_department_id' => 'integer',
-    'created_at' => 'datetime',
-    'updated_at' => 'datetime',
-    'deleted_at' => 'datetime',
-    'name' => 'string',
-    'description' => 'string',
+    'weekends' => 'json',
+    'start_work_hour' => 'datetime',
+    'end_work_hour' => 'datetime',
   ];
 
-  // If CreatedUpdatedDeletedBy trait is used, ensure these columns are fillable or handled by the trait
-  // protected $guarded = []; // Or use guarded instead of fillable
-
-
-  // --- Relationships ---
-
   /**
-   * Get the timelines associated with this department.
-   * Defines a one-to-many relationship.
-   * Assumes 'timelines' table has 'department_id' foreign key.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Timeline>
+   * Get the timelines for the department.
    */
-  public function timelines(): HasMany // Added return type hint
+  public function timelines(): HasMany
   {
     return $this->hasMany(Timeline::class, 'department_id');
   }
 
   /**
-   * Get the users associated with this department.
-   * Defines a one-to-many relationship.
-   * Assumes 'users' table has 'department_id' foreign key.
-   * Note: User might also be linked via Employee. Review schema for primary linkage.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\User>
+   * Get the users for the department.
    */
-  public function users(): HasMany // Added return type hint
+  public function users(): HasMany
   {
-    // Assuming 'users' table has 'department_id' foreign key
     return $this->hasMany(User::class, 'department_id');
   }
 
   /**
-   * Get the employees associated with this department.
-   * Defines a one-to-many relationship.
-   * Assumes 'employees' table has 'department_id' foreign key.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\HasMany<\App\Models\Employee>
+   * Get the employees for the department.
    */
-  public function employees(): HasMany // Added return type hint
+  public function employees(): HasMany
   {
     return $this->hasMany(Employee::class, 'department_id');
   }
 
   /**
-   * Get the head of department user.
-   * Defines a many-to-one relationship (nullable).
-   * Assumes 'departments' table has 'head_of_department_id' foreign key.
-   *
-   * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, \App\Models\Department>
+   * Get the user who is the head of the department.
    */
-  public function headOfDepartment(): BelongsTo // Added return type hint
+  public function headOfDepartment(): BelongsTo
   {
     return $this->belongsTo(User::class, 'head_of_department_id');
   }
 
-
-  // 👉 Attributes (Accessors/Mutators)
-
   /**
    * Get or set the department's name.
-   * Applies ucfirst mutation on setting for consistent capitalization.
-   *
-   * @return \Illuminate\Database\Eloquent\Casts\Attribute
+   * Applies ucfirst mutation on setting.
    */
-  protected function name(): Attribute // Added return type hint
+  protected function name(): Attribute
   {
     return Attribute::make(
-      // Mutator: Apply ucfirst when the name attribute is set before saving to the database
-      set: fn(string $value) => ucfirst($value), // Capitalize the first letter
+      set: fn(string $value) => ucfirst($value),
     );
-    // Be cautious with using mutators like ucfirst() if you have a unique constraint
-    // on the 'name' column and names like 'IT' and 'it' should be considered unique by the database.
   }
-
-  // --- Scopes ---
 
   /**
    * Scope to include active departments.
-   *
-   * @param  \Illuminate\Database\Eloquent\Builder  $query
-   * @return \Illuminate\Database\Eloquent\Builder
    */
-  public function scopeActive(Builder $query): Builder // Added return type hint
+  public function scopeActive(Builder $query): Builder
   {
     return $query->where('is_active', true);
   }
-
-
-  // Add any other relationships, accessors, mutators, or methods below this line
 }

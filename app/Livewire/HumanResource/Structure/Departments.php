@@ -2,392 +2,257 @@
 
 namespace App\Livewire\HumanResource\Structure;
 
-use App\Models\Department; // Assumed to exist with users() relationship
-use App\Models\Timeline; // Not directly used in this component's logic as written
+use App\Models\Department;
+use App\Models\User;
 use Livewire\Attributes\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Illuminate\Database\Eloquent\Builder; // For type hinting query builders
-use Illuminate\Support\Facades\DB; // For database transactions
-use Illuminate\Support\Facades\Log; // For logging errors
-use Exception; // Import the Exception class
-use Illuminate\Validation\Rule as ValidationRule; // Alias Rule for validation rules
-use Illuminate\Support\Facades\Auth; // Import Auth Facade
-
-
-// Assumptions:
-// 1. Department model exists and has 'name', 'branch_type', 'code', 'description' attributes.
-// 2. Department model has a 'users()' relationship to count members via withCount.
-// 3. Department model uses SoftDeletes if deletion implies soft deletion.
-// 4. Livewire v3+ is used for attributes.
-// 5. The view uses Bootstrap pagination styling.
-// 6. The department modal is controlled via a public $showModal property bound with Alpine's @entangle
-//    and shows/hides using x-show.
-// 7. The department modal might need JS plugin initialization triggered by a 'departmentModalShown' event.
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Exception;
+use Illuminate\Validation\Rule as ValidationRule;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class Departments extends Component
 {
   use WithPagination;
 
-  // Pagination specific setting (assuming Bootstrap styling)
-  protected $paginationTheme = 'bootstrap';
+  protected string $paginationTheme = 'bootstrap';
 
-  // 👉 State Variables (Public properties that sync with the view)
-
-  // Property for the search input field
-  #[Rule('nullable|string|max:255')]
-  public string $search = '';
-
-  // Form fields for the add/edit modal
-  #[Rule('required|string|max:255')] // Base validation for name
-  public string $name = '';
-
-  #[Rule('required|in:state,headquarters')] // Branch type validation
-  public string $branch_type = '';
-
-  #[Rule('nullable|string|max:10')] // Code validation
-  public string $code = '';
-
-  #[Rule('nullable|string|max:500')] // Description validation
-  public string $description = '';
-
-  // State: Department model instance being edited
+  public bool $showModal = false;
+  public bool $isEdit = false;
   public ?Department $department = null;
 
-  // State: Flag indicating if the modal is in edit mode
-  public bool $isEdit = false;
+  #[Rule(['required', 'string', 'max:255'])]
+  public string $name = '';
 
-  // State: ID of the department pending deletion confirmation
+  #[Rule(['nullable', 'string', 'max:50'])]
+  public ?string $branch_type = null;
+
+  #[Rule(['nullable', 'string', 'max:20'])]
+  public ?string $code = null;
+
+  #[Rule(['nullable', 'string'])]
+  public ?string $description = null;
+
+  #[Rule(['required', 'boolean'])]
+  public bool $is_active = true;
+
+  #[Rule(['nullable', 'exists:users,id'])]
+  public ?int $head_of_department_id = null;
+
   public ?int $confirmedId = null;
 
-  // State: Controls the visibility of the main department modal (for Alpine/JS binding)
-  public bool $showModal = false; // Added for modal visibility control
-
-
-  // 👉 Computed Properties (Livewire v3+ - Cached data that depends on state)
-
-  /**
-   * Computed property to fetch and paginate departments.
-   * Includes user count and filters based on search term.
-   *
-   * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
-   */
+  // Keep computed property, but render method explicitly passes data as a fallback test
   #[Computed]
-  public function departments(): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+  public function departments()
   {
-    // Start with the query builder
     $query = Department::query()
-      // Eager load the count of related users (assuming Department has a 'users()' relationship)
       ->withCount('users')
-      // Apply search filter if search term is present
-      ->when($this->search, function (Builder $query, string $term) {
-        $query->where('name', 'like', '%' . $term . '%')
-          ->orWhere('code', 'like', '%' . $term . '%')
-          ->orWhere('description', 'like', '%' . $term . '%');
-      })
-      // Order departments alphabetically by name
       ->orderBy('name');
 
-    // Return paginated results (uses default perPage from WithPagination or component property if set)
-    return $query->paginate(10); // Adjust pagination size as needed or use $this->perPage if added as a property
+    return $query->paginate(10);
   }
 
-
-  // 👉 Lifecycle Hooks
-
-  /**
-   * Hook called when the 'search' property is updated.
-   * Resets pagination to the first page to avoid empty pages.
-   */
-  public function updatedSearch(): void
+  // Fetch users for the Head of Department dropdown
+  #[Computed]
+  public function users()
   {
-    $this->resetPage(); // Reset pagination to the first page
-  }
-
-  /**
-   * Hook called when the 'showModal' property is updated.
-   * Resets validation errors when the modal is hidden.
-   */
-  public function updatedShowModal(bool $value): void
-  {
-    if (!$value) { // If modal is being closed
-      $this->resetValidation(); // Clear validation errors when modal hides
-      // Optional: Reset form fields when modal is closed manually (alternative to resetForm)
-      // $this->reset(['name', 'branch_type', 'code', 'description', 'department', 'isEdit']);
+    try {
+      return User::orderBy('name')->get();
+    } catch (Exception $e) {
+      Log::error('Error fetching users for departments component: ' . $e->getMessage(), ['exception' => $e]);
+      return collect();
     }
   }
 
-
-  // Render method simply returns the view
-  /**
-   * Render the component view.
-   */
-  public function render() //: \Illuminate\Contracts\View\View|\Illuminate\Contracts\View\Factory // Optional return type hint
+  // Render Method - Explicitly fetch and pass data as a fallback test
+  public function render(): View
   {
-    // The 'departments' computed property is automatically available to the view
-    return view('livewire.human-resource.structure.departments');
+    $departments = Department::query()
+      ->withCount('users')
+      ->orderBy('name')
+      ->paginate(10);
+
+    // Pass users if needed in the main view table or other parts outside the modal
+    // If the users dropdown is ONLY in the modal, it will use the computed property when modal renders via JS event
+    $users = $this->users; // Fetch users using the computed property here
+
+    return view('livewire.human-resource.structure.departments', [
+      'departments' => $departments,
+      'users' => $users, // Pass users to the main view
+    ]);
   }
 
-
-  // 👉 Department Management Actions
-
   /**
-   * Handle form submission for creating or updating a department.
-   * Uses a database transaction for atomicity.
+   * Save a new or update an existing department.
    */
-  public function submitDepartment()
+  public function saveDepartment()
   {
-    // Validation rules, including unique checks ignoring the current record if editing
-    $rules = [
-      'name' => [
-        'required',
-        'string',
-        'max:255',
-        ValidationRule::unique('departments', 'name')->ignore($this->isEdit ? $this->department?->id : null)
-      ],
-      'code' => [
-        'nullable',
-        'string',
-        'max:10',
-        ValidationRule::unique('departments', 'code')->ignore($this->isEdit ? $this->department?->id : null)
-      ],
-      'branch_type' => 'required|in:state,headquarters',
-      'description' => 'nullable|string|max:500',
+    $this->rules['code'] = [
+      'nullable',
+      'string',
+      'max:20',
+      ValidationRule::unique('departments', 'code')->ignore($this->department?->id),
     ];
 
-    // Perform validation
-    $this->validate($rules);
+    $this->validate();
 
-    // Use a database transaction for atomicity
-    DB::beginTransaction(); // Use imported DB facade method
-
+    DB::beginTransaction();
     try {
-      if ($this->isEdit) {
-        $this->editDepartment();
-      } else {
-        $this->addDepartment();
-      }
-
-      DB::commit(); // Commit the transaction on success
-
-      // Success feedback and dispatch events after successful transaction
-      session()->flash('success', $this->isEdit ? __('Department Updated Successfully!') : __('Department Added Successfully!'));
-      $this->dispatch('closeModal', elementId: '#departmentModal'); // Assuming JS event to close modal
-      $this->dispatch('toastr', type: 'success', message: __('Operation Successful!')); // Adjusted toastr message
-
-      // The departments list in the view should automatically update due to computed property and state changes
-      // No manual refresh needed.
-
-    } catch (Exception $e) { // Use imported Exception
-      DB::rollBack(); // Rollback the transaction on exception
-
-      // Log the exception for debugging
-      Log::error('Department submit failed: ' . $e->getMessage(), [ // Use imported Log
-        'user_id' => Auth::id(), // Use imported Auth
-        'department_data' => [
+      if ($this->isEdit && $this->department) {
+        $this->department->update([
           'name' => $this->name,
           'branch_type' => $this->branch_type,
           'code' => $this->code,
-          'description' => $this->description
-        ],
-        'is_edit' => $this->isEdit,
-        'department_id' => $this->department?->id, // Use null-safe operator
-        'exception' => $e,
-      ]);
+          'description' => $this->description,
+          'is_active' => $this->is_active,
+          'head_of_department_id' => $this->head_of_department_id,
+        ]);
+        Log::info('Department updated.', ['department_id' => $this->department->id, 'user_id' => Auth::id()]);
+      } else {
+        Department::create([
+          'name' => $this->name,
+          'branch_type' => $this->branch_type,
+          'code' => $this->code,
+          'description' => $this->description,
+          'is_active' => $this->is_active,
+          'head_of_department_id' => $this->head_of_department_id,
+        ]);
+        Log::info('Department created.', ['user_id' => Auth::id()]);
+      }
 
-      // Flash and dispatch error feedback
-      session()->flash('error', __('An error occurred while saving the department. Please try again.')); // Generic user message
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!')); // Toastr error notification
+      DB::commit();
 
-      // Keep modal open or close? Original closed. Let's explicitly close modal on error.
-      $this->dispatch('closeModal', elementId: '#departmentModal');
-      // Or dispatch an error modal specific event if needed
-      // $this->dispatch('showErrorModal', message: $e->getMessage()); // Example
-
-    } finally {
-      // Reset modal state and clear form fields regardless of success or failure
-      // Use specific resets
-      $this->reset('isEdit', 'department', 'name', 'branch_type', 'code', 'description');
-      // Also reset confirmedId if needed, though usually only set for delete confirmation
-      $this->confirmedId = null;
+      $this->showModal = false;
+      session()->flash('message', __('Department saved successfully.'));
+      $this->dispatch('hide-department-modal');
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Error saving department: ' . $e->getMessage(), ['exception' => $e, 'user_id' => Auth::id()]);
+      session()->flash('error', __('An error occurred while saving the department: ') . $e->getMessage());
     }
-  }
 
-  /**
-   * Add a new department record.
-   * Called internally from submitDepartment within a transaction.
-   */
-  protected function addDepartment(): void
-  {
-    // Validation is handled in submitDepartment()
-
-    Department::create([
-      'name' => $this->name,
-      'branch_type' => $this->branch_type,
-      'code' => $this->code ?: null, // Store empty string as null
-      'description' => $this->description ?: null, // Store empty string as null
-      // created_by/updated_by might be handled by a trait or observer
-      // 'created_by' => Auth::id(), // Example if manual assignment needed
-    ]);
-
-    // Success feedback and dispatching handled in submitDepartment() after transaction
+    $this->resetForm();
   }
 
   /**
    * Show modal for editing an existing department.
-   * Uses route model binding to inject the Department model.
-   *
-   * @param Department $department The Department model instance to edit.
    */
   public function showEditDepartmentModal(Department $department): void
   {
-    // Reset state and validation before populating for edit
-    $this->reset(['isEdit', 'department', 'name', 'branch_type', 'code', 'description', 'confirmedId']);
     $this->resetValidation();
 
-    $this->isEdit = true; // Set edit mode
-    $this->department = $department; // Store the model instance
-
-    // Populate the form fields from the record's data
+    $this->isEdit = true;
+    $this->department = $department;
     $this->name = $department->name;
     $this->branch_type = $department->branch_type;
-    $this->code = $department->code ?? ''; // Use empty string for null DB value in form
-    $this->description = $department->description ?? ''; // Use empty string for null DB value in form
+    $this->code = $department->code;
+    $this->description = $department->description;
+    $this->is_active = $department->is_active;
+    $this->head_of_department_id = $department->head_of_department_id;
 
-    // Set showModal to true to open the modal via Alpine.js binding
     $this->showModal = true;
-    // Dispatch JS event to signal modal is shown and ready for component initialization (e.g., Select2, Flatpickr)
-    $this->dispatch('departmentModalShown'); // Custom event for JS initialization
+    $this->dispatch('departmentModalShown');
+
+    Log::info('Edit modal shown for department ID: ' . $department->id);
   }
 
   /**
-   * Update an existing department record.
-   * Called internally from submitDepartment within a transaction.
+   * Set the department ID for deletion confirmation.
    */
-  protected function editDepartment(): void
+  public function confirmDeletion(int $departmentId): void
   {
-    // Validation is handled in submitDepartment()
-
-    // Ensure the department model instance is loaded
-    if (!$this->department) {
-      // Log error and throw exception if model is not set (should not happen in normal flow)
-      Log::error('Departments component: Attempted to update with no department model loaded.', ['user_id' => Auth::id(), 'is_edit' => $this->isEdit]);
-      throw new Exception(__('Department record not found for update.')); // Exception triggers transaction rollback
-    }
-
-    // Update the model attributes
-    $this->department->update([
-      'name' => $this->name,
-      'branch_type' => $this->branch_type,
-      'code' => $this->code ?: null, // Store empty string as null
-      'description' => $this->description ?: null, // Store empty string as null
-      // updated_by might be handled by a trait or observer
-      // 'updated_by' => Auth::id(), // Example if manual assignment needed
-    ]);
-
-    // Success feedback and dispatching handled in submitDepartment() after transaction
-    // Reset modal state handled in submitDepartment() finally block
+    $this->confirmedId = $departmentId;
+    Log::info('Deletion confirmation initiated for department ID: ' . $departmentId);
   }
 
   /**
-   * Set the ID of the department to be confirmed for deletion.
-   * Called from the view (e.g., delete button in table).
-   *
-   * @param int $id The ID of the department to confirm deletion for.
-   */
-  public function confirmDeleteDepartment(int $id): void
-  {
-    $this->confirmedId = $id; // Store the ID for confirmation
-    // Dispatch event to show confirmation modal/UI if using one
-    // $this->dispatch('openConfirmModal', elementId: '#deleteConfirmationModal');
-  }
-
-  /**
-   * Perform the deletion of the confirmed department.
-   * Called from the confirmation button ("Sure?") in the view.
+   * Delete the confirmed department.
    */
   public function deleteDepartment(): void
   {
-    // Check if a department ID is confirmed for deletion
-    if ($this->confirmedId === null) {
-      // No confirmed ID, do nothing or log an error
-      Log::warning('Departments component: deleteDepartment called with no confirmed ID.', ['user_id' => Auth::id()]);
-      $this->dispatch('toastr', type: 'warning', message: __('No department selected for deletion.'));
+    if (is_null($this->confirmedId)) {
+      Log::warning('Attempted to delete department without confirmed ID.');
       return;
     }
 
-    // Find the department record using the confirmed ID
-    $record = Department::find($this->confirmedId);
+    $departmentToDelete = Department::find($this->confirmedId);
 
-    // Check if the record exists
-    if (!$record) {
-      // Record not found (might have been deleted already)
-      session()->flash('error', __('Department record not found for deletion.'));
-      $this->dispatch('toastr', type: 'error', message: __('Not Found!'));
-    } else {
-      // Record found, attempt deletion
-      // Consider wrapping delete in a transaction if needed, but Eloquent's delete is often sufficient
-      try {
-        // Before deleting, consider business rules:
-        // - Prevent deletion if there are associated records (users, timelines)?
-        // - Or cascade delete? (DB foreign keys or Eloquent relationships)
-        // Assuming SoftDeletes trait is used, this performs a soft delete.
-
-        $record->delete(); // Perform the deletion (soft or hard based on model traits)
-
-        session()->flash('success', __('Department Deleted Successfully!'));
-        $this->dispatch('toastr', type: 'success', message: __('Operation Successful!'));
-      } catch (Exception $e) { // Catch any exceptions during deletion
-        // Log the error
-        Log::error('Departments component: Failed to delete department record.', ['user_id' => Auth::id(), 'department_id' => $this->confirmedId, 'exception' => $e]);
-        // Flash and dispatch error feedback
-        session()->flash('error', __('An error occurred while deleting the department. Please check for associated records.')); // User message
-        $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
-      }
+    if (!$departmentToDelete) {
+      Log::warning('Attempted to delete non-existent department.', ['department_id' => $this->confirmedId, 'user_id' => Auth::id()]);
+      session()->flash('error', __('Department not found.'));
+      $this->dispatch('hide-delete-confirmation-modal');
+      $this->confirmedId = null;
+      return;
     }
 
-    // Reset confirmedId after the deletion attempt (success or failure)
-    $this->confirmedId = null;
-    // Dispatch event to close confirmation modal (if using one)
-    // $this->dispatch('closeConfirmModal', elementId: '#deleteConfirmationModal');
+    DB::beginTransaction();
+    try {
+      if ($departmentToDelete->users()->exists()) {
+        DB::rollBack();
+        session()->flash('error', __('Cannot delete department because it has associated users. Reassign users first.'));
+        $this->confirmedId = null;
+        $this->dispatch('hide-delete-confirmation-modal');
+        Log::warning('Attempted to delete department with associated users.', ['department_id' => $departmentToDelete->id, 'user_id' => Auth::id()]);
+        return;
+      }
 
-    // Livewire will re-render and the list will update
+      $departmentToDelete->delete();
+
+      DB::commit();
+
+      Log::info('Department deleted successfully.', ['department_id' => $departmentToDelete->id, 'user_id' => Auth::id()]);
+      session()->flash('message', __('Department deleted successfully.'));
+      $this->dispatch('hide-delete-confirmation-modal');
+    } catch (Exception $e) {
+      DB::rollBack();
+      Log::error('Error deleting department: ' . $e->getMessage(), ['exception' => $e, 'user_id' => Auth::id(), 'department_id' => $this->confirmedId]);
+      session()->flash('error', __('An error occurred while deleting the department: ') . $e->getMessage());
+      $this->dispatch('hide-delete-confirmation-modal');
+    }
+
+    $this->confirmedId = null;
+  }
+
+  /**
+   * Close the deletion confirmation modal and reset confirmed ID.
+   */
+  public function cancelDeletion(): void
+  {
+    $this->confirmedId = null;
+    Log::info('Department deletion cancelled.');
   }
 
   /**
    * Show modal for adding a new department.
-   * Called from the "Add New Department" button in the view.
    */
   public function showNewDepartmentModal(): void
   {
-    // Reset all relevant properties to clear the form for a new entry
-    $this->reset(['isEdit', 'department', 'name', 'branch_type', 'code', 'description', 'confirmedId']);
-    // Clear any previous validation errors
+    $this->reset(['isEdit', 'department', 'name', 'branch_type', 'code', 'description', 'head_of_department_id', 'confirmedId']);
     $this->resetValidation();
 
-    $this->isEdit = false; // Explicitly set mode to add new
+    $this->isEdit = false;
+    $this->is_active = true;
 
-    // Set showModal to true to open the modal via Alpine.js binding
     $this->showModal = true;
-    // Dispatch JS event to signal modal is shown and ready for component initialization (e.g., Select2, Flatpickr)
-    $this->dispatch('departmentModalShown'); // Custom event for JS initialization
+    $this->dispatch('departmentModalShown');
+
+    Log::info('New department modal shown.');
   }
 
   /**
    * Reset the form fields and state.
-   * Can be called from a modal close or cancel button if needed.
    */
   public function resetForm(): void
   {
-    $this->reset(['isEdit', 'department', 'name', 'branch_type', 'code', 'description', 'confirmedId']);
+    $this->reset(['isEdit', 'department', 'name', 'branch_type', 'code', 'description', 'is_active', 'head_of_department_id', 'confirmedId']);
     $this->resetValidation();
-    // Optionally set showModal to false here if needed, but Alpine binding often handles this
-    // $this->showModal = false;
+    $this->is_active = true;
+
+    Log::info('Department form reset.');
   }
-
-
-  // These methods are no longer needed with the refactored approach using withCount and computed property
-  // public function getCoordinator($id) { }
-  // public function getMembersCount($department_id) { }
 }
