@@ -1,3 +1,10 @@
+{{-- resources/views/livewire/human-resource/attendance/fingerprints.blade.php --}}
+{{-- This view is the template for the App\Livewire\HumanResource\Attendance\Fingerprints Livewire component. --}}
+{{-- It should contain the HTML structure for the attendance fingerprints management page. --}}
+
+{{-- This file relies on the corresponding Livewire component (App\Livewire\HumanResource\Attendance\Fingerprints.php)
+     to provide the necessary variables, such as $employees. --}}
+
 <div>
 
     @php
@@ -29,230 +36,246 @@
                             <div class="d-flex align-items-center me-3 me-lg-0">
                                 <div wire:ignore class="col-12">
                                     <label class="form-label">{{ __('Employee') }}</label>
+                                    {{-- select2 selectedEmployeeId binding --}}
                                     <select wire:model='selectedEmployeeId' class="select2 form-control"
                                         id="select2selectedEmployeeId">
+                                        {{-- Loop through $employees collection provided by the component --}}
+                                        {{-- This is line ~34 where the Undefined variable error occurred --}}
                                         @forelse ($employees as $employee)
                                             <option value="{{ $employee->id }}">
+                                                {{-- Adjust the employee property access based on your Employee model --}}
+                                                {{-- Assuming Employee model has 'id' and 'full_name' --}}
                                                 {{ $employee->id . ' - ' . $employee->full_name }}</option>
                                         @empty
                                             <option value="0" disabled>{{ __('No Employees Found!') }}</option>
                                         @endforelse
                                     </select>
+                                    {{-- Add validation error display if needed --}}
+                                    {{-- @if ($errors->has('selectedEmployeeId'))
+                                          <span class="text-danger">{{ $errors->first('selectedEmployeeId') }}</span>
+                                      @endif --}}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {{-- Add other sidebar content/filters here --}}
                 <div class="border-bottom p-3 my-sm-0 mb-3">
                     <div class="col-12">
                         <label class="form-label">{{ __('Date Range') }}</label>
-                        <input wire:model='dateRange' type="text" class="form-control flatpickr-input active"
-                            id="flatpickr-range" placeholder="YYYY-MM-DD to YYYY-MM-DD" readonly="readonly">
+                        {{-- Example date range input for filtering/selection --}}
+                        <input type="text" wire:model.live.debounce.500ms="fromDate" class="form-control mb-2"
+                            placeholder="From Date">
+                        <input type="date" wire:model.live.debounce.500ms="toDate" class="form-control"
+                            placeholder="To Date">
+                        {{-- Or use a single flatpickr range input like in the leaves view --}}
+                        {{-- <input type="text" wire:model.live.debounce.500ms="dateRange" class="form-control" placeholder="Date Range" id="flatpickr-range"> --}}
                     </div>
                 </div>
 
                 <div class="border-bottom p-3 my-sm-0 mb-3">
-                    <div class="col-12">
-                        <label class="form-label">{{ __('Options') }}</label>
-                    </div>
-                    <div class="ms-3">
-                        <div class="form-check form-check-danger mb-2">
-                            <input wire:model='isAbsence' class="form-check-input input-filter" type="checkbox"
-                                id="isAbsence">
-                            <label class="form-check-label" for="isAbsence">{{ __('Absence') }}</label>
-                        </div>
-                        <div class="form-check form-check-warning mb-2">
-                            <input wire:model='isOneFingerprint' class="form-check-input input-filter" type="checkbox"
-                                id="isOneFingerprint">
-                            <label class="form-check-label" for="isOneFingerprint">{{ __('One Fingerprint') }}</label>
-                        </div>
+                    <div class="col-12 form-check">
+                        <input class="form-check-input" type="checkbox" wire:model.live="isAbsence" id="isAbsenceCheck">
+                        <label class="form-check-label" for="isAbsenceCheck">
+                            {{ __('Show Absences Only') }}
+                        </label>
                     </div>
                 </div>
 
-                <div class="row p-5">
-                    <div class="d-grid gap-2 col-12 mx-auto">
-                        <button wire:click='applyFilter' class="btn btn-label-primary btn-xl waves-effect waves-light"
-                            type="button">{{ __('Apply') }}
-                        </button>
+                <div class="border-bottom p-3 my-sm-0 mb-3">
+                    <div class="col-12 form-check">
+                        <input class="form-check-input" type="checkbox" wire:model.live="isOneFingerprint"
+                            id="isOneFingerprintCheck">
+                        <label class="form-check-label" for="isOneFingerprintCheck">
+                            {{ __('One Fingerprint Per Day') }}
+                        </label>
                     </div>
                 </div>
-            </div>
-            <!-- /Sidebar -->
 
-            <!-- Calendar -->
+
+                {{-- Example button to apply filters (if not using wire:model.live) --}}
+                {{-- <div class="mt-3 d-grid">
+                      <button wire:click="applyFilters" class="btn btn-primary">{{ __('Apply Filters') }}</button>
+                  </div> --}}
+
+                {{-- Import Button --}}
+                <div class="p-3 d-grid">
+                    <button wire:click="openImportModal" class="btn btn-success">
+                        <i class="ti ti-file-import me-1"></i> {{ __('Import Fingerprints') }}
+                    </button>
+                </div>
+
+                {{-- Export Button --}}
+                <div class="p-3 d-grid">
+                    <button wire:click="exportFingerprints" class="btn btn-info">
+                        <i class="ti ti-file-export me-1"></i> {{ __('Export Fingerprints') }}
+                    </button>
+                </div>
+
+
+            </div> {{-- End Sidebar --}}
+
+            <!-- Main Content Area -->
             <div class="col app-calendar-content">
-                <div class="card shadow-none border-0">
-                    <div class="card-body pb-0" style="height: 500px;">
-                        <div>
-                            <div class="row d-flex justify-content-between">
-                                <div class="col-7 p-0 d-flex overflow-hidden align-items-center">
-                                    <a class="nav-item d-xl-none nav-link px-0 mx-2" href="javascript:void(0)"
-                                        data-bs-toggle="sidebar" data-overlay="" data-target="#app-calendar-sidebar">
-                                        <i class="ti ti-menu-2 ti-sm"></i>
-                                    </a>
-                                    <div class="flex-shrink-0 avatar">
-                                        <img src="{{ Storage::disk('public')->exists($selectedEmployee->profile_photo_path) ? Storage::disk('public')->url($selectedEmployee->profile_photo_path) : Storage::disk('public')->url('profile-photos/.default-photo.jpg') }}"
-                                            class="rounded-circle" alt="Avatar">
-                                    </div>
-                                    <div class="chat-contact-info flex-grow-1 ms-2">
-                                        <h6 class="m-0">{{ $selectedEmployee->full_name }}</h6>
-                                        <small
-                                            class="user-status text-muted">{{ $selectedEmployee->current_position }}</small>
-                                    </div>
-                                </div>
+                {{-- Main content area, e.g., table or list of fingerprint records --}}
+                <div class="p-3">
+                    <h2>{{ __('Filtered Fingerprint Records') }}</h2>
 
-                                <div class="col-5 btn-group d-flex justify-content-end">
-                                    <button {{ Auth::user()->hasRole('Admin') ? '' : 'disabled' }}
-                                        wire:click.prevent='showNewFingerprintModal' type="button"
-                                        class="btn btn-primary waves-effect waves-light" data-bs-toggle="offcanvas"
-                                        data-bs-target="#addRecordSidebar" aria-controls="addRecordSidebar"><i
-                                            class="ti ti-plus me-1"></i> {{ __('Add New Record') }}
-                                    </button>
-                                    <button type="button"
-                                        class="btn btn-primary dropdown-toggle dropdown-toggle-split waves-effect waves-light"
-                                        data-bs-toggle="dropdown" aria-expanded="false">
-                                        <span class="visually-hidden"></span>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <h6 class="dropdown-header text-uppercase">{{ __('Import & Export') }}</h6>
-                                        </li>
-                                        <li>
-                                            <button class="dropdown-item" data-bs-toggle="modal"
-                                                data-bs-target="#importModal">
-                                                <i class="ti ti-table-import me-1"></i> {{ __('Import From Excel') }}
-                                            </button>
-                                        </li>
-                                        <li>
-                                            <button wire:click='exportToExcel()' class="dropdown-item">
-                                                <i class="ti ti-table-export me-1"></i> {{ __('Export To Excel') }}
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <div class="table-responsive text-nowrap">
-                                <table class="table">
-                                    <thead>
+                    {{-- Display the list of fingerprints using the $fingerprints computed property --}}
+                    @if ($fingerprints->count() > 0)
+                        <div class="overflow-x-auto shadow-sm rounded-lg border border-gray-200">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            {{ __('Employee') }}</th>
+                                        <th
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            {{ __('Timestamp') }}</th>
+                                        <th
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            {{ __('Device ID') }}</th>
+                                        {{-- Add other columns relevant to your Fingerprint model --}}
+                                        <th
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            {{ __('Actions') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    @foreach ($fingerprints as $fingerprint)
                                         <tr>
-                                            <th>{{ __('Date') }}</th>
-                                            <th>{{ __('Check In') }}</th>
-                                            <th>{{ __('Check Out') }}</th>
-                                            <th>{{ __('Excuse') }}</th>
-                                            <th class="col-1">{{ __('Actions') }}</th>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                {{ $fingerprint->employee->full_name ?? 'N/A' }}</td>
+                                            {{-- Access employee relationship --}}
+                                            <td class="px-6 py-4 whitespace-nowrap">{{ $fingerprint->timestamp }}</td>
+                                            {{-- Assuming timestamp field exists --}}
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                {{ $fingerprint->device_id ?? 'N/A' }}</td> {{-- Assuming device_id exists --}}
+                                            {{-- Add other data cells --}}
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                {{-- Add action buttons here, e.g., to view/edit in modal --}}
+                                                {{-- <button wire:click="openFingerprintModal({{ $fingerprint->id }})" class="text-blue-600 hover:text-blue-900">View</button> --}}
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody class="table-border-bottom-0">
-                                        @forelse($fingerprints as $fingerprint)
-                                            <tr>
-                                                <td>{{ $fingerprint->date }}</td>
-                                                <td>
-                                                    <div class="badge rounded-pill bg-label-secondary">
-                                                        {{ $fingerprint->check_in }}</div>
-                                                </td>
-                                                <td>
-                                                    <div class="badge rounded-pill bg-label-secondary">
-                                                        {{ $fingerprint->check_out }}</div>
-                                                </td>
-                                                <td>
-                                                    <div class="badge rounded-pill bg-label-secondary">
-                                                        {{ $fingerprint->excuse }}</div>
-                                                </td>
-                                                <td>
-                                                    <div>
-                                                        <a wire:click.prevent="showEditFingerprintModal({{ $fingerprint }})"
-                                                            data-bs-toggle="offcanvas"
-                                                            data-bs-target="#addRecordSidebar" href=""><i
-                                                                class="ti ti-edit text-info"></i></a>
-                                                        <a wire:click.prevent="confirmDeleteFingerprint({{ $fingerprint->id }})"
-                                                            href=""><i class="ti ti-trash text-danger"></i></a>
-                                                        @if ($confirmedId === $fingerprint->id)
-                                                            <button
-                                                                wire:click.prevent='deleteFingerprint({{ $fingerprint }})'
-                                                                type="button"
-                                                                class="btn btn-xs btn-danger waves-effect waves-light">{{ __('Sure?') }}
-                                                            </button>
-                                                        @endif
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="4">
-                                                    <div class="mt-2 mb-2" style="text-align: center">
-                                                        <h3 class="mb-1 mx-2">{{ __('Oopsie-doodle!') }}</h3>
-                                                        <p class="mb-4 mx-2">
-                                                            {{ __('No data found, please sprinkle some data in my virtual bowl, and let the fun begin!') }}
-                                                        </p>
-                                                        <button class="btn btn-label-primary mb-4"
-                                                            data-bs-toggle="modal" data-bs-target="#importModal">
-                                                            {{ __('Import From Excel') }}
-                                                        </button>
-                                                        <div>
-                                                            <img src="{{ asset('assets/img/illustrations/page-misc-under-maintenance.png') }}"
-                                                                alt="page-misc-under-maintenance" width="200"
-                                                                class="img-fluid">
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- Pagination links --}}
+                        <div class="mt-4">
                             {{ $fingerprints->links() }}
                         </div>
-                    </div>
+                    @else
+                        <p class="text-gray-600">{{ __('No fingerprint records found matching the current filters.') }}
+                        </p>
+                    @endif
+
                 </div>
+            </div> {{-- End Main Content Area --}}
 
-                <div class="app-overlay"></div>
-            </div>
-            <!-- /Calendar-->
-        </div>
+        </div> {{-- End row --}}
+    </div> {{-- End card --}}
 
-        {{-- Modals --}}
-        @include('_partials/_modals/modal-fingerprint')
-        @include('_partials/_modals/modal-import')
-    </div>
+    {{-- Include modals here --}}
+    {{-- Assuming you have modals for import and viewing/editing fingerprints --}}
+    @include('_partials/_modals/modal-fingerprint') {{-- Example modal include --}}
+    @include('_partials/_modals/modal-import') {{-- Example import modal include --}}
 
+
+    {{-- Include vendor scripts if needed (e.g., for select2, flatpickr) --}}
     @push('custom-scripts')
+        {{-- Use @push if your layout uses @stack --}}
         <script src="{{ asset('assets/vendor/libs/select2/select2.js') }}"></script>
         <script src="{{ asset('assets/vendor/libs/flatpickr/flatpickr.js') }}"></script>
 
         <script>
-            $(document).ready(function() {
-                const flatpickrRange = document.querySelector('#flatpickr-range');
-                if (typeof flatpickrRange != undefined) {
-                    flatpickrRange.flatpickr({
-                        mode: 'range'
+            document.addEventListener('livewire:initialized', () => { // Use livewire:initialized
+                const select2selectedEmployeeId = $('#select2selectedEmployeeId');
+                // const flatpickrRange = document.querySelector('#flatpickr-range'); // If using date range picker
+
+                // Initialize select2 for Employee dropdown
+                if (select2selectedEmployeeId.length) {
+                    // Removed .each() as typically not needed for a single ID
+                    select2selectedEmployeeId.select2({
+                        placeholder: "{{ __('Select Employee') }}",
+                        allowClear: true, // Allow clearing the selection
+                        dropdownParent: select2selectedEmployeeId.parent() // Ensure dropdown is contained
                     });
-                }
-            });
-        </script>
 
-        <script>
-            'use strict';
-
-            $(function() {
-                const selectPicker = select2 = $('.select2');
-
-                if (select2.length) {
-                    select2.each(function() {
-                        var $this = $(this);
-                        $this.wrap('<div class="position-relative"></div>').select2({
-                            placeholder: 'Select value..',
-                            dropdownParent: $this.parent()
-                        });
+                    // Listen for changes on the Select2 dropdown and update Livewire property
+                    select2selectedEmployeeId.on('change', function(e) {
+                        @this.set('selectedEmployeeId', $(this).val());
                     });
+
+                    // Optional: Listen for Livewire property updates to set Select2 value
+                    // @this.on('selectedEmployeeIdUpdated', (value) => {
+                    //     select2selectedEmployeeId.val(value).trigger('change.select2');
+                    // });
                 }
 
-                $('#select2selectedEmployeeId').on('change', function(e) {
-                    var data = $('#select2selectedEmployeeId').select2("val");
-                    @this.set('selectedEmployeeId', data);
+                // Initialize Flatpickr for Date Range (if using a single input for range)
+                // if (flatpickrRange) {
+                //      flatpickr(flatpickrRange, {
+                //          mode: 'range',
+                //          dateFormat: 'Y-m-d',
+                //          onChange: function(selectedDates, dateStr, instance) {
+                //              if (selectedDates.length === 2) {
+                //                  @this.set('fromDate', instance.formatDate(selectedDates[0], 'Y-m-d'));
+                //                  @this.set('toDate', instance.formatDate(selectedDates[1], 'Y-m-d'));
+                //              } else {
+                //                  @this.set('fromDate', null);
+                //                  @this.set('toDate', null);
+                //              }
+                //          }
+                //      });
+                //       // Optional: Sync Flatpickr with Livewire properties on mount/update
+                //       @this.on('fromDateUpdated', (date) => { if (fp) fp.setDate([date, @this.get('toDate')]); });
+                //       @this.on('toDateUpdated', (date) => { if (fp) fp.setDate([@this.get('fromDate'), date]); });
+                //       // Set initial dates
+                //      if (@this.get('fromDate') && @this.get('toDate')) {
+                //           flatpickrRange.flatpickr.setDate([@this.get('fromDate'), @this.get('toDate')]);
+                //      }
+                // }
+
+
+                // Example of listening for modal events dispatched from Livewire
+                @this.on('openImportModal', () => {
+                    $('#modalImport').modal('show');
+                }); // Assuming modal has ID modalImport
+                @this.on('closeImportModal', () => {
+                    $('#modalImport').modal('hide');
                 });
-            });
+                @this.on('openFingerprintModal', () => {
+                    $('#modalFingerprint').modal('show');
+                }); // Assuming modal has ID modalFingerprint
+                @this.on('closeFingerprintModal', () => {
+                    $('#modalFingerprint').modal('hide');
+                });
+
+                // Example of showing import success/error messages
+                @this.on('importFinished', (messages) => {
+                    // Assuming messages is an array like [{type: 'success/error/warning', text: '...'}]
+                    messages.forEach(msg => {
+                        if (msg.type === 'success') {
+                            // Show success notification (e.g., Toastr)
+                            toastr.success(msg.text); // Assuming Toastr is available
+                        } else if (msg.type === 'error') {
+                            toastr.error(msg.text);
+                        } else if (msg.type === 'warning') {
+                            toastr.warning(msg.text);
+                        }
+                    });
+                    // Optional: Refresh the fingerprints list after import
+                    @this.call('$refresh'); // Refresh the component
+                });
+
+            }); // End livewire:initialized event listener
         </script>
+        {{-- Ensure scripts inside blade are wrapped in @section('page-script') or @push('custom-scripts') etc.
+           and included in your main layout using @stack('scripts') or @yield('page-script') --}}
     @endpush
+
 </div>

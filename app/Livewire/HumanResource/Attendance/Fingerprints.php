@@ -2,512 +2,595 @@
 
 namespace App\Livewire\HumanResource\Attendance;
 
-use App\Exports\ExportFingerprints; // Assumed to work with the fetched data
-use App\Imports\ImportFingerprints; // Assumed to work and accept parameters
-use App\Livewire\Sections\Navbar\Navbar; // Assumed to exist for event dispatch
-use App\Models\Employee; // Assumed to exist
+use App\Exports\ExportFingerprints;
+use App\Imports\ImportFingerprints;
+use App\Livewire\Sections\Navbar\Navbar;
+use App\Models\Employee; // Make sure this is imported
 use App\Models\Fingerprint; // Assumed to exist and have static filteredFingerprints method
-use App\Models\Import; // Assumed to exist for tracking imports
-use App\Notifications\DefaultNotification; // Assumed to exist
-use Carbon\Carbon; // For date/time manipulation
-use Exception; // General exception handling
-use Illuminate\Support\Facades\Auth; // For authenticated user
-use Illuminate\Support\Facades\Notification; // For sending notifications
-use Illuminate\Support\Facades\Storage; // For file storage
-use Illuminate\Support\Facades\Log; // Added for logging
-use Livewire\Attributes\Renderless; // For Livewire v3+ renderless methods
-use Livewire\Attributes\Computed; // For Livewire v3+ computed properties
-use Livewire\Attributes\Locked; // For Livewire v3+ locked properties
-use Livewire\Attributes\On; // For Livewire v3+ event listeners
-use Livewire\Component; // Base Livewire component
-use Livewire\WithFileUploads; // Trait for file uploads
-use Livewire\WithPagination; // Trait for pagination
-use Maatwebsite\Excel\Facades\Excel; // Facade for Excel operations
-use Maatwebsite\Excel\Validators\ValidationException; // Specific import validation exception
+use App\Models\Import;
+use App\Notifications\DefaultNotification;
+use Carbon\Carbon;
+use Exception; // Use the non-namespaced Exception now
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Renderless;
+use Livewire\Attributes\Computed; // Make sure this is imported
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithFileUploads;
+use Livewire\WithPagination;
+use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\Validators\ValidationException;
+use Maatwebsite\Excel\DefaultValueBinder; // Keep if needed elsewhere, but not for the anonymous class extension
 
+use Illuminate\Support\Facades\DB; // Example
+use Illuminate\Validation\Rule; // Example
+use Illuminate\View\View;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection as SupportCollection;
+use Maatwebsite\Excel\Concerns\FromArray; // Import necessary concern
 
-// Assumptions:
-// 1. Fingerprint model exists and has columns: 'employee_id', 'date', 'check_in', 'check_out', 'log'.
-// 2. Fingerprint model has a static method or scope 'filteredFingerprints($employeeId, $fromDate, $toDate, $isAbsence, $isOneFingerprint)'
-//    which returns an Eloquent query builder.
-// 3. Fingerprint model casts 'date' to 'date' and 'check_in'/'check_out' to appropriate time/datetime formats.
-// 4. Employee model exists and has 'id' and other attributes.
-// 5. Import model exists and has fillable attributes for tracking imports.
-// 6. ExportFingerprints and ImportFingerprints classes work correctly with the data structure.
-// 7. Navbar component exists for event dispatching.
-// 8. DefaultNotification exists.
-// 9. Livewire v3+ is used for attributes.
 
 class Fingerprints extends Component
 {
-  use WithFileUploads, WithPagination;
+  use WithPagination, WithFileUploads;
 
-  // Pagination specific setting (assuming Bootstrap styling in the view)
-  protected $paginationTheme = 'bootstrap';
+  // Define public properties used in the view (e.g., for wire:model)
+  public $selectedEmployeeId = null;
+  public $fromDate = null;
+  public $toDate = null;
+  public $isAbsence = false;
+  public $isOneFingerprint = false; // Added based on Fingerprint model scope
+  public $file; // For file upload
+  public $showImportModal = false; // To control import modal visibility
+  public $importing = false; // To show importing status
+  public $importMessages = []; // To store import feedback
+  public $search = ''; // For searching fingerprints
+  public $selectedFingerprintId = null; // For editing
 
-  // 👉 State Variables (Public properties that sync with the view)
-
-  public $selectedEmployeeId; // Filter: Employee dropdown value
-  public $dateRange; // Filter: Date range input string
-  public bool $isAbsence = false; // Filter: Toggle absence records
-  public bool $isOneFingerprint = false; // Filter: Toggle one fingerprint records
-
-  public ?int $confirmedId = null; // State: ID of the fingerprint record pending deletion confirmation
-
-  public bool $isEdit = false; // State: Is the modal/sidebar in edit mode
-  public ?Fingerprint $fingerprint = null; // State: Fingerprint model being edited
-
-  // State for create/edit form fields
-  public string $date = '';
-  public string $checkIn = ''; // Use string for time input binding (HH:MM)
-  public string $checkOut = ''; // Use string for time input binding (HH:MM)
-
-  #[Locked] // Prevent external manipulation via view
-  public $file; // State: Uploaded file for import
-
-  // Internal properties derived from state (optional, could be Computed)
-  protected $fromDate;
-  protected $toDate;
+  // Properties for editing/creating a single fingerprint record
+  public $date = null;
+  public $checkIn = null;
+  public $checkOut = null;
+  public $excuse = null;
+  public $isEdit = false;
 
 
-  // 👉 Computed Properties (Livewire v3+ - Cached data that depends on state)
-
+  // Add this computed property to fetch employees for the dropdown
   #[Computed]
-  public function employees(): \Illuminate\Database\Eloquent\Collection
+  public function employees(): EloquentCollection // Added return type hint
   {
-    // Cache all employees for the filter dropdown
-    // Consider optimizing this for large employee lists (e.g., search dropdown)
-    return Employee::all();
+    // Fetch all employees, ordered by name for the dropdown
+    // You can adjust the query as needed (e.g., filter by status)
+    return Employee::orderBy('full_name')->get();
   }
 
+  // Computed property for the paginated list of fingerprints
   #[Computed]
-  public function selectedEmployee(): ?Employee
+  public function fingerprints() // Removed return type hint if it causes issues, or specify based on pagination result
   {
-    // Fetch the selected employee model if an ID is set
-    return $this->selectedEmployeeId ? Employee::find($this->selectedEmployeeId) : null;
-  }
+    // Get the selected employee ID (use the property)
+    $employeeId = $this->selectedEmployeeId;
 
-  #[Computed]
-  public function fingerprints(): \Illuminate\Contracts\Pagination\LengthAwarePaginator
-  {
-    // This computed property fetches and filters the fingerprint data
-    // It will be automatically re-evaluated when its dependencies ($selectedEmployeeId, $dateRange, $isAbsence, $isOneFingerprint, pagination page) change
+    // Ensure valid dates are set if filtering by date
+    $fromDate = $this->fromDate ? Carbon::parse($this->fromDate)->format('Y-m-d') : null;
+    // FIX: Corrected variable name inside Carbon::parse()
+    $toDate = $this->toDate ? Carbon::parse($this->toDate)->format('Y-m-d') : null;
 
-    // Parse date range string into Carbon dates
-    $fromDate = null;
-    $toDate = null;
-    if ($this->dateRange) {
-      $dates = explode(' to ', $this->dateRange);
-      if (count($dates) === 2) {
-        try {
-          $fromDate = Carbon::parse(trim($dates[0]))->startOfDay();
-          $toDate = Carbon::parse(trim($dates[1]))->endOfDay();
-        } catch (\Exception $e) {
-          // Log invalid date format but don't stop rendering or throw error
-          Log::warning('Fingerprints component: Invalid dateRange format received for filtering: ' . $this->dateRange, ['exception' => $e]);
-          // Keep fromDate/toDate null, effectively removing the date filter
-          $fromDate = null;
-          $toDate = null;
-        }
-      }
+    // Start with the base query
+    $query = Fingerprint::query();
+
+    // Apply filters based on component properties
+    if ($employeeId) {
+      $query->where('employee_id', $employeeId);
     }
 
-    // Store derived dates in properties if needed elsewhere, otherwise remove these lines
-    $this->fromDate = $fromDate;
-    $this->toDate = $toDate;
-
-    // Use the static filteredFingerprints method from the Fingerprint model
-    // Assumes this method exists and handles all the filtering logic
-    $query = Fingerprint::filteredFingerprints(
-      $this->selectedEmployeeId, // Pass selected employee ID
-      $this->fromDate,           // Pass parsed from date
-      $this->toDate,             // Pass parsed to date
-      $this->isAbsence,          // Pass absence filter state
-      $this->isOneFingerprint    // Pass one fingerprint filter state
-    );
-
-    // Return paginated results
-    return $query->paginate(7);
-  }
+    if ($fromDate && $toDate) {
+      $query->whereBetween('date', [$fromDate, $toDate]);
+    } elseif ($fromDate) {
+      $query->where('date', '>=', $fromDate);
+    } elseif ($toDate) {
+      $query->where('date', '<=', $toDate);
+    }
 
 
-  // 👉 Lifecycle Hooks
+    if ($this->isAbsence) {
+      $query->whereNull('log');
+    }
 
-  public function mount()
-  {
-    // Set initial selected employee ID to the logged-in user's employee ID
-    $this->selectedEmployeeId = Auth::user()->employee_id;
+    if ($this->isOneFingerprint) {
+      $query->whereNotNull('check_in')->whereNull('check_out');
+    }
 
-    // Initialize date range input string to last month to today
-    $currentDate = Carbon::now();
-    $previousMonth = $currentDate->copy()->subMonth();
-    // Format date range string for the view input (e.g., YYYY-MM-DD to YYYY-MM-DD)
-    $this->dateRange = $previousMonth->format('Y-m-d') . ' to ' . $currentDate->format('Y-m-d');
-
-    // Initial data fetch is implicitly handled by the 'fingerprints' computed property when the component renders
-  }
-
-  // No explicit updated methods are needed for state properties like $selectedEmployeeId, $dateRange, etc.
-  // because the 'fingerprints' computed property depends on them and will re-evaluate automatically.
-  // Pagination reset is handled by Livewire when computed property dependencies change.
-
-
-  // Render method simply returns the view
-  public function render()
-  {
-    // Data ('fingerprints', 'employees', 'selectedEmployee') is accessed directly
-    // from computed properties in the view, no need to pass explicitly.
-    return view('livewire.human-resource.attendance.fingerprints');
-  }
-
-
-  // 👉 Fingerprint Management Actions
-
-  // Validation rules for adding/editing a fingerprint record
-  protected function rules()
-  {
-    // Note: Assuming 'date' is YYYY-MM-DD, 'checkIn'/'checkOut' are HH:MM strings from input
-    return [
-      'date' => 'required|date_format:Y-m-d', // Ensure date is required and in correct format
-      'checkIn' => 'required|date_format:H:i', // Ensure check-in is required and in HH:MM format
-      'checkOut' => 'required|date_format:H:i|after:checkIn', // Ensure check-out is required, HH:MM format, and after check-in
-      // Add validation for selectedEmployeeId if the form allows changing it in edit mode
-      // 'selectedEmployeeId' => 'required|exists:employees,id', // Example validation
-    ];
-  }
-
-  // Custom validation messages (optional)
-  protected function messages()
-  {
-    return [
-      'date.required' => __('Date is required.'),
-      'date.date_format' => __('Date must be in YYYY-MM-DD format.'),
-      'checkIn.required' => __('Check-in time is required.'),
-      'checkIn.date_format' => __('Check-in time must be in HH:MM format.'),
-      'checkOut.required' => __('Check-out time is required.'),
-      'checkOut.date_format' => __('Check-out time must be in HH:MM format.'),
-      'checkOut.after' => __('Check-out time must be after check-in time.'),
-      // Add messages for other rules/fields as needed
-    ];
-  }
-
-
-  // Submit the fingerprint creation or update form
-  public function submitFingerprint()
-  {
-    // Validate the form data using the rules() method
-    $this->validate();
-
-    // Use a database transaction for atomicity (all or nothing)
-    try {
-      \Illuminate\Support\Facades\DB::transaction(function () { // Use full namespace for DB in transaction closure
-        if ($this->isEdit) {
-          $this->editFingerprint();
-        } else {
-          $this->addFingerprint();
-        }
+    // Apply search filter if search term is present
+    if ($this->search) {
+      $query->where(function (Builder $q) {
+        $q->where('log', 'like', '%' . $this->search . '%')
+          ->orWhere('excuse', 'like', '%' . $this->search . '%')
+          ->orWhereHas('employee', function (Builder $eq) {
+            $eq->where('full_name', 'like', '%' . $this->search . '%')
+              ->orWhere('nric', 'like', '%' . $this->search . '%')
+              ->orWhere('id', 'like', '%' . $this->search . '%');
+          });
       });
+    }
 
-      // Success feedback and dispatch events after successful transaction
-      session()->flash('success', $this->isEdit ? __('Success, fingerprint updated successfully!') : __('Success, fingerprint added successfully!'));
-      // No scrollToTop in original, keep original dispatch behavior
-      $this->dispatch('closeCanvas', elementId: '#addRecordSidebar'); // Assuming a JS event to close sidebar/modal
-      $this->dispatch('toastr', type: 'success', message: __('Going Well!')); // Assuming a JS event for toastr
 
-    } catch (\Exception $e) {
-      // Log the exception
-      Log::error('Fingerprint submit failed: ' . $e->getMessage(), [
+    // Order the results
+    $query->orderBy('date', 'desc'); // Order by date descending by default
+
+    // Paginate the results
+    return $query->paginate(10); // Adjust pagination per page as needed
+  }
+
+
+  // Add listener for select2 change event (assuming you use it for selectedEmployeeId)
+  // You might need a specific JavaScript event dispatch in your blade for this to work correctly with wire:model
+  #[On('employeeSelected')]
+  public function employeeSelected($employeeId)
+  {
+    $this->selectedEmployeeId = $employeeId;
+    // Optionally reset dates or other filters here if needed
+    // $this->fromDate = null;
+    // $this->toDate = null;
+  }
+
+  // Reset pagination when filters change
+  public function updated($property)
+  {
+    // Check if the updated property is one of the filter properties
+    if (in_array($property, ['selectedEmployeeId', 'fromDate', 'toDate', 'isAbsence', 'isOneFingerprint', 'search'])) {
+      $this->resetPage();
+    }
+  }
+
+
+  // Method to handle file upload and import
+  public function importFingerprints()
+  {
+    $this->validate([
+      'file' => 'required|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+    ]);
+
+    $this->importing = true;
+    $this->importMessages = []; // Clear previous messages
+
+    $filePath = $this->file->store('imports/fingerprints');
+    $fullPath = Storage::path($filePath);
+
+    try {
+      // Using try-catch for ValidationException specific to Maatwebsite/Excel
+      // Note: The ImportFingerprints class constructor expects $user_id and $file_id
+      // Make sure you are passing these correctly when instantiating it if needed
+      // Example: Excel::import(new ImportFingerprints(Auth::id(), $importRecord->id), $fullPath);
+      // Assuming for now that ImportFingerprints can be instantiated without args or gets them differently
+      // Based on the ImportFingerprints.php you provided, its constructor *does* take $user_id and $file_id.
+      // You need to pass these here. Let's assume you have an 'Import' model
+      // to track imports and get a $file_id.
+
+      // Create a record in the 'imports' table first to get an ID
+      $importRecord = Import::create([
+        'file_path' => $filePath,
         'user_id' => Auth::id(),
-        'fingerprint_data' => ['date' => $this->date, 'check_in' => $this->checkIn, 'check_out' => $this->checkOut],
-        'is_edit' => $this->isEdit,
-        'fingerprint_id' => $this->fingerprint?->id, // Use null-safe operator
+        'status' => 'pending', // Or 'processing'
+        'type' => 'fingerprint',
+      ]);
+
+      // Now pass the user ID and import record ID to the importer
+      Excel::import(new ImportFingerprints(Auth::id(), $importRecord->id), $fullPath);
+
+
+      // Log successful import attempt
+      Log::info('Fingerprint import initiated successfully.', [
+        'file_path' => $filePath,
+        'user_id' => Auth::id(),
+        'import_id' => $importRecord->id, // Log the import ID
+      ]);
+
+      // The ImportFingerprints class likely handles updating the import record status and details
+      // within its event listeners (e.g., AfterImport, ImportFailed).
+      // You might retrieve final messages from the import record or rely on the events
+      // dispatched by the importer itself.
+
+      // For immediate feedback, show a message that the process has started.
+      $this->importMessages[] = ['type' => 'success', 'text' => __('Import process started successfully. Results will be available soon.')];
+
+      // Dispatch an event to the blade to show a generic success notification immediately
+      $this->dispatch('importFinished', [['type' => 'success', 'text' => __('Import process started. Check the import history or log for detailed results.')]]);
+    } catch (ValidationException $e) {
+      // Handle validation errors from the import file
+      $failures = $e->failures();
+      $errorMessages = [['type' => 'error', 'text' => __('Validation errors found in the import file:')]];
+      foreach ($failures as $failure) {
+        $errorMessages[] = ['type' => 'error', 'text' => "Row {$failure->row()}: " . implode(", ", $failure->errors())];
+      }
+      $this->importMessages = array_merge($this->importMessages, $errorMessages);
+      Log::error('Fingerprint import validation failed.', [
+        'file_path' => $filePath,
+        'user_id' => Auth::id(),
+        'failures' => $failures,
         'exception' => $e,
       ]);
+      $this->dispatch('importFinished', $errorMessages);
 
-      // Flash and dispatch error feedback
-      session()->flash('error', __('An error occurred while saving the fingerprint record.') . ' ' . $e->getMessage()); // Show exception message for debugging, or a generic message
-      $this->dispatch('toastr', type: 'error', message: __('Operation Failed!')); // Assuming a JS event for toastr
-      // Keep sidebar/modal open on error? Original closed. Let's keep original behavior.
-      $this->dispatch('closeCanvas', elementId: '#addRecordSidebar');
-    } finally {
-      // Reset modal state and clear form fields regardless of success or failure
-      $this->reset('isEdit', 'fingerprint', 'date', 'checkIn', 'checkOut');
-    }
-  }
-
-
-  // Show modal/sidebar for adding a new fingerprint record
-  #[Renderless] // Prevents a full render before dispatching JS event
-  public function showNewFingerprintModal(): void // Use void return type
-  {
-    $this->reset('isEdit', 'fingerprint', 'date', 'checkIn', 'checkOut'); // Reset all relevant state
-    // Dispatch JS event to open the modal/sidebar
-    // $this->dispatch('openModal', elementId: '#addRecordSidebar');
-  }
-
-  // Show modal/sidebar for editing an existing fingerprint record
-  #[Renderless] // Prevents a full render before dispatching JS event
-  public function showEditFingerprintModal(Fingerprint $fingerprint): void // Use route model binding, void return type
-  {
-    $this->isEdit = true; // Set edit mode
-    $this->fingerprint = $fingerprint; // Store the model for update
-
-    // Populate the form fields with the record's data
-    // Ensure dates/times are formatted correctly for input fields
-    $this->date = $fingerprint->date ? Carbon::parse($fingerprint->date)->format('Y-m-d') : ''; // Format date
-    $this->checkIn = $fingerprint->check_in ?? ''; // Use nullish coalescing for empty string default
-    $this->checkOut = $fingerprint->check_out ?? ''; // Use nullish coalescing for empty string default
-
-    // Dispatch JS event to open the modal/sidebar if not handled by wire:click
-    // $this->dispatch('openModal', elementId: '#addRecordSidebar');
-  }
-
-  // Add a new fingerprint record
-  protected function addFingerprint(): void // Use protected as called internally, void return type
-  {
-    // Assumes Fingerprint model is fillable/guarded correctly
-    // check_in/check_out might need Carbon parsing if not automatically cast
-    Fingerprint::create([
-      'employee_id' => $this->selectedEmployeeId, // Assuming employee_id is set and valid
-      'date' => $this->date, // Assuming date is in YYYY-MM-DD format
-      'check_in' => $this->checkIn, // Assuming check_in is HH:MM string
-      'check_out' => $this->checkOut, // Assuming check_out is HH:MM string
-      'log' => $this->checkIn . ' ' . $this->checkOut, // Constructing log string
-      // Add created_by/updated_by if your model/trait handles it
-    ]);
-
-    // Success feedback and dispatching is handled in submitFingerprint() after transaction
-  }
-
-  // Update an existing fingerprint record
-  protected function editFingerprint(): void // Use protected as called internally, void return type
-  {
-    // Find the record again within the transaction for safety
-    // Use $this->fingerprint which was loaded in showEditFingerprintModal
-    if (!$this->fingerprint) {
-      // Should not happen if flow is correct, but defensive check
-      Log::error('Fingerprints component: Attempted to update non-existent fingerprint model.', ['user_id' => Auth::id(), 'is_edit' => $this->isEdit]);
-      throw new Exception(__('Fingerprint record not found for update.')); // Throw exception to trigger transaction rollback and error handling
-    }
-
-    // Update the record attributes
-    $this->fingerprint->update([
-      // 'employee_id' => $this->selectedEmployeeId, // Uncomment if employee can be changed
-      'date' => $this->date, // Assuming date is in YYYY-MM-DD format
-      'check_in' => $this->checkIn, // Assuming check_in is HH:MM string
-      'check_out' => $this->checkOut, // Assuming check_out is HH:MM string
-      'log' => $this->checkIn . ' ' . $this->checkOut, // Constructing log string
-      // Add updated_by if your model/trait handles it
-    ]);
-
-    // Success feedback and dispatching is handled in submitFingerprint() after transaction
-    // Reset modal state is handled in submitFingerprint()
-  }
-
-  // Confirm deletion of a fingerprint record
-  public function confirmDeleteFingerprint(int $fingerprintId): void // Accept ID, void return type
-  {
-    $this->confirmedId = $fingerprintId; // Store the ID for confirmation
-    // Dispatch event to show confirmation modal (e.g., SweetAlert, Bootstrap modal)
-    // $this->dispatch('openConfirmModal', elementId: '#deleteConfirmationModal');
-  }
-
-  // Perform the deletion after confirmation
-  public function deleteFingerprint(): void // Void return type
-  {
-    // Check if an ID is confirmed
-    if ($this->confirmedId === null) {
-      return; // No ID to delete
-    }
-
-    // Find the record to delete
-    $record = Fingerprint::find($this->confirmedId);
-
-    if (!$record) {
-      // Record not found (maybe already deleted)
-      session()->flash('error', __('Fingerprint record not found for deletion.'));
-      $this->dispatch('toastr', type: 'error', message: __('Not Found!'));
-    } else {
-      // Perform the deletion
-      try {
-        $record->delete(); // Use model delete method (handles soft deletes if enabled)
-
-        session()->flash('success', __('Success, fingerprint record deleted successfully!'));
-        $this->dispatch('toastr', type: 'success', message: __('Going Well!'));
-      } catch (\Exception $e) {
-        // Handle potential database errors during deletion
-        Log::error('Fingerprints component: Failed to delete fingerprint record.', ['user_id' => Auth::id(), 'fingerprint_id' => $this->confirmedId, 'exception' => $e]);
-        session()->flash('error', __('An error occurred while deleting the fingerprint record.') . ' ' . $e->getMessage()); // Show exception message or generic error
-        $this->dispatch('toastr', type: 'error', message: __('Operation Failed!'));
+      // Update import record status to failed if it was created
+      if (isset($importRecord) && $importRecord) {
+        $importRecord->update([
+          'status' => 'failed',
+          'details' => json_encode($errorMessages), // Store validation errors
+        ]);
       }
+    } catch (Exception $e) { // Using non-namespaced Exception
+      // Handle other exceptions during import
+      $errorMessage = __('An error occurred during import: ') . $e->getMessage();
+      $this->importMessages[] = ['type' => 'error', 'text' => $errorMessage];
+      Log::error('Fingerprint import failed.', [
+        'file_path' => $filePath,
+        'user_id' => Auth::id(),
+        'exception' => $e,
+      ]);
+      $this->dispatch('importFinished', [['type' => 'error', 'text' => $errorMessage]]);
+
+      // Update import record status to failed if it was created
+      if (isset($importRecord) && $importRecord) {
+        $importRecord->update([
+          'status' => 'failed',
+          'details' => $e->getMessage(),
+        ]);
+      }
+    } finally {
+      $this->importing = false;
+      $this->file = null; // Clear the file input
+      // You might want to close the modal here or dispatch an event to do so
+      // $this->showImportModal = false; // Or dispatch an event
     }
-
-    // Reset confirmedId and close confirmation modal (if using one)
-    $this->confirmedId = null;
-    // $this->dispatch('closeConfirmModal', elementId: '#deleteConfirmationModal');
   }
 
-  // 👉 Import/Export Actions
-
-  // Validation rules for import
-  protected function importRules()
+  // Method to download the export template
+  public function downloadTemplate()
   {
-    return [
-      'file' => 'required|mimes:xlsx,xls', // Accept both xlsx and xls
-    ];
-  }
-
-  // Custom validation messages for import
-  protected function importMessages()
-  {
-    return [
-      'file.required' => __('Please select a file to upload.'), // Translated
-      'file.mimes' => __('Only Excel files (xlsx, xls) are accepted.'), // Translated
-    ];
-  }
-
-  // Handle Excel import
-  public function importFromExcel()
-  {
-    // Validate the uploaded file
-    $this->validate($this->importRules(), $this->importMessages());
-
     try {
-      // Create a record in the 'imports' table
-      $fileRecord = Import::create([
-        'file_name' => $this->file->getClientOriginalName(),
-        'file_size' => $this->file->getSize(),
-        'file_ext' => $this->file->getClientOriginalExtension(),
-        'file_type' => $this->file->getClientMimeType(),
-        'status' => 'waiting', // Set initial status
-        'created_by' => Auth::id(), // Assuming created_by stores User ID
+      // Generate a sample empty template or a template with headers
+      $templateData = [
+        ['employee_id', 'date', 'log', 'check_in', 'check_out', 'excuse'], // Example headers
+        // Add sample rows if helpful
+        // [1, '2023-10-27', 'Log data 1', '08:00', '17:00', ''],
+        // [2, '2023-10-27', 'Log data 2', '08:15', '17:30', 'Late arrival'],
+      ];
+
+      $fileName = 'fingerprint_import_template.xlsx';
+
+      // FIX: Removed 'extends DefaultValueBinder' and ensured implements FromArray
+      // This is the standard way to use an anonymous class with FromArray
+      // The linter warning "Expected 2 arguments" here is likely a false positive
+      // confusing this with the ImportFingerprints constructor.
+      return Excel::download(new class($templateData) implements FromArray { // Corrected anonymous class definition
+        protected $data;
+
+        public function __construct(array $data)
+        {
+          $this->data = $data;
+        }
+
+        public function array(): array
+        {
+          return $this->data;
+        }
+      }, $fileName);
+
+      // This log line will not be reached because return exits the method
+      // Log::info('Fingerprint import template downloaded.', ['user_id' => Auth::id()]);
+
+
+    } catch (Exception $e) { // Using non-namespaced Exception
+      Log::error('Error downloading fingerprint import template: ' . $e->getMessage(), ['user_id' => Auth::id(), 'exception' => $e]);
+      session()->flash('error', __('An error occurred while downloading the template: ') . $e->getMessage());
+    }
+  }
+
+
+  // Method to handle exporting fingerprints based on current filters
+  public function exportFingerprints()
+  {
+    try {
+      // Get the filtered fingerprints using the same logic as the computed property
+      // We fetch *all* matching records, not just one page for export
+      $employeeId = $this->selectedEmployeeId;
+      $fromDate = $this->fromDate ? Carbon::parse($this->fromDate)->format('Y-m-d') : null;
+      // FIX: Corrected variable name inside Carbon::parse()
+      $toDate = $this->toDate ? Carbon::parse($this->toDate)->format('Y-m-d') : null;
+
+      $query = Fingerprint::query();
+
+      if ($employeeId) {
+        $query->where('employee_id', $employeeId);
+      }
+
+      if ($fromDate && $toDate) {
+        $query->whereBetween('date', [$fromDate, $toDate]);
+      } elseif ($fromDate) {
+        $query->where('date', '>=', $fromDate);
+      } elseif ($toDate) {
+        $query->where('date', '<=', $toDate);
+      }
+
+
+      if ($this->isAbsence) {
+        $query->whereNull('log');
+      }
+
+      if ($this->isOneFingerprint) {
+        $query->whereNotNull('check_in')->whereNull('check_out');
+      }
+
+      if ($this->search) {
+        $query->where(function (Builder $q) {
+          $q->where('log', 'like', '%' . $this->search . '%')
+            ->orWhere('excuse', 'like', '%' . $this->search . '%')
+            ->orWhereHas('employee', function (Builder $eq) {
+              $eq->where('full_name', 'like', '%' . $this->search . '%')
+                ->orWhere('nric', 'like', '%' . $this->search . '%')
+                ->orWhere('id', 'like', '%' . $this->search . '%');
+            });
+        });
+      }
+
+      $fingerprintsToExport = $query->orderBy('date', 'desc')->get();
+
+
+      if ($fingerprintsToExport->isEmpty()) {
+        session()->flash('warning', __('No records found for the selected filters to export.'));
+        Log::info('Fingerprint export attempted with no records found.', ['user_id' => Auth::id(), 'filters' => $this->toArray()]);
+        return; // Stop the export process
+      }
+
+      // Notify the user that export is starting (optional, but good UX)
+      // Notification::route('mail', Auth::user()->email)->notify(new DefaultNotification('Export Started', 'Your fingerprint export is being generated.'));
+      // session()->flash('success', __('Export started. You will be notified when it is ready.')); // Or just download directly
+
+      // Dispatch event to blade to show a notification
+      $this->dispatch('showToast', type: 'success', message: __('Export Started!'));
+
+
+      // Generate filename
+      $fileName = 'Fingerprints - ' . (Auth::user()->name ?? 'User') . ' - ' . Carbon::now()->format('Y-m-d_H-i-s');
+      if ($this->fromDate && $this->toDate) {
+        try {
+          // Safely format dates - Added Carbon::parse just in case inputs aren't Carbon instances
+          $fromDateFormatted = $this->fromDate instanceof Carbon ? $this->fromDate->format('Y-m-d') : (is_string($this->fromDate) ? Carbon::parse($this->fromDate)->format('Y-m-d') : '');
+          $toDateFormatted = $this->toDate instanceof Carbon ? $this->toDate->format('Y-m-d') : (is_string($this->toDate) ? Carbon::parse($this->toDate)->format('Y-m-d') : '');
+
+          if (!empty($fromDateFormatted) && !empty($toDateFormatted)) {
+            $fileName .= ' (' . $fromDateFormatted . '_to_' . $toDateFormatted . ')';
+          }
+        } catch (Exception $formatE) { // Using non-namespaced Exception
+          Log::warning('Could not format dates for export filename: ' . $formatE->getMessage());
+          // This catch block is why the code inside the inner try *after* a potential exception is marked unreachable.
+        }
+      }
+
+
+      Log::info('Initiating fingerprint Excel download.', [
+        'user_id' => Auth::id(),
+        'file_name' => $fileName . '.xlsx',
       ]);
 
-      // Store the file
-      $destinationPath = 'imports';
-      // Use a unique filename to prevent overwriting, maybe include $fileRecord->id
-      $fileName = $fileRecord->id . '_' . $this->file->getClientOriginalName();
-      $path = Storage::putFileAs($destinationPath, $this->file, $fileName);
-
-      // Dispatch event to activate progress bar (if import is async)
-      $this->dispatch('activeProgressBar')->to(Navbar::class);
-
-      // --- Perform the import ---
-      // Assuming ImportFingerprints handles the actual data import logic
-      // Pass necessary context (user ID, import record ID, file path)
-      $import = new ImportFingerprints(Auth::user()->id, $fileRecord->id);
-
-      // Note: If this is synchronous, it might take time and block the UI.
-      // Consider making the import process a Queue Job for large files.
-      Excel::import($import, Storage::path($path)); // Use Storage::path() to get the local file path
-
-      // --- Handle Import Results (Assuming synchronous import) ---
-      // Update import record status based on results
-      $fileRecord->status = 'completed'; // Or 'completed_with_errors'
-      // Optional: Store success/failure counts from the importer ($import->getSuccessCount(), $import->getFailureCount())
-      // $fileRecord->successful_rows = $import->getSuccessCount();
-      // $fileRecord->failed_rows = $import->getFailureCount();
-      // $fileRecord->error_details = json_encode($import->failures()); // Store detailed errors if available
-      $fileRecord->updated_by = Auth::id(); // Assuming updated_by stores User ID
-      $fileRecord->save();
-
-
-      // Send notification upon completion (success or failure summary)
-      // Assuming DefaultNotification can handle different messages or data
-      $notificationMessage = __('Successfully imported the fingerprint file.');
-      // if ($import->failures()->isNotEmpty()) {
-      //      $notificationMessage = __('Fingerprint import completed with errors. :failed rows failed.', ['failed' => $import->getFailureCount()]);
-      // }
-      Notification::send(
-        Auth::user(),
-        new DefaultNotification(Auth::user()->id, $notificationMessage) // Translated notification message
+      // Use the Export class to handle the data formatting for the Excel file
+      return Excel::download(
+        new ExportFingerprints($fingerprintsToExport),
+        $fileName . '.xlsx'
       );
-      $this->dispatch('refreshNotifications')->to(Navbar::class); // Dispatch event to refresh navbar
+    } catch (Exception $e) { // Using non-namespaced Exception
+      Log::error('Error exporting fingerprints report: ' . $e->getMessage(), ['user_id' => Auth::id(), 'exception' => $e]);
+      session()->flash('error', __('An error occurred while exporting the report: ') . $e->getMessage());
+      $this->dispatch('showToast', type: 'error', message: __('Export Failed!'));
+    }
+  }
+
+  // Method to open the modal for creating/editing a fingerprint
+  public function createFingerprint()
+  {
+    $this->reset(['selectedFingerprintId', 'date', 'checkIn', 'checkOut', 'excuse', 'selectedEmployeeId']); // Reset fields for new record including employee
+    $this->isEdit = false;
+    // You might want to set a default date here
+    $this->date = Carbon::now()->format('Y-m-d');
+    // Dispatch an event to show the modal
+    $this->dispatch('showFingerprintModal');
+    // Dispatch event to reset Select2 in the modal
+    $this->dispatch('resetSelect2Modal'); // Use a specific event name for the modal Select2
+  }
+
+  // Method to prepare the modal for editing a fingerprint
+  public function editFingerprint($id)
+  {
+    $fingerprint = Fingerprint::find($id);
+
+    if (!$fingerprint) {
+      session()->flash('error', __('Fingerprint record not found.'));
+      return;
+    }
+
+    $this->selectedFingerprintId = $fingerprint->id;
+    $this->selectedEmployeeId = $fingerprint->employee_id; // Pre-select employee if needed
+    $this->date = $fingerprint->date ? Carbon::parse($fingerprint->date)->format('Y-m-d') : null;
+    $this->checkIn = $fingerprint->check_in; // Time fields might be strings or Carbon instances
+    $this->checkOut = $fingerprint->check_out;
+    $this->excuse = $fingerprint->excuse;
+    $this->isEdit = true;
+
+    // Dispatch an event to show the modal
+    $this->dispatch('showFingerprintModal');
+
+    // Dispatch event to inform Select2 to update its selection (if using Select2 for selectedEmployeeId in modal)
+    // Ensure you have a JS listener for 'select2SetSelected' that targets the correct element ID
+    $this->dispatch('select2SetSelected', id: 'select2SelectedEmployeeIdModal', value: $this->selectedEmployeeId); // Assuming modal select has ID 'select2SelectedEmployeeIdModal'
+  }
+
+
+  // Method to save (create or update) a fingerprint record
+  public function submitFingerprint()
+  {
+    // Define validation rules
+    $rules = [
+      'selectedEmployeeId' => 'required|exists:employees,id',
+      'date' => 'required|date_format:Y-m-d',
+      'checkIn' => 'nullable|date_format:H:i', // Validate time format
+      'checkOut' => 'nullable|date_format:H:i|after:checkIn', // checkOut must be after checkIn if both exist
+      'excuse' => 'nullable|string|max:255',
+    ];
+
+    // Add conditional rule: if checkIn or checkOut are present, date must be present
+    if ($this->checkIn || $this->checkOut) {
+      // This rule is already covered by 'required' above if either is present.
+      // Keeping it explicit might be clearer, but redundant.
+      // $rules['date'] = 'required|date_format:Y-m-d';
+    }
+
+    // If creating, ensure no record exists for this employee on this date (unique check)
+    if (!$this->isEdit) {
+      // Ensure unique combination of employee_id and date
+      $rules['date'] .= '|unique:fingerprints,date,NULL,id,employee_id,' . $this->selectedEmployeeId;
+    } else {
+      // If editing, unique rule needs to ignore the current record being edited
+      $rules['date'] .= '|unique:fingerprints,date,' . $this->selectedFingerprintId . ',id,employee_id,' . $this->selectedEmployeeId;
+    }
+
+    // If editing, the employee might be disabled in the modal form,
+    // but we still need to validate that the submitted selectedEmployeeId is valid.
+    // The 'required|exists' rule handles this.
+
+    // Perform validation
+    $this->validate($rules);
+
+    try {
+      // Find or create the fingerprint record
+      if ($this->isEdit) {
+        $fingerprint = Fingerprint::findOrFail($this->selectedFingerprintId);
+        Log::info('Updating fingerprint record.', [
+          'user_id' => Auth::id(),
+          'fingerprint_id' => $fingerprint->id,
+          'old_data' => $fingerprint->getOriginal(), // Log old data
+          'new_data' => $this->toArray(), // Log new data attempt
+        ]);
+      } else {
+        $fingerprint = new Fingerprint();
+        $fingerprint->employee_id = $this->selectedEmployeeId; // Set employee_id on creation
+        Log::info('Creating new fingerprint record.', [
+          'user_id' => Auth::id(),
+          'data' => $this->toArray(), // Log data attempt
+        ]);
+      }
+
+      // Assign validated data
+      $fingerprint->date = $this->date;
+      $fingerprint->check_in = $this->checkIn;
+      $fingerprint->check_out = $this->checkOut;
+      $fingerprint->log = null; // Manual entry typically has no device log
+      $fingerprint->excuse = $this->excuse;
+      // is_checked might be set based on whether check_in/out are present, or left false for manual entries
+      $fingerprint->is_checked = ($this->checkIn || $this->checkOut) ? true : false;
+      // device_id might be set to null for manual entries
+      $fingerprint->device_id = null;
+
+      // Save the record
+      $fingerprint->save();
+
+      // Log success
+      Log::info($this->isEdit ? 'Fingerprint record updated successfully.' : 'Fingerprint record created successfully.', [
+        'user_id' => Auth::id(),
+        'fingerprint_id' => $fingerprint->id,
+      ]);
+
 
       // Flash success message
-      session()->flash('success', __('Well done! The file has been imported successfully.'));
-      // Flash warning/error if there were failures reported by the importer
-      // if ($import->failures()->isNotEmpty()) {
-      //      session()->flash('warning', $notificationMessage);
+      session()->flash('success', $this->isEdit ? __('Fingerprint record updated successfully!') : __('Fingerprint record created successfully!'));
+
+      // Dispatch events
+      $this->dispatch('closeFingerprintModal'); // Close the modal
+      $this->dispatch('showToast', type: 'success', message: $this->isEdit ? __('Record Updated!') : __('Record Created!'));
+      $this->dispatch('$refresh'); // Refresh the component to show updated list
+
+
+    } catch (Exception $e) { // Using non-namespaced Exception
+      // Log and show error message
+      Log::error('Error saving fingerprint record: ' . $e->getMessage(), [
+        'user_id' => Auth::id(),
+        'data' => $this->toArray(),
+        'exception' => $e
+      ]);
+      session()->flash('error', __('An error occurred while saving the record: ') . $e->getMessage());
+      $this->dispatch('showToast', type: 'error', message: __('Save Failed!'));
+    }
+  }
+
+  // Method to delete a fingerprint record
+  public function deleteFingerprint($id)
+  {
+    try {
+      $fingerprint = Fingerprint::findOrFail($id);
+
+      // Optional: Add a confirmation step before deleting (using Alpine.js or a separate modal)
+      // if (!confirm(__('Are you sure you want to delete this record?'))) {
+      //     return; // User cancelled
       // }
 
+      $fingerprint->delete();
 
-    } catch (ValidationException $e) {
-      // Catch validation exceptions specifically from Maatwebsite/Excel
-      $failures = $e->failures();
-      $errorMessage = __('Import failed due to validation errors:') . ' ' . count($failures) . ' ' . __('rows failed.');
-      // Log details of validation failures
-      Log::error('Fingerprint import validation failed: ' . $errorMessage, ['user_id' => Auth::id(), 'failures' => $failures]);
-      session()->flash('error', $errorMessage);
+      Log::info('Fingerprint record deleted successfully.', [
+        'user_id' => Auth::id(),
+        'fingerprint_id' => $id,
+      ]);
 
-      // Update import record status to failed
-      if (isset($fileRecord)) {
-        $fileRecord->status = 'failed_validation';
-        // $fileRecord->error_details = json_encode($failures);
-        $fileRecord->updated_by = Auth::id();
-        $fileRecord->save();
-      }
-    } catch (Exception $e) {
-      // Catch other exceptions during import (file storage, database errors in importer, etc.)
-      Log::error('Fingerprint import failed: ' . $e->getMessage(), ['user_id' => Auth::id(), 'file' => $this->file ? $this->file->getClientOriginalName() : 'N/A', 'exception' => $e]);
+      session()->flash('success', __('Fingerprint record deleted successfully!'));
+      $this->dispatch('showToast', type: 'success', message: __('Record Deleted!'));
+      $this->dispatch('$refresh'); // Refresh the component to show updated list
 
-      // Provide a user-friendly error message
-      session()->flash('error', __('An error occurred during import. Please check the file format and content.')); // Generic error message
 
-      // Update import record status to failed
-      if (isset($fileRecord)) {
-        $fileRecord->status = 'failed';
-        $fileRecord->error_details = $e->getMessage(); // Store the exception message
-        $fileRecord->updated_by = Auth::id();
-        $fileRecord->save();
-      }
-    } finally {
-      // Ensure file property is reset and import modal is closed regardless of success or failure
-      $this->reset('file'); // Clear the file input field state
-      $this->dispatch('closeModal', elementId: '#importModal'); // Assuming a JS event to close modal
-      // Dispatch toastr based on the final flashed message
-      $this->dispatch('toastr', type: session()->has('success') ? 'success' : (session()->has('warning') ? 'warning' : 'error'), message: session()->get('success') ?? session()->get('warning') ?? session()->get('error'));
-
-      // Optional: Delete the stored file after processing if not needed for archiving
-      // if (isset($path)) { Storage::delete($path); }
+    } catch (Exception $e) { // Using non-namespaced Exception
+      Log::error('Error deleting fingerprint record: ' . $e->getMessage(), [
+        'user_id' => Auth::id(),
+        'fingerprint_id' => $id,
+        'exception' => $e
+      ]);
+      session()->flash('error', __('An error occurred while deleting the record: ') . $e->getMessage());
+      $this->dispatch('showToast', type: 'error', message: __('Deletion Failed!'));
     }
   }
 
-  // Handle Excel export
-  public function exportToExcel()
+
+  // You might have other methods here for filtering, searching, etc.
+  // based on the public properties like $selectedEmployeeId, $fromDate, $toDate, $isAbsence, $search
+
+  // Example method to clear filters (optional)
+  public function clearFilters()
   {
-    // Re-fetch data for export using the same filtering logic as the table display
-    // Use the 'fingerprints' computed property which already applies filters
-    $fingerprintsToExport = $this->fingerprints->items(); // Get the current page's items
-    // OR, if you want ALL filtered items (not just the current page), re-run the query builder before pagination:
-    // $query = Fingerprint::filteredFingerprints( $this->selectedEmployeeId, $this->fromDate, $this->toDate, $this->isAbsence, $this->isOneFingerprint );
-    // $fingerprintsToExport = $query->get(); // Get all filtered results
-
-    if ($fingerprintsToExport->isEmpty()) {
-      session()->flash('error', __('No fingerprints found matching the current filters to export.'));
-      $this->dispatch('toastr', type: 'warning', message: __('No Data!'));
-      return; // Stop here if no data
-    }
-
-    session()->flash('success', __('Well done! The file has been exported successfully.'));
-    $this->dispatch('toastr', type: 'success', message: __('Going Well!')); // Dispatch toastr on success
-
-    // Generate filename
-    $fileName = 'Fingerprints - ' . Auth::user()->name . ' - ' . Carbon::now()->format('Y-m-d_H-i'); // Include date and time for uniqueness
-    // Add date range to filename if filters are applied
-    if ($this->fromDate && $this->toDate) {
-      $fileName .= ' (' . $this->fromDate->format('Y-m-d') . '_to_' . $this->toDate->format('Y-m-d') . ')';
-    }
-
-
-    // Return the Excel download response
-    return Excel::download(
-      new ExportFingerprints($fingerprintsToExport), // Assuming ExportFingerprints accepts a collection
-      $fileName . '.xlsx'
-    );
+    $this->reset(['selectedEmployeeId', 'fromDate', 'toDate', 'isAbsence', 'isOneFingerprint', 'search']);
+    $this->resetPage(); // Reset pagination after clearing filters
+    // Dispatch event to reset select2 if necessary via JS (for filter select)
+    $this->dispatch('resetSelect2Filter'); // Use a specific event name
   }
 
-  // 👉 Helper Methods (Internal logic, not directly callable from view)
+  // Add method to show the import modal
+  public function showImportModal()
+  {
+    $this->resetErrorBag(); // Clear validation errors
+    $this->reset(['file', 'importMessages']); // Clear file input and previous messages
+    $this->showImportModal = true;
+    // Dispatch event to open modal if needed
+    // $this->dispatch('openImportModal');
+  }
 
-  // Add any helper methods needed here
+  // Add method to hide the import modal
+  public function hideImportModal()
+  {
+    $this->showImportModal = false;
+    $this->resetErrorBag(); // Clear validation errors
+    $this->reset(['file', 'importMessages']); // Clear file input and previous messages
+    // Dispatch event to close modal if needed
+    // $this->dispatch('closeImportModal');
+  }
 }
